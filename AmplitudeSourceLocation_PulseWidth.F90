@@ -62,6 +62,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp), allocatable  :: h(:), waveform_tmp(:)
   real(kind = dp)               :: gn, c
   integer                       :: m, n
+
+  !!OpenMP variable
+  !$omp integer                 :: omp_thread
   
   call getarg(1, sacfile_index)
   call getarg(2, dem_file)
@@ -146,11 +149,16 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                hypodist, dist_min, ttime_min, width_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, &
     !$omp&                ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, velocity_interpolate, val_3d, &
     !$omp&                qinv_interpolate, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, wave_index, &
-    !$omp&                rms_amp_obs, icount, residual_normalize)
+    !$omp&                rms_amp_obs, icount, residual_normalize, omp_thread)
+
+    !$omp single
+    !$omp omp_thread = omp_get_thread_num()
+    !$omp end single
 
     !$omp do
     z_loop: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
+      !$omp write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
       lat_loop: do j = 1, nlat - 1
         lat_grid = lat_s + dlat * real(j - 1, kind = fp)
         lon_loop: do i = 1, nlon - 1
