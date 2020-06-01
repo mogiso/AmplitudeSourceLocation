@@ -1,6 +1,7 @@
 program AmplitudeSourceLocation_PulseWidth
   !!Amplitude Source Location using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
-  !$use omp
+
+  !$use omp_lib
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
@@ -137,6 +138,17 @@ program AmplitudeSourceLocation_PulseWidth
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
     write(0, '(a, f6.1)') "origin time = ", origintime
+
+    !$omp parallel default(none), &
+    !$omp&         shared(topography, lat_sta, lon_sta, z_sta, npts, sampling, waveform_obs, velocity, qinv, source_amp, &
+    !$omp&                origintime, residual), &
+    !$omp&         private(i, j, k, ii, jj, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
+    !$omp&                hypodist, dist_min, ttime_min, width_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, &
+    !$omp&                ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, velocity_interpolate, val_3d, &
+    !$omp&                qinv_interpolate, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, wave_index, &
+    !$omp&                rms_amp_obs, icount, residual_normalize)
+
+    !$omp do
     z_loop: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       lat_loop: do j = 1, nlat - 1
@@ -151,7 +163,6 @@ program AmplitudeSourceLocation_PulseWidth
   
           !!calculate traveltime to station        
           station_loop: do jj = 1, nsta
-            if(origintime .gt. npts(jj) * sampling(jj)) exit time_loop
             !!calculate azimuth and hypocentral distance
             call greatcircle_dist(lat_grid, lon_grid, lat_sta(jj), lon_sta(jj), azimuth = az_ini, delta_out = epdelta)
             lon_index = int((lon_sta(jj) - lon_w) / dlon) + 1
@@ -261,6 +272,8 @@ program AmplitudeSourceLocation_PulseWidth
         enddo lon_loop
       enddo lat_loop
     enddo z_loop
+    !$omp end do
+    !$omp end parallel
 
     !!search minimum residual
     residual_minloc = minloc(residual)
