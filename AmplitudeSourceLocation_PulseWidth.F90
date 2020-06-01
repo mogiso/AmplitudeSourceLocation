@@ -1,5 +1,6 @@
 program AmplitudeSourceLocation_PulseWidth
   !!Amplitude Source Location using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
+  !$use omp
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
@@ -36,11 +37,9 @@ program AmplitudeSourceLocation_PulseWidth
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 1
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
-  &                                topography(1 : nlon, 1 : nlat), width_min(1 : nsta), &
-  &                                sampling(1 : nsta), begin(1 : nsta), &
-  &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), lon_sta(1 : nsta), lat_sta(1 : nsta), &
-  &                                z_sta(1 : nsta)
+  &                                topography(1 : nlon, 1 : nlat), width_min(1 : nsta), sampling(1 : nsta), begin(1 : nsta), &
+  &                                val_1d(1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), &
+  &                                lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta)
   real(kind = dp)               :: waveform_obs(1 : npts_max, 1 : nsta), rms_amp_obs(1 : nsta), hypodist(1 : nsta), &
   &                                residual(1 : nlon, 1 : nlat, 1 : nz), xrange(1 : 2), yrange(1 : 2), spacing(1 : 2), &
   &                                source_amp(1 : nlon, 1 : nlat, 1 : nz)
@@ -48,7 +47,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = sp), allocatable  :: residual_grd(:, :)
   
   real(kind = fp)               :: ttime_tmp, ttime_min, width_tmp, velocity_interpolate, qinv_interpolate, &
-  &                                topography_interpolate, az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
+  &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
   &                                lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
   &                                ot_begin, ot_end, ot_shift
@@ -133,22 +132,22 @@ program AmplitudeSourceLocation_PulseWidth
 
  
   time_count = 0
+  residual(1 : nlon, 1 : nlat, 1 : nz) = 1.0e+10_dp
   time_loop: do
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
-    write(0, *) "origin time = ", origintime
-    z_loop: do k = 1, nz
+    write(0, '(a, f6.1)') "origin time = ", origintime
+    z_loop: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
-      lat_loop: do j = 1, nlat
+      lat_loop: do j = 1, nlat - 1
         lat_grid = lat_s + dlat * real(j - 1, kind = fp)
-        lon_loop: do i = 1, nlon
+        lon_loop: do i = 1, nlon - 1
           lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
-          residual(i, j, k) = 1.0e+10_dp
 
           !!check the grid is lower than the topo
           if(depth_grid .lt. topography(i, j)) cycle
-          write(0, '(a, (f7.3, 1x, f6.3, 1x, f6.2), a)') "(lon, lat, z) = ", lon_grid, lat_grid, depth_grid, ")"
+          !write(0, '(a, (f7.3, 1x, f6.3, 1x, f6.2), a)') "(lon, lat, z) = (", lon_grid, lat_grid, depth_grid, ")"
   
           !!calculate traveltime to station        
           station_loop: do jj = 1, nsta
@@ -227,7 +226,7 @@ program AmplitudeSourceLocation_PulseWidth
               enddo shooting_loop
   
             enddo incangle_loop
-            print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min
+            !print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min
   
             !!caluculate site-corrected amplitude
             !!caluculate index of waveform array
@@ -283,7 +282,7 @@ program AmplitudeSourceLocation_PulseWidth
     yrange(1) = lat_s
     yrange(2) = lat_s + real(nlat - 1, kind = dp)
     spacing(1 : 2) = (/dlon, dlat/)
-    residual_grd(1 : nlon, 1 : nlat) = residual(1 : nlon, 1 : nlat, residual_minloc(3))
+    residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
     deallocate(residual_grd)
 
@@ -295,7 +294,7 @@ program AmplitudeSourceLocation_PulseWidth
     yrange(1) = z_min
     yrange(2) = z_min + real(nz - 1, kind = dp)
     spacing(1 : 2) = (/dlon, dz/)
-    residual_grd(1 : nlon, 1 : nz) = residual(1 : nlon, residual_minloc(2), 1 : nz)
+    residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
     deallocate(residual_grd)
 
@@ -309,7 +308,7 @@ program AmplitudeSourceLocation_PulseWidth
     spacing(1 : 2) = (/dz, dlat/)
     do j = 1, nz
       do i = 1, nlat
-        residual_grd(j, i) = residual(residual_minloc(1), i, j)
+        residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
       enddo
     enddo
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
