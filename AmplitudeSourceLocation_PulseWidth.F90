@@ -1,7 +1,6 @@
 program AmplitudeSourceLocation_PulseWidth
   !!Amplitude Source Location using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
 
-  !$use omp_lib
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
@@ -10,7 +9,8 @@ program AmplitudeSourceLocation_PulseWidth
   use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
   use itoa,                 only : int_to_char
-  use GMT
+  use GMT,                  only : grd_create
+  !$ use omp_lib
 
   implicit none
 
@@ -56,7 +56,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp)               :: residual_normalize, amp_avg
   
   integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, grd_status
-  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, ot_shift_t, grdfile
+  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, ot_shift_t, grdfile, resultfile
   character(len = maxlen)       :: time_count_char
 
   real(kind = dp), allocatable  :: h(:), waveform_tmp(:)
@@ -64,13 +64,20 @@ program AmplitudeSourceLocation_PulseWidth
   integer                       :: m, n
 
   !!OpenMP variable
-  !$omp integer                 :: omp_thread
+  !$ integer                 :: omp_thread
+
+  icount = iargc()
+  if(icount .ne. 6) then
+    write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end ot_shift result_file_name"
+    stop
+  endif
   
   call getarg(1, sacfile_index)
   call getarg(2, dem_file)
   call getarg(3, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(5, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(6, resultfile)
 
   write(0, '(a, 3(f8.3, 1x))') "lon_w, lat_s, z_min = ", lon_w, lat_s, z_min
   write(0, '(a, 3(i0))') "nlon, nlat, nz = ", nlon, nlat, nz
@@ -137,6 +144,8 @@ program AmplitudeSourceLocation_PulseWidth
  
   time_count = 0
   residual(1 : nlon, 1 : nlat, 1 : nz) = 1.0e+10_dp
+  open(unit = 10, file = trim(resultfile))
+  write(10, '(a)') "#OT min_lon min_lat min_dep source_amp residual"
   time_loop: do
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
@@ -152,13 +161,13 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                rms_amp_obs, icount, residual_normalize, omp_thread)
 
     !$omp single
-    !$omp omp_thread = omp_get_thread_num()
+    !$ omp_thread = omp_get_thread_num()
     !$omp end single
 
     !$omp do
     z_loop: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
-      !$omp write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
+      !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
       lat_loop: do j = 1, nlat - 1
         lat_grid = lat_s + dlat * real(j - 1, kind = fp)
         lon_loop: do i = 1, nlon - 1
@@ -292,6 +301,10 @@ program AmplitudeSourceLocation_PulseWidth
     &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
     &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+    write(10, '(f6.1, 1x, f7.3, 1x, f6.3, 1x, f6.2, 2(1x, e15.7))') &
+    &                 origintime, lon_grid, lat_grid, depth_grid, &
+    &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
+    &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
 
     !!output grd files
     call int_to_char(time_count, maxlen, time_count_char)
@@ -337,6 +350,7 @@ program AmplitudeSourceLocation_PulseWidth
 
     time_count = time_count + 1
   enddo time_loop
+  close(10)
 
   stop
 end program AmplitudeSourceLocation_PulseWidth
