@@ -5,7 +5,7 @@ module read_sacfile
   contains
 
   subroutine read_sachdr(infile, &
-  &  header, delta, begin, origin, ptime, t0, t1, t2, t3, stlat, stlon, eqlat, eqlon, eqdep, npts, &
+  &  header, delta, begin, origin, ptime, t0, t1, t2, t3, stlat, stlon, stdp, eqlat, eqlon, eqdep, npts, &
   &  user7, user8, user9, stname)
     use nrtype, only : fp, sp
     implicit none
@@ -21,6 +21,7 @@ module read_sacfile
     real(kind = fp), intent(out), optional :: t3
     real(kind = fp), intent(out), optional :: stlat
     real(kind = fp), intent(out), optional :: stlon
+    real(kind = fp), intent(out), optional :: stdp
     real(kind = fp), intent(out), optional :: eqlat
     real(kind = fp), intent(out), optional :: eqlon
     real(kind = fp), intent(out), optional :: eqdep
@@ -70,6 +71,9 @@ module read_sacfile
     endif
     if(present(stlon)) then
       read(10, rec = 33) buf; stlon = real(buf, kind = fp)
+    endif
+    if(present(stdp)) then
+      read(10, rec = 35) buf; stdp = real(buf, kind = fp)
     endif
     if(present(eqlat)) then
       read(10, rec = 36) buf; eqlat = real(buf, kind = fp)
