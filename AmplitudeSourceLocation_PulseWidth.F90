@@ -81,8 +81,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   ot_shift = rms_tw / 2.0_fp
 
-  write(0, '(a, 3(f8.3, 1x))') "lon_w, lat_s, z_min = ", lon_w, lat_s, z_min
-  write(0, '(a, 3(i0))') "nlon, nlat, nz = ", nlon, nlat, nz
+  write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
+  write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
 
   !!read topography file
   !!pay attention to the order
