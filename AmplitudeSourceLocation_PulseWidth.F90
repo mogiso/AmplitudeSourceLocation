@@ -186,7 +186,7 @@ program AmplitudeSourceLocation_PulseWidth
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
           
           !!do ray shooting
-          dist_min = 1.0e+10_fp
+          dist_min = huge
           ttime_min(jj, i, j, k) = real(huge, kind = fp)
           width_min(jj, i, j, k) = 0.0_fp
           incangle_loop: do ii = 1, ninc_angle - 1
@@ -269,7 +269,7 @@ program AmplitudeSourceLocation_PulseWidth
     write(0, '(a, f6.1)') "origin time = ", origintime
 
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
-    residual(1 : nlon, 1 : nlat, 1 : nz) = 1.0e+10_dp
+    residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     z_loop2: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       lat_loop2: do j = 1, nlat - 1
