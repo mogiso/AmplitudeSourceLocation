@@ -35,6 +35,7 @@ program AmplitudeSourceLocation_PulseWidth
   integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 1
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 1
   real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
+  real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
   &                                topography(1 : nlon, 1 : nlat), sampling(1 : nsta), begin(1 : nsta), &
@@ -186,7 +187,7 @@ program AmplitudeSourceLocation_PulseWidth
           
           !!do ray shooting
           dist_min = 1.0e+10_fp
-          ttime_min(jj, i, j, k) = 1.0e+10_fp
+          ttime_min(jj, i, j, k) = real(huge, kind = fp)
           width_min(jj, i, j, k) = 0.0_fp
           incangle_loop: do ii = 1, ninc_angle - 1
             inc_angle_tmp = real(ii, kind = fp) * dinc_angle
@@ -259,7 +260,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!find minimum residual grid for seismic source 
   open(unit = 10, file = trim(resultfile))
   write(10, '(a)') "# OT min_lon min_lat min_dep source_amp residual"
-  residual(1 : nlon, 1 : nlat, 1 : nz) = 1.0e+10_dp
+  residual(1 : nlon, 1 : nlat, 1 : nz) = huge
 
   time_count = 0
   time_loop: do
@@ -278,7 +279,7 @@ program AmplitudeSourceLocation_PulseWidth
 
           !!caluculate site-corrected amplitude
           do jj = 1, nsta
-            if(ttime_min(jj, i, j, k) .eq. 1.0e+10_fp) then
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
               cycle lon_loop2
             endif
 
@@ -339,7 +340,8 @@ program AmplitudeSourceLocation_PulseWidth
     yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp) * dlat
     spacing(1 : 2) = (/real(dlon, kind = dp), real(dlat, kind = dp)/)
     residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
+    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
+    &                       NaN = real(huge, kind = sp), overwrite = .true.)
     deallocate(residual_grd)
 
     !!output depth slice -- lon-dep
@@ -351,7 +353,8 @@ program AmplitudeSourceLocation_PulseWidth
     yrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
     spacing(1 : 2) = (/real(dlon, kind = dp), real(dz, kind = dp)/)
     residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
+    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
+    &                       NaN = real(huge, kind = sp), overwrite = .true.)
     deallocate(residual_grd)
 
     !!output depth slice -- dep-lat
@@ -367,7 +370,8 @@ program AmplitudeSourceLocation_PulseWidth
         residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
       enddo
     enddo
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
+    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
+    &                       NaN = real(huge, kind = sp), overwrite = .true.)
     deallocate(residual_grd)
 
     time_count = time_count + 1
