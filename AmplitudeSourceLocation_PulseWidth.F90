@@ -19,23 +19,22 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.0_fp
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp
-  integer,            parameter :: ninc_angle = 200
-  real(kind = fp),    parameter :: rms_tw = 10.0_fp
+  integer,            parameter :: ninc_angle = 200                         !!ray shooting
   integer,            parameter :: npts_max = 7200 * 200
   integer,            parameter :: nsta = 4
   character(len = 6), parameter :: stname(1 : nsta) = (/"V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"/)
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = (/1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp/)
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = (/1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp/)
   real(kind = fp),    parameter :: time_step = 0.01_fp
-  real(kind = fp),    parameter :: freq = 7.5_fp
-  real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp
-  real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp
-  real(kind = dp),    parameter :: order = 1.0e-3_dp
-  integer,            parameter :: maxlen = 5
+  real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
+  integer,            parameter :: maxlen = 4
+  real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
+  real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
 
   real(kind = fp),    parameter :: dinc_angle = pi / real(ninc_angle, kind = fp)
   integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
   integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 1
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 1
+  real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
   &                                topography(1 : nlon, 1 : nlat), width_min(1 : nsta), sampling(1 : nsta), begin(1 : nsta), &
@@ -51,12 +50,13 @@ program AmplitudeSourceLocation_PulseWidth
   &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
   &                                lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
-  &                                ot_begin, ot_end, ot_shift
+  &                                ot_begin, ot_end, ot_shift, rms_tw
   real(kind = sp)               :: lon_r, lat_r, topo_r
   real(kind = dp)               :: residual_normalize, amp_avg
   
   integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, grd_status
-  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, ot_shift_t, grdfile, resultfile
+  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, &
+  &                                grdfile, resultfile
   character(len = maxlen)       :: time_count_char
 
   real(kind = dp), allocatable  :: h(:), waveform_tmp(:)
@@ -64,11 +64,11 @@ program AmplitudeSourceLocation_PulseWidth
   integer                       :: m, n
 
   !!OpenMP variable
-  !$ integer                 :: omp_thread
+  !$ integer                    :: omp_thread
 
   icount = iargc()
   if(icount .ne. 6) then
-    write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end ot_shift result_file_name"
+    write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end rms_time_window result_file_name"
     stop
   endif
   
@@ -76,8 +76,10 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(2, dem_file)
   call getarg(3, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
-  call getarg(5, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(5, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(6, resultfile)
+
+  ot_shift = rms_tw / 2.0_fp
 
   write(0, '(a, 3(f8.3, 1x))') "lon_w, lat_s, z_min = ", lon_w, lat_s, z_min
   write(0, '(a, 3(i0))') "nlon, nlat, nz = ", nlon, nlat, nz
@@ -134,8 +136,10 @@ program AmplitudeSourceLocation_PulseWidth
     !!design
     call calc_bpf_order(fl, fh, fs, ap, as, sampling(j), m, n, c)
     allocate(h(4 * m), waveform_tmp(npts(j)))
-    waveform_tmp(1 : npts(j)) = waveform_obs(1 : npts(j), j)
     call calc_bpf_coef(fl, fh, sampling(j), m, n, h, c, gn)
+
+    !!apply
+    waveform_tmp(1 : npts(j)) = waveform_obs(1 : npts(j), j)
     call tandem1(waveform_tmp, waveform_tmp, npts(j), h, m, 1)
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
@@ -145,7 +149,7 @@ program AmplitudeSourceLocation_PulseWidth
   time_count = 0
   residual(1 : nlon, 1 : nlat, 1 : nz) = 1.0e+10_dp
   open(unit = 10, file = trim(resultfile))
-  write(10, '(a)') "#OT min_lon min_lat min_dep source_amp residual"
+  write(10, '(a)') "# OT min_lon min_lat min_dep source_amp residual"
   time_loop: do
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
@@ -153,18 +157,16 @@ program AmplitudeSourceLocation_PulseWidth
 
     !$omp parallel default(none), &
     !$omp&         shared(topography, lat_sta, lon_sta, z_sta, npts, sampling, waveform_obs, velocity, qinv, source_amp, &
-    !$omp&                origintime, residual), &
+    !$omp&                origintime, residual, rms_tw), &
     !$omp&         private(i, j, k, ii, jj, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
     !$omp&                hypodist, dist_min, ttime_min, width_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, &
     !$omp&                ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, velocity_interpolate, val_3d, &
     !$omp&                qinv_interpolate, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, wave_index, &
     !$omp&                rms_amp_obs, icount, residual_normalize, omp_thread)
 
-    !$omp single
     !$ omp_thread = omp_get_thread_num()
-    !$omp end single
 
-    !$omp do
+    !$omp do schedule(guided)
     z_loop: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
@@ -225,7 +227,7 @@ program AmplitudeSourceLocation_PulseWidth
                 call greatcircle_dist(lat_tmp, lon_tmp, lat_sta(jj), lon_sta(jj), delta_out = epdelta)
                 dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - z_sta(jj)) ** 2 &
                 &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - z_sta(jj)) * cos(epdelta))
-                !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp, topography_interpolate
+                !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
                 !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
 
                 if(dist_tmp .lt. dist_min) then
@@ -254,34 +256,35 @@ program AmplitudeSourceLocation_PulseWidth
               enddo shooting_loop
   
             enddo incangle_loop
-            !print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min
+            !print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min, width_min(jj)
   
             !!caluculate site-corrected amplitude
             !!caluculate index of waveform array
             wave_index = int((origintime + ttime_min) / sampling(jj) + 0.5_fp) + 1
             rms_amp_obs(jj) = 0.0_fp
             icount = 0
-            do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp)
+            do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
               if(ii .lt. npts(jj)) then
                 rms_amp_obs(jj) = rms_amp_obs(jj) + waveform_obs(ii, jj) * waveform_obs(ii, jj)
                 icount = icount + 1
               endif
             enddo
-            rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = fp))
+            rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
           enddo station_loop
   
           !!calculate source amplitude and residual
           source_amp(i, j, k) = 0.0_dp
           do ii = 1, nsta
             source_amp(i, j, k) = source_amp(i, j, k) &
-            &            + rms_amp_obs(ii) / siteamp(ii) * hypodist(ii) * exp(width_min(ii) * (pi * freq)) / real(nsta, kind = fp)
+            &            + rms_amp_obs(ii) / siteamp(ii) * hypodist(ii) * exp(width_min(ii) * (pi * freq))
           enddo
+          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta, kind = dp)
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp
           do ii = 1, nsta
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
-            &                    - source_amp(i, j, k) / hypodist(ii) * exp(-pi * freq * width_min(ii))) ** 2
+            &                 - source_amp(i, j, k) / hypodist(ii) * exp(-pi * freq * width_min(ii))) ** 2
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
           enddo
           residual(i, j, k) = residual(i, j, k) / residual_normalize
@@ -297,11 +300,11 @@ program AmplitudeSourceLocation_PulseWidth
     lon_grid = lon_w + real(residual_minloc(1) - 1, kind = fp) * dlon
     lat_grid = lat_s + real(residual_minloc(2) - 1, kind = fp) * dlat
     depth_grid = z_min + real(residual_minloc(3) - 1, kind = fp) * dz
-    write(0, '(a, f6.1, a, f7.3, 1x, f6.3, 1x, f6.2, 2(a, e11.7))') &
+    write(0, '(a, f0.1, a, f0.3, 1x, f0.3, 1x, f0.2, a, 2(a, e15.7))') &
     &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
     &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
-    write(10, '(f6.1, 1x, f7.3, 1x, f6.3, 1x, f6.2, 2(1x, e15.7))') &
+    write(10, '(f0.1, 1x, f0.3, 1x, f0.3, 1x, f0.2, 2(1x, e15.7))') &
     &                 origintime, lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
@@ -311,11 +314,11 @@ program AmplitudeSourceLocation_PulseWidth
     !!output horizontal slice
     grdfile = "min_err_lon-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nlat))
-    xrange(1) = lon_w
-    xrange(2) = lon_w + real(nlon - 1, kind = dp)
-    yrange(1) = lat_s
-    yrange(2) = lat_s + real(nlat - 1, kind = dp)
-    spacing(1 : 2) = (/dlon, dlat/)
+    xrange(1) = real(lon_w, kind = dp)
+    xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp)
+    yrange(1) = real(lat_s, kind = dp)
+    yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp)
+    spacing(1 : 2) = (/real(dlon, kind = dp), real(dlat, kind = dp)/)
     residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
     deallocate(residual_grd)
@@ -323,11 +326,11 @@ program AmplitudeSourceLocation_PulseWidth
     !!output depth slice -- lon-dep
     grdfile = "min_err_lon-dep_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nz))
-    xrange(1) = lon_w
-    xrange(2) = lon_w + real(nlon - 1, kind = dp)
-    yrange(1) = z_min
-    yrange(2) = z_min + real(nz - 1, kind = dp)
-    spacing(1 : 2) = (/dlon, dz/)
+    xrange(1) = real(lon_w, kind = dp)
+    xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp)
+    yrange(1) = real(z_min, kind = dp)
+    yrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp)
+    spacing(1 : 2) = (/real(dlon, kind = dp), real(dz, kind = dp)/)
     residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, overwrite = .true.)
     deallocate(residual_grd)
@@ -335,11 +338,11 @@ program AmplitudeSourceLocation_PulseWidth
     !!output depth slice -- dep-lat
     grdfile = "min_err_dep-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nz, nlat))
-    xrange(1) = z_min
-    xrange(2) = z_min + real(nz - 1, kind = dp)
-    yrange(1) = lat_s
-    yrange(2) = lat_s + real(nlat - 1, kind = dp)
-    spacing(1 : 2) = (/dz, dlat/)
+    xrange(1) = real(z_min, kind = dp)
+    xrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp)
+    yrange(1) = real(lat_s, kind = dp)
+    yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp)
+    spacing(1 : 2) = (/real(dz, kind = dp), real(dlat, kind = dp)/)
     do j = 1, nz
       do i = 1, nlat
         residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
