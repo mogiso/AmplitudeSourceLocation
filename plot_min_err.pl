@@ -70,8 +70,8 @@ system "gmt set FONT_LABEL 14p,Helvetica";
 system "gmt set MAP_FRAME_PEN thin";
 
 $cpt = "error.cpt";
-#for($i = 0; $i <= $#sec_from_begin; $i++){
-for($i = 0; $i <= 0; $i++){
+for($i = 0; $i <= $#sec_from_begin; $i++){
+#for($i = 0; $i <= 0; $i++){
   $sec_from_day = $begin_sec + $sec_from_begin[$i];
   $hh_tmp = int($sec_from_day / 3600.0);
   $mm_tmp = int(($sec_from_day - $hh_tmp * 3600.0) / 60.0);
@@ -146,5 +146,10 @@ for($i = 0; $i <= 0; $i++){
   open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -P >> $out";
   close OUT;
 
+  system "gmt psconvert $out -Tg";
+
 }
+
+unlink "gmt.conf";
+unlink "gmt.history";
 
