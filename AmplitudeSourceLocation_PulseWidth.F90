@@ -17,7 +17,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
-  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.0_fp
+  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp
   integer,            parameter :: ninc_angle = 200                         !!ray shooting
   integer,            parameter :: npts_max = 7200 * 200
@@ -119,6 +119,8 @@ program AmplitudeSourceLocation_PulseWidth
       enddo
     endif
     call read_sacdata(sacfile, npts_max, waveform_obs(:, j))
+    write(0, '(a, i0, 3a, f8.4, 1x, f7.4)') &
+    &     "station(", j, ") name = ", trim(stname(j)), " lon/lat = ", lon_sta(j), lat_sta(j)
   enddo
 
   !!remove offset
