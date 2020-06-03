@@ -146,7 +146,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -P >> $out";
   close OUT;
 
-  system "gmt psconvert $out -Tg";
+  system "gmt psconvert $out -A -Tg";
 
 }
 
