@@ -49,6 +49,9 @@ module set_velocity_model
       if(i .eq. 1) write(0, '(a)') "Velocity/Qinv = constant"
       velocity(1 : nlon, 1 : nlat, i) = 2.5_fp
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
+#else
+      write(0, *) "please set -DVEL_CONST or appropriate definition"
+      stop
 #endif
 
       !!Vp to Vs
