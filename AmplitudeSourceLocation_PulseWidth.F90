@@ -186,6 +186,13 @@ program AmplitudeSourceLocation_PulseWidth
           !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
+
+#ifdef VEL_CONST
+          !!homogeneous structure: using velocity/qinv at the grid
+          ttime_min(jj, i, j, k) = hypodist(jj, i, j, k) / velocity(i, j, k)
+          width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(i, j, k)
+
+#else
           
           !!do ray shooting
           dist_min = huge
@@ -252,6 +259,7 @@ program AmplitudeSourceLocation_PulseWidth
 
           enddo incangle_loop
           !print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min, width_min(jj)
+#endif
         enddo station_loop
       enddo lon_loop
     enddo lat_loop
