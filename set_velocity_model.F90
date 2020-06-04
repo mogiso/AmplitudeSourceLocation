@@ -51,6 +51,7 @@ module set_velocity_model
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
 #else
       write(0, *) "please set -DVEL_CONST or appropriate definition"
+      qinv(1 : nlon, 1 : nlat, i) = 0.0_fp
       stop
 #endif
 
