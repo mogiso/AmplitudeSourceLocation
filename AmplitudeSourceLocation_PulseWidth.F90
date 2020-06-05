@@ -32,17 +32,18 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp),    parameter :: siteamp(1 : nsta) = (/1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp/)
 
   real(kind = fp),    parameter :: time_step = 0.01_fp
-  real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
   integer,            parameter :: maxlen = 4
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
   real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
+  real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
+  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
+  real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp),    parameter :: dinc_angle = pi / real(ninc_angle, kind = fp)
   integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
   integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 1
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 1
   real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
-  real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
   &                                topography(1 : nlon, 1 : nlat), sampling(1 : nsta), begin(1 : nsta), &
@@ -79,7 +80,7 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef WIN
   !!in case of win file input
   character(len = 129)          :: win_filename, win_chfilename
-  real(dp), parameter           :: order_um = 1.0e+6_dp
+  real(dp), parameter           :: order_um = 1.0e+6_dp                     !! m/s to micro-m/s 
   integer                       :: sampling_int(1 : nsta)
   integer                       :: nsec, tim, nch_chtbl
   integer,          allocatable :: waveform_obs_int(:, :), npts_win(:, :)
@@ -93,7 +94,7 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef WIN
   if(icount .ne. 7) then
     write(0, '(a)') "usage: ./a.out winfile win_chfile dem_file_name ot_begin ot_end rms_time_window result_file_name"
-    stop
+    error stop
   endif
   
   call getarg(1, win_filename)
@@ -106,7 +107,7 @@ program AmplitudeSourceLocation_PulseWidth
 #else
   if(icount .ne. 6) then
     write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end rms_time_window result_file_name"
-    stop
+    error stop
   endif
   
   call getarg(1, sacfile_index)
@@ -129,7 +130,7 @@ program AmplitudeSourceLocation_PulseWidth
   do j = nlat, 1, -1
     do i = 1, nlon
       read(10, rec = icount) lon_r, lat_r, topo_r
-      topography(i, j) = real(topo_r, kind = fp) * (-0.001_fp)
+      topography(i, j) = real(topo_r, kind = fp) * alt_to_depth
       icount = icount + 1
     enddo
   enddo
@@ -153,14 +154,14 @@ program AmplitudeSourceLocation_PulseWidth
         write(0, '(3a)') "chid ", st_winch(j), " found"
         lon_sta(j) = real(chtbl(i)%lon, kind = fp)
         lat_sta(j) = real(chtbl(i)%lat, kind = fp)
-        z_sta(j)   = real(chtbl(i)%elev, kind = fp) * (-0.001_fp)
+        z_sta(j)   = real(chtbl(i)%elev, kind = fp) * alt_to_depth
         npts(j) = nsec * sampling_int(j)
         sampling(j) = 1.0_fp / real(sampling_int(j), kind = fp)
         do ii = 1, npts(j)
           waveform_obs(ii, j) = waveform_obs_int(ii, j) * chtbl(i)%conv * order_um
         enddo
-        write(0, '(a, i0, 3a, f8.4, 1x, f7.4)') &
-        &     "station(", j, ") name = ", trim(stname(j)), " lon/lat = ", lon_sta(j), lat_sta(j)
+        write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
+        &     "station(", j, ") name = ", trim(chtbl(i)%stnm), " lon/lat = ", lon_sta(j), lat_sta(j), z_sta(j)
         exit chtbl_loop
       endif
     enddo chtbl_loop
@@ -180,16 +181,19 @@ program AmplitudeSourceLocation_PulseWidth
       do i = 1, j - 1
         if(begin(j) .ne. begin(i)) then
           write(0, '(3a)') "beginning time is different: ", trim(stname(j)), trim(stname(i))
-          stop
+          error stop
         endif
       enddo
     endif
-    write(0, '(a, i0, 3a, f8.4, 1x, f7.4)') &
-    &     "station(", j, ") name = ", trim(stname(j)), " lon/lat = ", lon_sta(j), lat_sta(j)
+    write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
+    &     "station(", j, ") name = ", trim(stname(j)), " lon/lat/dep = ", lon_sta(j), lat_sta(j), z_sta(j)
   enddo
   allocate(waveform_obs(npts_max, nsta))
   do i = 1, nsta
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
+  enddo
+  do i = 1, nsta
+    waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
 #endif
 
@@ -203,7 +207,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
     amp_avg = amp_avg / real(icount, kind = dp)
     do i = 1, npts(j)
-      waveform_obs(i, j) = (waveform_obs(i, j) - amp_avg) * order
+      waveform_obs(i, j) = (waveform_obs(i, j) - amp_avg)
     enddo
   enddo
 
@@ -346,7 +350,7 @@ program AmplitudeSourceLocation_PulseWidth
   time_loop: do
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
-    write(0, '(a, f6.1)') "origin time = ", origintime
+    !write(0, '(a, f6.1)') "origin time = ", origintime
 
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
@@ -364,6 +368,10 @@ program AmplitudeSourceLocation_PulseWidth
             endif
 
             wave_index = int((origintime + ttime_min(jj, i, j, k)) / sampling(jj) + 0.5_fp) + 1
+            if(wave_index .gt. npts(jj)) then
+              write(0, '(a)') "wave_index is larger than npts"
+              error stop
+            endif
             rms_amp_obs(jj) = 0.0_fp
             icount = 0
             do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
