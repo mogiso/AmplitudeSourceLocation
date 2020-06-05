@@ -1,4 +1,5 @@
 #!/usr/bin/env perl
+use File::Basename;
 #
 #plot ASL result
 
@@ -9,6 +10,15 @@ $hh = $ARGV[3];
 $mm = $ARGV[4];
 $ss = $ARGV[5];
 $result = $ARGV[6];
+$dem_dir = $ARGV[7];
+
+$argc = $#ARGV;
+if($argc != 7){
+  print stderr "usage: perl plot_min_err.pl year month day hh mm ss resultfile demfile_dir\n";
+  die;
+}
+
+$resultdir = dirname $result;
 
 $begin_sec = $hh * 3600 + $mm * 60 + $ss;
 
@@ -60,9 +70,9 @@ $symbolsize_st = 0.45;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
 
-$demfile = "mea_dem.grd";
-$cross_londep = "mea_crosssection_londep.dat";
-$cross_deplat = "mea_crosssection_deplat.dat";
+$demfile = "${dem_dir}/mea_dem.grd";
+$cross_londep = "${dem_dir}/mea_crosssection_londep.dat";
+$cross_deplat = "${dem_dir}/mea_crosssection_deplat.dat";
 
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
@@ -83,10 +93,10 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   $date = "$yr/$mo/$dy $hh_tmp:$mm_tmp:$ss_tmp";
 
   $output_index = sprintf "%04d", $i;
-  $min_err_lonlat = "min_err_lon-lat_${output_index}.grd";
-  $min_err_londep = "min_err_lon-dep_${output_index}.grd";
-  $min_err_deplat = "min_err_dep-lat_${output_index}.grd";
-  $out = "min_err_${output_index}.ps";
+  $min_err_lonlat = "${resultdir}/min_err_lon-lat_${output_index}.grd";
+  $min_err_londep = "${resultdir}/min_err_lon-dep_${output_index}.grd";
+  $min_err_deplat = "${resultdir}/min_err_dep-lat_${output_index}.grd";
+  $out = "${resultdir}/min_err_${output_index}.ps";
 
   print stderr "output ps = $out\n";
   open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -K -P -X3c -Y12c > $out";
