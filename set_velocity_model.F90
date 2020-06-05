@@ -18,6 +18,8 @@ module set_velocity_model
     nlat = ubound(velocity, 2)
     nz = ubound(velocity, 3)
   
+    qinv(1 : nlon, 1 : nlat, 1 : nz) = 0.0_fp
+    velocity(1 : nlon, 1 : nlat, 1 : nz) = 0.0_fp
     do i = 1, nz
       depth = z_min + dz * real(i - 1, kind = fp)
 #if defined (MEA_1D)
@@ -51,7 +53,6 @@ module set_velocity_model
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
 #else
       write(0, *) "please set -DVEL_CONST or appropriate definition"
-      qinv(1 : nlon, 1 : nlat, i) = 0.0_fp
       stop
 #endif
 
