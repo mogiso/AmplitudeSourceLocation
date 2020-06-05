@@ -103,7 +103,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(4, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(5, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(6, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(8, resultdir)
+  call getarg(7, resultdir)
   call getarg(8, resultfile)
 #else
   if(icount .ne. 7) then
@@ -117,7 +117,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(5, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(6, resultdir)
-  call getarg(6, resultfile)
+  call getarg(7, resultfile)
 #endif
 
   ot_shift = rms_tw / 2.0_fp
