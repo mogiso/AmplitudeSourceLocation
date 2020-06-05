@@ -10,6 +10,10 @@ program AmplitudeSourceLocation_PulseWidth
   use greatcircle,          only : greatcircle_dist
   use itoa,                 only : int_to_char
   use GMT,                  only : grd_create
+#ifdef WIN
+  use m_win
+  use m_winch
+#endif
   !$ use omp_lib
 
   implicit none
@@ -20,10 +24,13 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp
   integer,            parameter :: ninc_angle = 200                         !!ray shooting
-  integer,            parameter :: npts_max = 7200 * 200
   integer,            parameter :: nsta = 4
   character(len = 6), parameter :: stname(1 : nsta) = (/"V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"/)
+#ifdef WIN
+  character(len = 4), parameter :: st_winch(1 : nsta) = (/"2724", "13F1", "274D", "2720"/)
+#endif
   real(kind = dp),    parameter :: siteamp(1 : nsta) = (/1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp/)
+
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
   integer,            parameter :: maxlen = 4
@@ -44,11 +51,11 @@ program AmplitudeSourceLocation_PulseWidth
   &                                width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &                                ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &                                hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz)
-  real(kind = dp)               :: waveform_obs(1 : npts_max, 1 : nsta), rms_amp_obs(1 : nsta), &
-  &                                residual(1 : nlon, 1 : nlat, 1 : nz), xrange(1 : 2), yrange(1 : 2), spacing(1 : 2), &
-  &                                source_amp(1 : nlon, 1 : nlat, 1 : nz)
+  real(kind = dp)               :: rms_amp_obs(1 : nsta), residual(1 : nlon, 1 : nlat, 1 : nz), &
+  &                                xrange(1 : 2), yrange(1 : 2), spacing(1 : 2), source_amp(1 : nlon, 1 : nlat, 1 : nz)
   integer                       :: npts(1 : nsta), residual_minloc(3)
   real(kind = sp), allocatable  :: residual_grd(:, :)
+  real(kind = dp), allocatable  :: waveform_obs(:, :)
   
   real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
   &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
@@ -58,19 +65,45 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = sp)               :: lon_r, lat_r, topo_r
   real(kind = dp)               :: residual_normalize, amp_avg
   
-  integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, grd_status
+  integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, &
+  &                                grd_status, npts_max
   character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, &
   &                                grdfile, resultfile
   character(len = maxlen)       :: time_count_char
 
+  !!filter variables
   real(kind = dp), allocatable  :: h(:), waveform_tmp(:)
   real(kind = dp)               :: gn, c
   integer                       :: m, n
+
+#ifdef WIN
+  !!in case of win file input
+  character(len = 129)          :: win_filename, win_chfilename
+  real(dp), parameter           :: order_um = 1.0e+6_dp
+  integer                       :: sampling_int(1 : nsta)
+  integer                       :: nsec, tim, nch_chtbl
+  integer,          allocatable :: waveform_obs_int(:, :), npts_win(:, :)
+  type(winch__hdr), allocatable :: chtbl(:)
+#endif
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
 
   icount = iargc()
+#ifdef WIN
+  if(icount .ne. 7) then
+    write(0, '(a)') "usage: ./a.out winfile win_chfile dem_file_name ot_begin ot_end rms_time_window result_file_name"
+    stop
+  endif
+  
+  call getarg(1, win_filename)
+  call getarg(2, win_chfilename)
+  call getarg(3, dem_file)
+  call getarg(4, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(5, ot_end_t)  ; read(ot_end_t, *) ot_end
+  call getarg(6, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(7, resultfile)
+#else
   if(icount .ne. 6) then
     write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end rms_time_window result_file_name"
     stop
@@ -82,6 +115,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(5, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(6, resultfile)
+#endif
 
   ot_shift = rms_tw / 2.0_fp
 
@@ -104,11 +138,43 @@ program AmplitudeSourceLocation_PulseWidth
   !!set velocity/attenuation structure
   call set_velocity(z_min, dz, velocity, qinv)
 
+#ifdef WIN
+  !!read waveform_obs_int from winfile
+  call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
+  !!read channel table
+  call winch__read_tbl(trim(win_chfilename), chtbl)
+  npts_max = ubound(waveform_obs_int, 1)
+  nch_chtbl = ubound(chtbl, 1)
+  allocate(waveform_obs(1 : npts_max, 1 : nsta))
+  waveform_obs(1 : npts_max, 1 : nsta) = 0.0_dp
+  do j = 1, nsta
+    chtbl_loop: do i = 1, nch_chtbl
+      if(chtbl(i)%achid .eq. st_winch(j)) then
+        write(0, '(3a)') "chid ", st_winch(j), " found"
+        lon_sta(j) = real(chtbl(i)%lon, kind = fp)
+        lat_sta(j) = real(chtbl(i)%lat, kind = fp)
+        z_sta(j)   = real(chtbl(i)%elev, kind = fp) * (-0.001_fp)
+        npts(j) = nsec * sampling_int(j)
+        sampling(j) = 1.0_fp / real(sampling_int(j), kind = fp)
+        do ii = 1, npts(j)
+          waveform_obs(ii, j) = waveform_obs_int(ii, j) * chtbl(i)%conv * order_um
+        enddo
+        write(0, '(a, i0, 3a, f8.4, 1x, f7.4)') &
+        &     "station(", j, ") name = ", trim(stname(j)), " lon/lat = ", lon_sta(j), lat_sta(j)
+        exit chtbl_loop
+      endif
+    enddo chtbl_loop
+  enddo
+  
+#else
+
   !!read sac file
+  npts_max = 0
   do j = 1, nsta
     sacfile = trim(sacfile_index) // trim(stname(j)) // "__U__.sac"
     call read_sachdr(sacfile, delta=sampling(j), stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j), &
     &                npts = npts(j), begin = begin(j))
+    if(npts(j) .gt. npts_max) npts_max = npts(j)
     z_sta(j) = z_sta(j) * 0.001_fp
     if(j .ne. 1) then
       do i = 1, j - 1
@@ -118,10 +184,14 @@ program AmplitudeSourceLocation_PulseWidth
         endif
       enddo
     endif
-    call read_sacdata(sacfile, npts_max, waveform_obs(:, j))
     write(0, '(a, i0, 3a, f8.4, 1x, f7.4)') &
     &     "station(", j, ") name = ", trim(stname(j)), " lon/lat = ", lon_sta(j), lat_sta(j)
   enddo
+  allocate(waveform_obs(npts_max, nsta))
+  do i = 1, nsta
+    call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
+  enddo
+#endif
 
   !!remove offset
   do j = 1, nsta
@@ -167,9 +237,9 @@ program AmplitudeSourceLocation_PulseWidth
   z_loop: do k = 1, nz - 1
     depth_grid = z_min + dz * real(k - 1, kind = fp)
     !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
-    lat_loop: do j = 1, nlat - 1
+    lat_loop: do j = 1, nlat
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
-      lon_loop: do i = 1, nlon - 1
+      lon_loop: do i = 1, nlon
         lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
         !!check the grid is lower than the topo
@@ -282,8 +352,8 @@ program AmplitudeSourceLocation_PulseWidth
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     z_loop2: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
-      lat_loop2: do j = 1, nlat - 1
-        lon_loop2: do i = 1, nlon - 1
+      lat_loop2: do j = 1, nlat
+        lon_loop2: do i = 1, nlon
 
           if(depth_grid .lt. topography(i, j)) cycle
 
@@ -390,3 +460,4 @@ program AmplitudeSourceLocation_PulseWidth
 
   stop
 end program AmplitudeSourceLocation_PulseWidth
+
