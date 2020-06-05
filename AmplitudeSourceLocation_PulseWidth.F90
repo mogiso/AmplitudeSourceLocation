@@ -40,7 +40,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp),    parameter :: dinc_angle = pi / real(ninc_angle, kind = fp)
-  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
+  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
   integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
   real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
