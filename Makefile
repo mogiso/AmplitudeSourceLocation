@@ -9,9 +9,10 @@ OPTS = -assume byterecl -qopenmp -O3 -xHOST
 
 #FC = gfortran
 #DEFS = -DDOUBLE -DMEA_1D
+#INCDIR = -I/usr/include
 #LIBDIR =
 #LIBS = -lnetcdff
-#OPTS = -fopenmp -O3
+#OPTS = -fno-range-check -fopenmp -O3
 
 asl_pw: module_GMT34.f90 nrtype.F90 constants.F90 greatcircle.f90 calc_bpf_coef.f90 calc_bpf_order.f90 tandem.f90 \
 	itoa.F90 linear_interpolation.F90 rayshooting.F90 read_sacfile.F90 set_velocity_model.F90 \
