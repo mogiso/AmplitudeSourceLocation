@@ -40,9 +40,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp),    parameter :: dinc_angle = pi / real(ninc_angle, kind = fp)
-  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
-  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 1
-  integer,            parameter :: nz   = int((z_max - z_min) / dz) + 1
+  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
+  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
+  integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
   real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
@@ -69,7 +69,7 @@ program AmplitudeSourceLocation_PulseWidth
   integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, &
   &                                grd_status, npts_max
   character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, &
-  &                                grdfile, resultfile
+  &                                grdfile, resultfile, resultdir
   character(len = maxlen)       :: time_count_char
 
   !!filter variables
@@ -92,8 +92,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   icount = iargc()
 #ifdef WIN
-  if(icount .ne. 7) then
-    write(0, '(a)') "usage: ./a.out winfile win_chfile dem_file_name ot_begin ot_end rms_time_window result_file_name"
+  if(icount .ne. 8) then
+    write(0, '(a)') "usage: ./a.out winfile win_chfile dem_file_name ot_begin ot_end rms_time_window resultdir result_file_name"
     error stop
   endif
   
@@ -103,10 +103,11 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(4, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(5, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(6, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(7, resultfile)
+  call getarg(8, resultdir)
+  call getarg(8, resultfile)
 #else
-  if(icount .ne. 6) then
-    write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end rms_time_window result_file_name"
+  if(icount .ne. 7) then
+    write(0, '(a)') "usage: ./a.out sacfile_index dem_file_name ot_begin ot_end rms_time_window resultdir result_file_name"
     error stop
   endif
   
@@ -115,6 +116,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(3, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
   call getarg(5, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(6, resultdir)
   call getarg(6, resultfile)
 #endif
 
@@ -342,7 +344,8 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp end parallel
 
   !!find minimum residual grid for seismic source 
-  open(unit = 10, file = trim(resultfile))
+  resultfile = trim(resultdir) // "/" // trim(resultfile)
+  open(unit = 10, file = resultfile)
   write(10, '(a)') "# OT min_lon min_lat min_dep source_amp residual"
   residual(1 : nlon, 1 : nlat, 1 : nz) = huge
 
@@ -420,7 +423,7 @@ program AmplitudeSourceLocation_PulseWidth
     !!output grd files
     call int_to_char(time_count, maxlen, time_count_char)
     !!output horizontal slice
-    grdfile = "min_err_lon-lat_" // trim(time_count_char) // ".grd"
+    grdfile = trim(resultdir) // "/min_err_lon-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nlat))
     xrange(1) = real(lon_w, kind = dp)
     xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
@@ -433,7 +436,7 @@ program AmplitudeSourceLocation_PulseWidth
     deallocate(residual_grd)
 
     !!output depth slice -- lon-dep
-    grdfile = "min_err_lon-dep_" // trim(time_count_char) // ".grd"
+    grdfile = trim(resultdir) // "/min_err_lon-dep_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nz))
     xrange(1) = real(lon_w, kind = dp)
     xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
@@ -446,7 +449,7 @@ program AmplitudeSourceLocation_PulseWidth
     deallocate(residual_grd)
 
     !!output depth slice -- dep-lat
-    grdfile = "min_err_dep-lat_" // trim(time_count_char) // ".grd"
+    grdfile = trim(resultdir) // "/min_err_dep-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nz, nlat))
     xrange(1) = real(z_min, kind = dp)
     xrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
