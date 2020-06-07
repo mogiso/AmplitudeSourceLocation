@@ -22,7 +22,8 @@ module set_velocity_model
     velocity(1 : nlon, 1 : nlat, 1 : nz) = 0.0_fp
     do i = 1, nz
       depth = z_min + dz * real(i - 1, kind = fp)
-#if defined (MEA_1D)
+
+#if defined (V_MEA1D)
       if(i .eq. 1) write(0, '(a)') "velocity/Qinv = meakan 1d structure"
       if(depth .lt. 0.5_fp) then
         velocity(1 : nlon, 1 : nlat, i) = (3.2_fp - 3.0_fp) / (0.5_fp - 0.0_fp) * depth + 3.0_fp
@@ -47,12 +48,14 @@ module set_velocity_model
       else
         qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 180.0_fp
       endif
-#elif defined (VEL_CONST)
+
+#elif defined (V_CONST)
       if(i .eq. 1) write(0, '(a)') "Velocity/Qinv = constant"
       velocity(1 : nlon, 1 : nlat, i) = 2.5_fp
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
+
 #else
-      write(0, *) "please set -DVEL_CONST or appropriate definition"
+      write(0, *) "please set -DV_CONST or appropriate definition"
       stop
 #endif
 
