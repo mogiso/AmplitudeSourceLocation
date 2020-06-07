@@ -192,9 +192,8 @@ program AmplitudeSourceLocation_PulseWidth
   enddo
   allocate(waveform_obs(npts_max, nsta))
   do i = 1, nsta
+    sacfile = trim(sacfile_index) // trim(stname(i)) // "__U__.sac"
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
-  enddo
-  do i = 1, nsta
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
 #endif
@@ -227,7 +226,6 @@ program AmplitudeSourceLocation_PulseWidth
     deallocate(h, waveform_tmp)
   enddo
 
- 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
