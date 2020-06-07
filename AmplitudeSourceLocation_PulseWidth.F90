@@ -25,11 +25,11 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp
   integer,            parameter :: ninc_angle = 200                         !!ray shooting
   integer,            parameter :: nsta = 4
-  character(len = 6), parameter :: stname(1 : nsta) = (/"V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"/)
+  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
 #ifdef WIN
-  character(len = 4), parameter :: st_winch(1 : nsta) = (/"2724", "13F1", "274D", "2720"/)
+  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
 #endif
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = (/1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp/)
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
 
   real(kind = fp),    parameter :: time_step = 0.01_fp
   integer,            parameter :: maxlen = 4
@@ -429,7 +429,7 @@ program AmplitudeSourceLocation_PulseWidth
     xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
     yrange(1) = real(lat_s, kind = dp)
     yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp) * dlat
-    spacing(1 : 2) = (/real(dlon, kind = dp), real(dlat, kind = dp)/)
+    spacing(1 : 2) = [real(dlon, kind = dp), real(dlat, kind = dp)]
     residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
     &                       NaN = real(huge, kind = sp), overwrite = .true.)
@@ -442,7 +442,7 @@ program AmplitudeSourceLocation_PulseWidth
     xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
     yrange(1) = real(z_min, kind = dp)
     yrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
-    spacing(1 : 2) = (/real(dlon, kind = dp), real(dz, kind = dp)/)
+    spacing(1 : 2) = [real(dlon, kind = dp), real(dz, kind = dp)]
     residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
     grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
     &                       NaN = real(huge, kind = sp), overwrite = .true.)
@@ -455,7 +455,7 @@ program AmplitudeSourceLocation_PulseWidth
     xrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
     yrange(1) = real(lat_s, kind = dp)
     yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp) * dlat
-    spacing(1 : 2) = (/real(dz, kind = dp), real(dlat, kind = dp)/)
+    spacing(1 : 2) = [real(dz, kind = dp), real(dlat, kind = dp)]
     do j = 1, nz
       do i = 1, nlat
         residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
