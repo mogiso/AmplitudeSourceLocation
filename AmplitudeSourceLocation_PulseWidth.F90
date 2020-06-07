@@ -19,7 +19,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
 
-  real(kind = fp),    parameter :: dlon = 0.0005_fp, dlat = 0.0005_fp, dz = 0.05_fp
+  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
