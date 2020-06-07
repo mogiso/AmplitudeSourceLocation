@@ -1,5 +1,7 @@
 program AmplitudeSourceLocation_PulseWidth
   !!Amplitude Source Location using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
+  !!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!
 
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
@@ -9,8 +11,7 @@ program AmplitudeSourceLocation_PulseWidth
   use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
   use itoa,                 only : int_to_char
-  use GMT,                  only : grd_create
-  use read_grdfile,         only : read_grdfile_2d
+  use grdfile_io,           only : read_grdfile_2d, write_grdfile_2d
 #ifdef WIN
   use m_win
   use m_winch
@@ -19,23 +20,29 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
 
-  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!Search range
   real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
-  real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp
-  integer,            parameter :: ninc_angle = 200                         !!ray shooting
+  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!Ray shooting
+  real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
+  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
+  real(kind = fp),    parameter :: time_step = 0.01_fp
+  !!Use station
   integer,            parameter :: nsta = 4
   character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
+  character(len = 9), parameter :: sacfile_extension = "__U__.sac"
 #ifdef WIN
   character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
 #endif
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
 
-  real(kind = fp),    parameter :: time_step = 0.01_fp
-  integer,            parameter :: maxlen = 4
+  !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
   real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
+
+  integer,            parameter :: maxlen = 4
   real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
@@ -55,7 +62,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &                                hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz)
   real(kind = dp)               :: rms_amp_obs(1 : nsta), residual(1 : nlon, 1 : nlat, 1 : nz), &
-  &                                xrange(1 : 2), yrange(1 : 2), spacing(1 : 2), source_amp(1 : nlon, 1 : nlat, 1 : nz)
+  &                                source_amp(1 : nlon, 1 : nlat, 1 : nz)
   integer                       :: npts(1 : nsta), residual_minloc(3)
   real(kind = sp), allocatable  :: residual_grd(:, :)
   real(kind = dp), allocatable  :: waveform_obs(:, :), topography(:, :), lon_topo(:), lat_topo(:)
@@ -70,7 +77,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                dlon_topo, dlat_topo
   
   integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                grd_status, npts_max, nlon_topo, nlat_topo
+  &                                npts_max, nlon_topo, nlat_topo
   character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, &
   &                                grdfile, resultfile, resultdir
   character(len = maxlen)       :: time_count_char
@@ -174,7 +181,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!read sac file
   npts_max = 0
   do j = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(j)) // "__U__.sac"
+    sacfile = trim(sacfile_index) // trim(stname(j)) // sacfile_extension
     call read_sachdr(sacfile, delta=sampling(j), stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j), &
     &                npts = npts(j), begin = begin(j))
     if(npts(j) .gt. npts_max) npts_max = npts(j)
@@ -241,7 +248,8 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp do schedule(guided)
   z_loop: do k = 1, nz - 1
     depth_grid = z_min + dz * real(k - 1, kind = fp)
-    !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " k = ", k
+    !$ write(0, '((a, i0, a))', advance = "no") "omp_thread_num = ", omp_thread, " "
+    write(0, '(a, i0)') "depth index k = ", k
     lat_loop: do j = 1, nlat
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
       lon_loop: do i = 1, nlon
@@ -270,7 +278,7 @@ program AmplitudeSourceLocation_PulseWidth
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
 
-#ifdef VEL_CONST
+#ifdef V_CONST
           !!homogeneous structure: using velocity/qinv at the grid
           ttime_min(jj, i, j, k) = hypodist(jj, i, j, k) / velocity(i, j, k)
           width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(i, j, k)
@@ -430,44 +438,26 @@ program AmplitudeSourceLocation_PulseWidth
     !!output horizontal slice
     grdfile = trim(resultdir) // "/min_err_lon-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nlat))
-    xrange(1) = real(lon_w, kind = dp)
-    xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
-    yrange(1) = real(lat_s, kind = dp)
-    yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp) * dlat
-    spacing(1 : 2) = [real(dlon, kind = dp), real(dlat, kind = dp)]
     residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
-    &                       NaN = real(huge, kind = sp), overwrite = .true.)
+    call write_grdfile_2d(lon_w, lat_s, dlon, dlat, nlon, nlat, residual_grd, grdfile, nanval = real(huge, kind = sp))
     deallocate(residual_grd)
 
     !!output depth slice -- lon-dep
     grdfile = trim(resultdir) // "/min_err_lon-dep_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nlon, nz))
-    xrange(1) = real(lon_w, kind = dp)
-    xrange(2) = real(lon_w, kind = dp) + real(nlon - 1, kind = dp) * dlon
-    yrange(1) = real(z_min, kind = dp)
-    yrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
-    spacing(1 : 2) = [real(dlon, kind = dp), real(dz, kind = dp)]
     residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
-    &                       NaN = real(huge, kind = sp), overwrite = .true.)
+    call write_grdfile_2d(lon_w, z_min, dlon, dz, nlon, nz, residual_grd, grdfile, nanval = real(huge, kind = sp))
     deallocate(residual_grd)
 
     !!output depth slice -- dep-lat
     grdfile = trim(resultdir) // "/min_err_dep-lat_" // trim(time_count_char) // ".grd"
     allocate(residual_grd(nz, nlat))
-    xrange(1) = real(z_min, kind = dp)
-    xrange(2) = real(z_min, kind = dp) + real(nz - 1, kind = dp) * dz
-    yrange(1) = real(lat_s, kind = dp)
-    yrange(2) = real(lat_s, kind = dp) + real(nlat - 1, kind = dp) * dlat
-    spacing(1 : 2) = [real(dz, kind = dp), real(dlat, kind = dp)]
     do j = 1, nz
       do i = 1, nlat
         residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
       enddo
     enddo
-    grd_status = grd_create(grdfile, residual_grd, xrange, yrange, spacing, jscan = 1, &
-    &                       NaN = real(huge, kind = sp), overwrite = .true.)
+    call write_grdfile_2d(z_min, lat_s, dz, dlat, nz, nlat, residual_grd, grdfile, nanval = real(huge, kind = sp))
     deallocate(residual_grd)
 
     time_count = time_count + 1
