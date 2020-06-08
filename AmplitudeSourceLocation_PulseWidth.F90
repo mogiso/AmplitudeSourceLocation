@@ -38,7 +38,7 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
 #endif
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
-  real(kind = dp),    parameter :: ttime_cor(1 : nsta) = [0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp]   !!static correction of traveltime
+  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]   !!static correction of traveltime
 
   !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
