@@ -15,10 +15,10 @@ $ss = $ARGV[5];
 $result = $ARGV[6];
 $dem_lonlat = $ARGV[7];
 $dem_londep = $ARGV[8];
-$dem_deplat = $ARGV[8];
+$dem_deplat = $ARGV[9];
 
 $argc = $#ARGV;
-if($argc != 7){
+if($argc != 9){
   print stderr "usage: perl plot_min_err.pl yr mo day hh mm ss resultfile dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat)\n";
   die;
 }
