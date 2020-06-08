@@ -39,4 +39,4 @@ MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda.
 Kumagai et al., Amplitude Source Location Method With Depth‐Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia, JGR, 2019, doi: 10.1029/2019JB018156.
 
 ### Acknowledgments
-I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin). Also, this project takes advantage of netCDF software developed by UCAR/Unidata (http://doi.org/10.5065/D6H70CW6). I appreciate for their efforts.
+I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin). Also, this project takes advantage of netCDF software developed by UCAR/Unidata (http://doi.org/10.5065/D6H70CW6). I appreciate their efforts.
