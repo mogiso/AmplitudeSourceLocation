@@ -12,9 +12,9 @@ Require: netcdf-fortran
 Almost all the parameters are hard coded in AmplitudeSourceLocation_PulseWidth.F90 except velocity and attenuation structure in set_velocity_model.F90.
 
 ## Compile
-$ make asl_pw
+> $ make asl_pw
 
-To use WIN-format file as an input waveform, set -DWIN at $DEFS on Makefile.
+To use WIN-format file as an input waveform, set -DWIN at $DEFS in Makefile.
 
 ## Usage
 If the sac-formatted waveform files are used,
