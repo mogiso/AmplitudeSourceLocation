@@ -38,6 +38,7 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
 #endif
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
+  real(kind = dp),    parameter :: ttime_cor(1 : nsta) = [0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp]   !!static correction of traveltime
 
   !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
@@ -383,7 +384,7 @@ program AmplitudeSourceLocation_PulseWidth
               cycle lon_loop2
             endif
 
-            wave_index = int((origintime + ttime_min(jj, i, j, k)) / sampling(jj) + 0.5_fp) + 1
+            wave_index = int((origintime + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
               close(10)
