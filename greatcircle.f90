@@ -1,4 +1,7 @@
 module greatcircle
+  !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License https://opensource.org/licenses/MIT
   private
   public :: greatcircle_dist, latctog, latgtoc
 
@@ -70,3 +73,4 @@ module greatcircle
 
 
 end module greatcircle
+

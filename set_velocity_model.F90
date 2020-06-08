@@ -1,4 +1,8 @@
 module set_velocity_model
+  !!gives velocity and attenuation structure for AmplitudeSourceLocation_PulseWidth.F90
+  !!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License https://opensource.org/licenses/MIT
   private
   public :: set_velocity
 

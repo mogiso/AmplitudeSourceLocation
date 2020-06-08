@@ -1,7 +1,9 @@
 !!itoa.F90
 !!convert integer to character
 !!max_len should be smaller than 9
-!!Last update: 2019-11-21 08:52:01 Add explanations
+!!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+!!Copyright: (c) Masashi Ogiso 2020
+!!License: MIT License https://opensource.org/licenses/MIT
 
 module itoa
 

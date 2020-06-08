@@ -1,5 +1,9 @@
 module linear_interpolation
   !!provide linear interpolation function (1D/2D/3D) and block interpolation function
+  !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License https://opensource.org/licenses/MIT
+
   use nrtype, only : fp, dp, sp
 
   implicit none

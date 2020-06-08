@@ -1,6 +1,8 @@
 !!constant.F90
 !!modules contains physical constants
-!!Last update: 2019-11-29 16:32:44
+!!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+!!Copyright: (c) Masashi Ogiso 2020
+!!License: MIT License https://opensource.org/licenses/MIT
 
 
 module constants

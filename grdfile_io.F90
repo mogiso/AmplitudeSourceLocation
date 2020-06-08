@@ -1,4 +1,9 @@
 module grdfile_io
+  !!module file for I/O of netcdf-format 2d grdfile
+  !!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License https://opensource.org/licenses/MIT
+
   private
   public :: read_grdfile_2d, write_grdfile_2d
 
@@ -40,10 +45,10 @@ module grdfile_io
     use nrtype, only : sp, dp
     implicit none
 
-    real(kind = dp),    intent(in)  :: xmin, ymin, dx, dy
-    integer,            intent(in)  :: nx, ny
-    real(kind = sp),    intent(in)  :: zval(1 : nx, 1 : ny)
-    character(len = *), intent(out) :: netcdf_file
+    real(kind = dp),    intent(in)    :: xmin, ymin, dx, dy
+    integer,            intent(in)    :: nx, ny
+    real(kind = sp),    intent(in)    :: zval(1 : nx, 1 : ny)
+    character(len = *), intent(inout) :: netcdf_file
     real(kind = sp),    intent(in), optional :: nanval
 
     integer :: i, j, ncstatus, ncid, dimid_x, dimid_y, varid_x, varid_y, varid_z
@@ -114,3 +119,4 @@ module grdfile_io
   end subroutine get_varinfo
 
 end module grdfile_io
+

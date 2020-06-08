@@ -1,6 +1,8 @@
 !!provide ray shooting subroutine (2D/3D)
 !!shooting equation: based on Koketsu (1991, Journal of Seismological society of Japan)
-!!Last update: 2019-12-04 17:31:15 fix the case in which az_out = 2*pi
+!!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+!!Copyright: (c) Masashi Ogiso 2020
+!!License  : MIT License https://opensource.org/licenses/MIT
 
 module rayshooting
 
@@ -17,8 +19,8 @@ contains
     use greatcircle, only : latctog, latgtoc
 
     real(fp), intent(in) :: lon_in, lat_in, az_in        !!longitude (deg), latitude(deg), azimuth (rad)
-    real(fp), intent(in) :: dtime_step                   !!time step (s), velocity at current location (km/s) and derivatives (lon, lat)
-    real(fp), intent(in) :: velocity, dvdlon, dvdlat
+    real(fp), intent(in) :: dtime_step                   !!time step (s) 
+    real(fp), intent(in) :: velocity, dvdlon, dvdlat     !!velocity at current location (km/s) and derivatives (lon, lat)
     real(fp), intent(out) :: lon_out, lat_out, az_out    !!new longitude (deg), new latitude (deg), new azimuth (rad)
 
     real(fp) :: loc_lontmp, loc_lattmp
@@ -55,9 +57,11 @@ contains
 
     real(fp), intent(in) :: lon_in, lat_in, z_in            !!longitude (deg), geographical latitude(deg), depth from surface (km)
     real(fp), intent(in) :: az_in, inc_angle_in             !!azimuth (rad), incident angle measured from depth direction (rad)
-    real(fp), intent(in) :: dtime_step                      !!time step (s), velocity at current location (km/s) and derivatives (lon, lat, depth)
-    real(fp), intent(in) :: velocity, dvdlon, dvdlat, dvdz
-    real(fp), intent(out) :: lon_out, lat_out, z_out        !!new longitude (deg), new geographical latitude (deg), new depth from surface (km)
+    real(fp), intent(in) :: dtime_step                      !!time step (s)
+    real(fp), intent(in) :: velocity, dvdlon, dvdlat, dvdz  !!velocity at current location (km/s) and derivatives
+                                                            !!(lon, lat, depth)
+    real(fp), intent(out) :: lon_out, lat_out, z_out        !!new longitude (deg), new geographical latitude (deg),
+                                                            !!new depth from surface (km)
     real(fp), intent(out) :: az_out, inc_angle_out          !!new azimuth (rad), new incident angle(rad)
 
     real(fp) :: loc_lontmp, loc_lattmp, loc_ztmp, sin_inc, sin_az, inv_sin_lat, cos_inc, cos_az, inv_loc_ztmp

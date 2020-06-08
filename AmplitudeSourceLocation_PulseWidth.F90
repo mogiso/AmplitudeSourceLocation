@@ -1,7 +1,8 @@
 program AmplitudeSourceLocation_PulseWidth
   !!Amplitude Source Location using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
-  !!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!
+  !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License (https://opensource.org/licenses/MIT)
 
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
@@ -27,7 +28,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
+  integer,            parameter :: ninc_angle = 250                         !!grid search in incident angle
   real(kind = fp),    parameter :: time_step = 0.01_fp
   !!Use station
   integer,            parameter :: nsta = 4
@@ -78,7 +79,7 @@ program AmplitudeSourceLocation_PulseWidth
   
   integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, &
   &                                npts_max, nlon_topo, nlat_topo
-  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, &
+  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, ot_shift_t, &
   &                                grdfile, resultfile, resultdir
   character(len = maxlen)       :: time_count_char
 
@@ -102,8 +103,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   icount = iargc()
 #ifdef WIN
-  if(icount .ne. 8) then
-    write(0, '(a)') "usage: ./a.out winfile win_chfile dem_grdfile_name ot_begin ot_end rms_time_window &
+  if(icount .ne. 9) then
+    write(0, '(a)') "usage: ./a.out winfile win_chfile dem_grdfile_name ot_begin ot_end ot_shift rms_time_window &
     &resultdir result_file_name"
     error stop
   endif
@@ -113,12 +114,13 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(3, dem_file)
   call getarg(4, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(5, ot_end_t)  ; read(ot_end_t, *) ot_end
-  call getarg(6, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(7, resultdir)
-  call getarg(8, resultfile)
+  call getarg(6, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(7, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(8, resultdir)
+  call getarg(9, resultfile)
 #else
-  if(icount .ne. 7) then
-    write(0, '(a)') "usage: ./a.out sacfile_index dem_grdfile_name ot_begin ot_end rms_time_window resultdir &
+  if(icount .ne. 8) then
+    write(0, '(a)') "usage: ./a.out sacfile_index dem_grdfile_name ot_begin ot_end ot_shift rms_time_window resultdir &
     &result_file_name"
     error stop
   endif
@@ -127,12 +129,11 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(2, dem_file)
   call getarg(3, ot_begin_t); read(ot_begin_t, *) ot_begin
   call getarg(4, ot_end_t)  ; read(ot_end_t, *) ot_end
-  call getarg(5, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(6, resultdir)
-  call getarg(7, resultfile)
+  call getarg(5, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(6, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(7, resultdir)
+  call getarg(8, resultfile)
 #endif
-
-  ot_shift = rms_tw / 2.0_fp
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
   write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
@@ -248,8 +249,7 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp do schedule(guided)
   z_loop: do k = 1, nz - 1
     depth_grid = z_min + dz * real(k - 1, kind = fp)
-    !$ write(0, '((a, i0, a))', advance = "no") "omp_thread_num = ", omp_thread, " "
-    write(0, '(a, i0)') "depth index k = ", k
+    !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
     lat_loop: do j = 1, nlat
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
       lon_loop: do i = 1, nlon
@@ -386,6 +386,7 @@ program AmplitudeSourceLocation_PulseWidth
             wave_index = int((origintime + ttime_min(jj, i, j, k)) / sampling(jj) + 0.5_fp) + 1
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
+              close(10)
               error stop
             endif
             rms_amp_obs(jj) = 0.0_fp

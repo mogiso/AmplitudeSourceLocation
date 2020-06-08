@@ -1,7 +1,10 @@
 #!/usr/bin/env perl
 use File::Basename;
 #
-#plot ASL result
+#plot the results of AmplitudeSourceLocation_PulseWidth.F90 using GMT5
+#Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+#Copyright: (c) Masashi Ogiso 2020
+#License  : MIT License https://opensource.org/licenses/MIT
 
 $yr = $ARGV[0];
 $mo = $ARGV[1];
@@ -10,11 +13,13 @@ $hh = $ARGV[3];
 $mm = $ARGV[4];
 $ss = $ARGV[5];
 $result = $ARGV[6];
-$dem_dir = $ARGV[7];
+$dem_lonlat = $ARGV[7];
+$dem_londep = $ARGV[8];
+$dem_deplat = $ARGV[8];
 
 $argc = $#ARGV;
 if($argc != 7){
-  print stderr "usage: perl plot_min_err.pl year month day hh mm ss resultfile demfile_dir\n";
+  print stderr "usage: perl plot_min_err.pl yr mo day hh mm ss resultfile dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat)\n";
   die;
 }
 
@@ -70,10 +75,6 @@ $symbolsize_st = 0.45;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
 
-$demfile = "${dem_dir}/mea_dem.grd";
-$cross_londep = "${dem_dir}/mea_crosssection_londep.dat";
-$cross_deplat = "${dem_dir}/mea_crosssection_deplat.dat";
-
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
 system "gmt set FONT_LABEL 14p,Helvetica";
@@ -107,7 +108,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                         -Bxya0.02f0.01 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                         -O -K -P >> $out";
-  system "gmt grdcontour $demfile -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.25p,black -O -K -P >> $out";
+  system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.25p,black -O -K -P >> $out";
   open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                          -Si$symbolsize_st -W0.6p,black -Gwhite -O -K -P >> $out";
   for($j = 0; $j <= $#stlon; $j++){
@@ -137,7 +138,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
                          -Sa$symbolsize -W0.6p,black -t100 -O -K -P >> $out";
   print OUT "$min_lon[$i] $min_dep[$i]\n";
   close OUT;
-  system "gmt psxy $cross_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.3p,black -O -K -P >> $out";
+  system "gmt psxy $dem_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.3p,black -O -K -P >> $out";
 
   open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -X11c -Y7.5c >> $out";
   close OUT;
@@ -150,7 +151,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
                          -Sa$symbolsize -W0.6p,black -t100 -O -K -P >> $out";
   print OUT "$min_dep[$i] $min_lat[$i]\n";
   close OUT;
-  system "gmt psxy $cross_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.3p,black -O -K -P >> $out";
+  system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.3p,black -O -K -P >> $out";
 
 
   open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -P >> $out";

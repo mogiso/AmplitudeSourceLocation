@@ -1,4 +1,8 @@
 module read_sacfile
+  !!Module to read header and waveform data from sac-formatted binary file
+  !!Author: Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License https://opensource.org/licenses/MIT
   private
   public :: read_sachdr, read_sacdata
 

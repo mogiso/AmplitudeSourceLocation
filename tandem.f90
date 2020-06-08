@@ -8,6 +8,10 @@ subroutine tandem1(x, y, n, h, m, nml)
   !!!        work well if same name with input data
   !!! h(4 * m) : filter coefficient calculated by calc_[bhl]pf_coef.f90
   !!! m : filter order calclated by calc_[bhl]_pf_order.f90
+  !!!
+  !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!! Copyright: (c) Masashi Ogiso 2020
+  !!! License  : MIT License (https://opensource.org/licenses/MIT)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   integer, intent(IN) :: n, m, nml

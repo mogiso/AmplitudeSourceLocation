@@ -1,6 +1,8 @@
 !!nrtype.F90
 !!modules that give precision of floating points
-!!Last update: 2019-11-19 11:07:50
+!!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+!!Copyright: (c) Masashi Ogiso 2020
+!!License  : MIT License https://opensource.org/licenses/MIT
 
 module nrtype
   implicit none

@@ -2,23 +2,27 @@ subroutine calc_bpf_order(fl, fh, fs, ap, as, sample, m, n, c)
   use constants, only : pi
   implicit none
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!! Butterworth band-pass filter by Saito(1978)                !!!
-  !!! fl: low frequency cut-off (Hz) not normalized              !!!
-  !!! fh: high frequency cut-off (Hz) not normalized             !!!
-  !!! fs: stopped frequency (Hz) not normalized                  !!!
-  !!! Ap: maximum attenuation in fp (normally 0.5)               !!!
-  !!! As: minimum attenuation in fs (normally 5.0)               !!!
-  !!! sample: sampling interval (sec)                            !!!
-  !!! m: order of filter                                         !!!
-  !!! n: order of butterworth function                           !!!
-  !!! c: filter coefficient                                      !!!
-  !!!                                                            !!!
-  !!! Usage:                                                     !!!
-  !!! 1. call calc_bpf_order(fl, fh, fs, ap, as, sample, m, n, c)!!!
-  !!! 2. allocate filter coefficient allocate(h(4 * m))          !!!
-  !!! 3. call calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)      !!!
-  !!! 4. call tandem(data, data, ndata, h, m, nml)               !!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Butterworth band-pass filter by Saito(1978)                
+  !!! fl: low frequency cut-off (Hz) not normalized              
+  !!! fh: high frequency cut-off (Hz) not normalized             
+  !!! fs: stopped frequency (Hz) not normalized                  
+  !!! Ap: maximum attenuation in fp (usually 0.5)               
+  !!! As: minimum attenuation in fs (usually 5.0)               
+  !!! sample: sampling interval (sec)                            
+  !!! m: order of filter                                         
+  !!! n: order of butterworth function                           
+  !!! c: filter coefficient                                      
+  !!!                                                            
+  !!! Usage:                                                     
+  !!! 1. call calc_bpf_order(fl, fh, fs, ap, as, sample, m, n, c)
+  !!! 2. allocate filter coefficient allocate(h(4 * m))          
+  !!! 3. call calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)      
+  !!! 4. call tandem(data, data, ndata, h, m, nml)               
+  !!!
+  !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!! Copyright: (c) Masashi Ogiso 2020
+  !!! License  : MIT License https://opensource.org/licenses/MIT
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   real*8, intent(IN) :: fl,fh, fs, ap, as, sample
   integer, intent(OUT) :: m, n

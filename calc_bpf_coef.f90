@@ -9,6 +9,10 @@ subroutine calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)
   !!! m, n: filter order (calculated by calc_bpf_order.f90)
   !!! h(4 * m) : filter coefficient
   !!! gn : gain factor
+  !!! 
+  !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!! Copyright: (c) Masashi Ogiso 2020
+  !!! License  : MIT License https://opensource.org/licenses/MIT
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   integer, intent(IN) :: m, n
