@@ -25,7 +25,7 @@ or
 
     $ ./asl_pw winfile win_chfile dem_grdfile ot_begin(sec) ot_end(sec) ot_shift(sec) rms_time_window(sec) resultdir result_file_name(txt)
 
-when win-formatted file are used.
+when win-formatted file are used. ot_begin and ot_end are the time in second measured from the beginning of the waveforms. There two times define the search range in time dimension.
 
 In case of sac files, filenames are generated as trim(sacfile_index) // trim(station_name) // trim(sacfile_extension).
 To use win file as the input waveform file, give channel ids to st_winch in AmplitudeSourceLocation_PulseWidth.F90.
