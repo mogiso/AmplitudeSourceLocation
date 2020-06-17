@@ -377,10 +377,14 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp parallel default(none), &
     !$omp&         shared(ttime_min, origintime, ttime_cor, sampling, npts, waveform_obs, source_amp, siteamp, &
     !$omp&                rms_tw, hypodist, width_min, residual), &
-    !$omp&         private(i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize)
-    !$omp do
+    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize)
+
+    !$ omp_thread = omp_get_thread_num()
+
+    !$omp do schedule(guided)
     z_loop2: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
+      !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
       lat_loop2: do j = 1, nlat
         lon_loop2: do i = 1, nlon
 
