@@ -90,7 +90,10 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
 
   $hh_tmp = sprintf "%02d", $hh_tmp;
   $mm_tmp = sprintf "%02d", $mm_tmp;
-  $ss_tmp = sprintf "%2.1f", $ss_tmp;
+  $ss_tmp = sprintf "%.1f", $ss_tmp;
+  if($ss_tmp < 10.0){
+    $ss_tmp = "0$ss_tmp";
+  }
   $date = "$yr/$mo/$dy $hh_tmp:$mm_tmp:$ss_tmp";
 
   $output_index = sprintf "%04d", $i;
