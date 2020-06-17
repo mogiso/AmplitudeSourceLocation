@@ -28,17 +28,18 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 250                         !!grid search in incident angle
+  integer,            parameter :: ninc_angle = 360                         !!grid search in incident angle
   real(kind = fp),    parameter :: time_step = 0.01_fp
   !!Use station
-  integer,            parameter :: nsta = 4
-  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
+  integer,            parameter :: nsta = 5
+#ifdef WIN    /* use win-format waveform file for input waveforms */
+  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720", "2750"]
+#else         /* use sac binary files as input waveforms */
+  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
   character(len = 9), parameter :: sacfile_extension = "__U__.sac"
-#ifdef WIN
-  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
 #endif
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
-  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]   !!static correction of traveltime
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 2.761_dp]
+  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp] !!static correction of traveltime
 
   !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
@@ -373,6 +374,11 @@ program AmplitudeSourceLocation_PulseWidth
 
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
+    !$omp parallel default(none), &
+    !$omp&         shared(ttime_min, origintime, ttime_cor, sampling, npts, waveform_obs, source_amp, siteamp, &
+    !$omp&                rms_tw, hypodist, width_min, residual), &
+    !$omp&         private(i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize)
+    !$omp do
     z_loop2: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       lat_loop2: do j = 1, nlat
@@ -420,6 +426,8 @@ program AmplitudeSourceLocation_PulseWidth
         enddo lon_loop2
       enddo lat_loop2
     enddo z_loop2
+    !$omp end do
+    !$omp end parallel
 
     !!search minimum residual
     residual_minloc = minloc(residual)
