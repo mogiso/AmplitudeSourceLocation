@@ -28,7 +28,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 360                         !!grid search in incident angle
+  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
   real(kind = fp),    parameter :: time_step = 0.01_fp
   !!Use station
   integer,            parameter :: nsta = 5
@@ -50,7 +50,8 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
-  real(kind = fp),    parameter :: dinc_angle = pi / real(ninc_angle, kind = fp)
+  real(kind = fp),    parameter :: dinc_angle1 = pi / real(ninc_angle, kind = fp)
+  real(kind = fp),    parameter :: dinc_angle2 = 2.0_fp * dinc_angle1 / real(ninc_angle - 1, kind = fp)
   integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
   integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
   integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
@@ -71,15 +72,15 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp), allocatable  :: waveform_obs(:, :), topography(:, :), lon_topo(:), lat_topo(:)
   
   real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
-  &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
+  &                                az_tmp, inc_angle_tmp, inc_angle_min, az_new, inc_angle_new, az_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
   &                                lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
-  &                                ot_begin, ot_end, ot_shift, rms_tw
+  &                                ot_begin, ot_end, ot_shift, rms_tw, lon_min, lat_min, depth_min
   real(kind = sp)               :: lon_r, lat_r, topo_r
   real(kind = dp)               :: residual_normalize, amp_avg, topography_interpolate, &
   &                                dlon_topo, dlat_topo
   
-  integer                       :: i, j, k, ii, jj, icount, wave_index, time_count, lon_index, lat_index, z_index, &
+  integer                       :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
   &                                npts_max, nlon_topo, nlat_topo
   character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, ot_shift_t, &
   &                                grdfile, resultfile, resultdir
@@ -241,10 +242,11 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp parallel default(none), &
   !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
   !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo), &
-  !$omp&         private(i, j, k, ii, jj, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
-  !$omp&                dist_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, topography_interpolate, &
-  !$omp&                ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, velocity_interpolate, val_3d, &
-  !$omp&                qinv_interpolate, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, omp_thread)
+  !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
+  !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
+  !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
+  !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
+  !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min)
 
   !$ omp_thread = omp_get_thread_num()
 
@@ -291,67 +293,79 @@ program AmplitudeSourceLocation_PulseWidth
           dist_min = huge
           ttime_min(jj, i, j, k) = real(huge, kind = fp)
           width_min(jj, i, j, k) = 0.0_fp
-          incangle_loop: do ii = 1, ninc_angle - 1
-            inc_angle_tmp = real(ii, kind = fp) * dinc_angle
-   
-            lon_tmp = lon_grid
-            lat_tmp = lat_grid
-            depth_tmp = depth_grid
-            az_tmp = az_ini
-
-            ttime_tmp = 0.0_fp
-            width_tmp = 0.0_fp
-            !!loop until ray arrives at surface/boundary
-            shooting_loop: do
-              lon_index = int((lon_tmp - lon_w) / dlon) + 1
-              lat_index = int((lat_tmp - lat_s) / dlat) + 1
-              z_index   = int((depth_tmp - z_min) / dz) + 1
-
-              !!exit if ray approaches to the boundary
-              if(lon_index .lt. 1 .or. lon_index .gt. nlon - 1      &
-              &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat - 1 &
-              &  .or. z_index .lt. 1 .or. z_index .gt. nz - 1) then
-                exit shooting_loop
+          incangle_loop2: do kk = 1, 2
+            incangle_loop: do ii = 1, ninc_angle - 1
+              if(kk .eq. 1) then
+                inc_angle_tmp = real(ii, kind = fp) * dinc_angle1
+              else
+                inc_angle_tmp = (inc_angle_min - dinc_angle1) + real(ii - 1, kind = fp) * dinc_angle2
               endif
+                
+              lon_tmp = lon_grid
+              lat_tmp = lat_grid
+              depth_tmp = depth_grid
+              az_tmp = az_ini
 
-              xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
-              ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
-              zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+              ttime_tmp = 0.0_fp
+              width_tmp = 0.0_fp
+              !!loop until ray arrives at surface/boundary
+              shooting_loop: do
+                lon_index = int((lon_tmp - lon_w) / dlon) + 1
+                lat_index = int((lat_tmp - lat_s) / dlat) + 1
+                z_index   = int((depth_tmp - z_min) / dz) + 1
 
-              !!calculate distance between ray and station
-              call greatcircle_dist(lat_tmp, lon_tmp, lat_sta(jj), lon_sta(jj), delta_out = epdelta)
-              dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - z_sta(jj)) ** 2 &
-              &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - z_sta(jj)) * cos(epdelta))
-              !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
-              !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
+                !!exit if ray approaches to the boundary
+                if(lon_index .lt. 1 .or. lon_index .gt. nlon - 1      &
+                &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat - 1 &
+                &  .or. z_index .lt. 1 .or. z_index .gt. nz - 1) then
+                  exit shooting_loop
+                endif
 
-              if(dist_tmp .lt. dist_min) then
-                dist_min = dist_tmp
-                ttime_min(jj, i, j, k) = ttime_tmp
-                width_min(jj, i, j, k) = width_tmp
-              endif
+                xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
+                ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
+                zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+
+                !!calculate distance between ray and station
+                call greatcircle_dist(lat_tmp, lon_tmp, lat_sta(jj), lon_sta(jj), delta_out = epdelta)
+                dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - z_sta(jj)) ** 2 &
+                &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - z_sta(jj)) * cos(epdelta))
+                !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
+                !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
+
+                if(dist_tmp .lt. dist_min) then
+                  dist_min = dist_tmp
+                  ttime_min(jj, i, j, k) = ttime_tmp
+                  width_min(jj, i, j, k) = width_tmp
+                  lon_min = lon_tmp
+                  lat_min = lat_tmp
+                  depth_min = depth_tmp
+                  if(kk .eq. 1) inc_angle_min = real(ii, kind = fp) * dinc_angle1
+                endif
  
-              !!shooting the ray
-              val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
-              call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-              val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
-              call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
+                !!shooting the ray
+                val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+                call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
+                val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+                call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
-              dvdz = (val_1d(2) - val_1d(1)) / dz
-              call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
-              &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
-              ttime_tmp = ttime_tmp + time_step
-              width_tmp = width_tmp + qinv_interpolate * time_step
+                dvdz = (val_1d(2) - val_1d(1)) / dz
+                call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
+                &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
+                ttime_tmp = ttime_tmp + time_step
+                width_tmp = width_tmp + qinv_interpolate * time_step
 
-              lon_tmp = lon_new
-              lat_tmp = lat_new
-              depth_tmp = depth_new
-              az_tmp = az_new
-              inc_angle_tmp = inc_angle_new
-            enddo shooting_loop
+                lon_tmp = lon_new
+                lat_tmp = lat_new
+                depth_tmp = depth_new
+                az_tmp = az_new
+                inc_angle_tmp = inc_angle_new
+              enddo shooting_loop
 
-          enddo incangle_loop
-          !print *, "station lon, lat, dist = ", lon_sta(jj), lat_sta(jj), dist_min, hypodist(jj), ttime_min, width_min(jj)
+            enddo incangle_loop
+          enddo incangle_loop2
+          !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
+          !print '(a, 3(f8.4, 1x))', "rayshoot lon, lat, depth = ", lon_min, lat_min, depth_min
+          !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
 #endif
         enddo station_loop
       enddo lon_loop
@@ -359,6 +373,7 @@ program AmplitudeSourceLocation_PulseWidth
   enddo z_loop
   !$omp end do
   !$omp end parallel
+  stop
 
   !!find minimum residual grid for seismic source 
   resultfile = trim(resultdir) // "/" // trim(resultfile)
