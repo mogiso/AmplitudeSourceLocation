@@ -23,13 +23,11 @@ To use WIN-format file as an input waveform, set -DWIN at $DEFS in Makefile.
 ## Usage
 If sac-formatted waveform files are used,
 
-    $ ./asl_pw sacfile_index dem_grdfile ot_begin(sec) ot_end(sec) ot_shift(sec) rms_time_window(sec) resultdir
- result_file_name(txt)
+    $ ./asl_pw sacfile_index dem_grdfile ot_begin(sec) ot_end(sec) ot_shift(sec) rms_time_window(sec) resultdir result_file_name(txt)
 
 or
 
-    $ ./asl_pw winfile win_chfile dem_grdfile ot_begin(sec) ot_end(sec) ot_shift(sec) rms_time_window(sec) resultdir
- result_file_name(txt)
+    $ ./asl_pw winfile win_chfile dem_grdfile ot_begin(sec) ot_end(sec) ot_shift(sec) rms_time_window(sec) resultdir result_file_name(txt)
 
 when win-formatted file are used. "ot_begin" and "ot_end" are the time in second measured from the beginning of the waveforms.
 These two variables define the search range in time dimension.
