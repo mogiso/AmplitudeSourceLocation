@@ -4,7 +4,7 @@
 ##License  : MIT License (https://opensource.org/licenses/MIT)
 
 FC = ifort
-DEFS = -DDOUBLE -DV_MEA1D
+DEFS = -DDOUBLE -DV_MEA1D -DWIN
 INCDIR = -I${NETCDF_FORTRAN_INC}
 LIBDIR = 
 LIBS = -lnetcdff
