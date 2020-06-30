@@ -5,7 +5,7 @@ module grdfile_io
   !!License  : MIT License https://opensource.org/licenses/MIT
 
   private
-  public :: read_grdfile_2d, write_grdfile_2d
+  public :: read_grdfile_2d, write_grdfile_2d, write_grdfile_fp_2d
 
   contains
 
@@ -95,6 +95,62 @@ module grdfile_io
     ncstatus = nf90_close(ncid)
     return
   end subroutine write_grdfile_2d
+
+  subroutine write_grdfile_fp_2d(xmin, ymin, dx, dy, nx, ny, zval, netcdf_file, nanval)
+    use netcdf
+    use nrtype, only : fp
+    implicit none
+
+    real(kind = fp),    intent(in)    :: xmin, ymin, dx, dy
+    integer,            intent(in)    :: nx, ny
+    real(kind = fp),    intent(in)    :: zval(1 : nx, 1 : ny)
+    character(len = *), intent(inout) :: netcdf_file
+    real(kind = fp),    intent(in), optional :: nanval
+
+    integer :: i, j, ncstatus, ncid, dimid_x, dimid_y, varid_x, varid_y, varid_z
+    real(kind = fp), allocatable :: tmp_array(:)
+    real(kind = fp), allocatable :: tmp_array2d(:, :)
+
+    !!open file
+    ncstatus = nf90_create(trim(netcdf_file), NF90_NETCDF4, ncid)
+
+    !!dimensions
+    ncstatus = nf90_def_dim(ncid, 'x', nx, dimid_x)
+    ncstatus = nf90_def_dim(ncid, 'y', ny, dimid_y)
+
+    !!variables
+    ncstatus = nf90_def_var(ncid, 'x', NF90_DOUBLE, [dimid_x], varid_x)
+    ncstatus = nf90_def_var(ncid, 'y', NF90_DOUBLE, [dimid_y], varid_y)
+    ncstatus = nf90_def_var(ncid, 'z', NF90_FLOAT,  [dimid_x, dimid_y], varid_z)
+
+    allocate(tmp_array(1 : nx))
+    do i = 1, nx
+      tmp_array(i) = xmin + dx * real(i - 1, kind = fp)
+    enddo
+    ncstatus = nf90_put_var(ncid, varid_x, tmp_array)
+    deallocate(tmp_array)
+
+    allocate(tmp_array(1 : ny))
+    do i = 1, ny
+      tmp_array(i) = ymin + dy * real(i - 1, kind = fp)
+    enddo
+    ncstatus = nf90_put_var(ncid, varid_y, tmp_array)
+    deallocate(tmp_array)
+    
+    allocate(tmp_array2d(1 : nx, 1 : ny))
+    do j = 1, ny
+      do i = 1, nx
+        tmp_array2d(i, j) = zval(i, j)
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = 0.0_fp / 0.0_fp
+      enddo
+    enddo
+    ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
+    deallocate(tmp_array2d)
+    
+    !!close file
+    ncstatus = nf90_close(ncid)
+    return
+  end subroutine write_grdfile_fp_2d
 
 
   subroutine get_varinfo(fileid, varname, varid, varlen)
