@@ -121,7 +121,7 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
 
-  allocate(hypodist(1 : nsta), pulsewidth(1 : nsta), ray_azinc(1 : 2, 1 : nsta))
+  allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta))
   
   !$omp parallel default(none), &
   !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
@@ -182,8 +182,6 @@ program AmplitudeSourceLocation_masterevent
         az_tmp = az_ini
         inc_angle_tmp = inc_angle_ini
 
-        ttime_tmp = 0.0_fp
-        width_tmp = 0.0_fp
         !!loop until ray arrives at surface/boundary
         shooting_loop: do
 
@@ -223,8 +221,6 @@ program AmplitudeSourceLocation_masterevent
 
           if(dist_tmp .lt. dist_min) then
             dist_min = dist_tmp
-            ttime_min = ttime_tmp
-            width_min(jj) = width_tmp
             lon_min = lon_tmp
             lat_min = lat_tmp
             depth_min = depth_tmp
@@ -238,13 +234,9 @@ program AmplitudeSourceLocation_masterevent
           val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
           call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
           val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
-          call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
-
           dvdz = (val_1d(2) - val_1d(1)) / dz
           call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
           &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
-          ttime_tmp = ttime_tmp + time_step
-          width_tmp = width_tmp + qinv_interpolate * time_step
 
           lon_tmp = lon_new
           lat_tmp = lat_new
@@ -268,123 +260,7 @@ program AmplitudeSourceLocation_masterevent
   !$omp end do
   !$omp end parallel
 
-  !!find minimum residual grid for seismic source 
-  resultfile = trim(resultdir) // "/" // trim(resultfile)
-  open(unit = 10, file = resultfile)
-  write(10, '(a)') "# OT min_lon min_lat min_dep source_amp residual"
-  residual(1 : nlon, 1 : nlat, 1 : nz) = huge
-
-  time_count = 0
-  time_loop: do
-    origintime = ot_begin + ot_shift * real(time_count, kind = fp)
-    if(origintime .gt. ot_end) exit time_loop
-    !write(0, '(a, f6.1)') "origin time = ", origintime
-
-    source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
-    residual(1 : nlon, 1 : nlat, 1 : nz) = huge
-    !$omp parallel default(none), &
-    !$omp&         shared(ttime_min, origintime, ttime_cor, sampling, npts, waveform_obs, source_amp, siteamp, &
-    !$omp&                rms_tw, hypodist, width_min, residual), &
-    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize)
-
-    !$ omp_thread = omp_get_thread_num()
-
-    !$omp do schedule(guided)
-    z_loop2: do k = 1, nz - 1
-      depth_grid = z_min + dz * real(k - 1, kind = fp)
-      !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
-      lat_loop2: do j = 1, nlat
-        lon_loop2: do i = 1, nlon
-
-          !!caluculate site-corrected amplitude
-          do jj = 1, nsta
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
-              cycle lon_loop2
-            endif
-
-            wave_index = int((origintime + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
-            if(wave_index .gt. npts(jj)) then
-              write(0, '(a)') "wave_index is larger than npts"
-              close(10)
-              error stop
-            endif
-            rms_amp_obs(jj) = 0.0_fp
-            icount = 0
-            do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
-              if(ii .lt. npts(jj)) then
-                rms_amp_obs(jj) = rms_amp_obs(jj) + waveform_obs(ii, jj) * waveform_obs(ii, jj)
-                icount = icount + 1
-              endif
-            enddo
-            rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
-  
-            !!calculate source amplitude and residual
-            source_amp(i, j, k) = source_amp(i, j, k) &
-            &            + rms_amp_obs(jj) / siteamp(jj) &
-            &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
-          enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta, kind = dp)
-          residual(i, j, k) = 0.0_dp
-          residual_normalize = 0.0_dp
-          do ii = 1, nsta
-            residual(i, j, k) = residual(i, j, k) &
-            &                 + (rms_amp_obs(ii) / siteamp(ii) &
-            &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
-            &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)) ** 2
-            residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
-          enddo
-          residual(i, j, k) = residual(i, j, k) / residual_normalize
-  
-        enddo lon_loop2
-      enddo lat_loop2
-    enddo z_loop2
-    !$omp end do
-    !$omp end parallel
-
-    !!search minimum residual
-    residual_minloc = minloc(residual)
-    lon_grid = lon_w + real(residual_minloc(1) - 1, kind = fp) * dlon
-    lat_grid = lat_s + real(residual_minloc(2) - 1, kind = fp) * dlat
-    depth_grid = z_min + real(residual_minloc(3) - 1, kind = fp) * dz
-    write(0, '(a, f0.1, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7))') &
-    &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
-    &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
-    &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
-    write(10, '(f0.1, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7))') &
-    &                 origintime, lon_grid, lat_grid, depth_grid, &
-    &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
-    &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
-
-    !!output grd files
-    call int_to_char(time_count, maxlen, time_count_char)
-    !!output horizontal slice
-    grdfile = trim(resultdir) // "/min_err_lon-lat_" // trim(time_count_char) // ".grd"
-    allocate(residual_grd(nlon, nlat))
-    residual_grd(1 : nlon, 1 : nlat) = real(residual(1 : nlon, 1 : nlat, residual_minloc(3)), kind = sp)
-    call write_grdfile_2d(lon_w, lat_s, dlon, dlat, nlon, nlat, residual_grd, grdfile, nanval = real(huge, kind = sp))
-    deallocate(residual_grd)
-
-    !!output depth slice -- lon-dep
-    grdfile = trim(resultdir) // "/min_err_lon-dep_" // trim(time_count_char) // ".grd"
-    allocate(residual_grd(nlon, nz))
-    residual_grd(1 : nlon, 1 : nz) = real(residual(1 : nlon, residual_minloc(2), 1 : nz), kind = sp)
-    call write_grdfile_2d(lon_w, z_min, dlon, dz, nlon, nz, residual_grd, grdfile, nanval = real(huge, kind = sp))
-    deallocate(residual_grd)
-
-    !!output depth slice -- dep-lat
-    grdfile = trim(resultdir) // "/min_err_dep-lat_" // trim(time_count_char) // ".grd"
-    allocate(residual_grd(nz, nlat))
-    do j = 1, nz
-      do i = 1, nlat
-        residual_grd(j, i) = real(residual(residual_minloc(1), i, j), kind = sp)
-      enddo
-    enddo
-    call write_grdfile_2d(z_min, lat_s, dz, dlat, nz, nlat, residual_grd, grdfile, nanval = real(huge, kind = sp))
-    deallocate(residual_grd)
-
-    time_count = time_count + 1
-  enddo time_loop
-  close(10)
+  !!
 
   stop
 end program AmplitudeSourceLocation_masterevent
