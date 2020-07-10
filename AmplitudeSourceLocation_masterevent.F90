@@ -5,7 +5,7 @@ program AmplitudeSourceLocation_masterevent
   !!Copyright: (c) Masashi Ogiso 2020
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
-  use nrtype,               only : fp, sp, dp
+  use nrtype,               only : fp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
   use set_velocity_model,   only : set_velocity
@@ -14,6 +14,11 @@ program AmplitudeSourceLocation_masterevent
   use itoa,                 only : int_to_char
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
+#ifdef MKL
+  use lapack95
+#else
+  use f95_lapack
+#endif
 
   implicit none
 
@@ -28,34 +33,31 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
   !!Use station
-  integer,            parameter :: nsta = 4
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: freq = 7.5_dp
+  real(kind = dp),    parameter :: huge = 1.0e+10_dp
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
-  &                                sampling(1 : nsta), begin(1 : nsta), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), &
-  &                                lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), &
-  &                                width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &                                ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &                                hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), inc_angle_ini_min(0 : nrayshoot)
+  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
   real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:)
+  real(kind = fp), allocatable  :: stlon(:), stlat(:), stdp(:), obsamp_master(:), obsamp_sub(:, :), &
+  &                                hypodist(:), ray_azinc(:, :), dist_min(:), &
+  &                                obs
   
-  real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
-  &                                az_tmp, inc_angle_tmp, inc_angle_min, az_new, inc_angle_new, az_ini, &
-  &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
-  &                                lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
-  &                                ot_begin, ot_end, ot_shift, rms_tw, lon_min, lat_min, depth_min, &
-  &                                dinc_angle, dinc_angle_org, inc_angle_ini
+  real(kind = fp)               :: evlon_master, evlat_master, evdp_master, sourceamp_master, &
+  &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
+  &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
+  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, &
+  &                                
+
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo
-  
-  integer                       :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                npts_max, nlon_topo, nlat_topo
-  character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, ot_shift_t, &
-  &                                grdfile, resultfile, resultdir
-  character(len = maxlen)       :: time_count_char
+
+  integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, &
+  &                                lon_index, lat_index, z_index
+
+  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
@@ -82,6 +84,11 @@ program AmplitudeSourceLocation_masterevent
   !!read station parameter
   open(unit = 10, file = station_param)
   read(10, *) nsta
+  if(nsta .lt. 4) then
+    close(10)
+    write(0, '(a)') "Number of station nsta should be larger than 4"
+    error stop
+  endif
   allocate(stlon(nsta), stlat(nsta), stdp(nsta))
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i)
@@ -97,7 +104,7 @@ program AmplitudeSourceLocation_masterevent
   !!read subevent paramter
   open(unit = 10, file = subevent_param_file)
   read(10, *) nsubevent
-  allocate(obsamp_sub(1 : nsta, 1 : nsubevent)
+  allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
@@ -121,7 +128,7 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
 
-  allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta))
+  allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta))
   
   !$omp parallel default(none), &
   !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
@@ -151,17 +158,13 @@ program AmplitudeSourceLocation_masterevent
     ray_azinc(1, jj) = az_ini
 
 #ifdef V_CONST
-    !!homogeneous structure: using velocity/qinv at the grid
-    ttime_min = hypodist(jj) / velocity(lon_index, lat_index, z_index)
-    width_min(jj) = ttime_min(jj) * qinv(lon_index, lat_index, z_index)
+    !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
     ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
 
 #else
           
     !!do ray shooting
-    dist_min = huge
-    ttime_min = real(huge, kind = fp)
-    width_min(jj) = real(huge, kind = fP)
+    dist_min(jj) = real(huge, kind = fp)
     incangle_loop2: do kk = 1, nrayshoot
       if(kk .eq. 1) then
         dinc_angle_org = pi / 2.0_fp
@@ -220,7 +223,7 @@ program AmplitudeSourceLocation_masterevent
           !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
 
           if(dist_tmp .lt. dist_min) then
-            dist_min = dist_tmp
+            dist_min(jj) = dist_tmp
             lon_min = lon_tmp
             lat_min = lat_tmp
             depth_min = depth_tmp
@@ -247,20 +250,79 @@ program AmplitudeSourceLocation_masterevent
 
       enddo incangle_loop
     enddo incangle_loop2
-    !print '(a, 4(f8.4, 1x))', "grid lon, lat, depth, az_ini = ", lon_grid, lat_grid, depth_grid, az_ini * rad2deg
-    !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
-    !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
-    !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
-    !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
-    if(dist_min .gt. rayshoot_dist_thr) then
-      width_min(jj, i, j, k) = hu
-    endif
+    print '(a, 4(f8.4, 1x))', "masterevent lon, lat, depth, az_ini = ", &
+    &                          evlon_master, evlat_master, evdp_master, az_ini * rad2deg
+    print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+    print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
 #endif
   enddo station_loop
   !$omp end do
   !$omp end parallel
 
-  !!
+  !!Set up the observation vector and inversion matrix
+  allocate(obsvector(1 : nsta * nsubevent), obsvector_copy(1 : nsta * nsubevent))
+  allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
+  &        inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent))
+  inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  do j = 1, nsubevent
+    do i = 1, nsta
+      obsvector(nsta * (j - 1) + i) = log(obsamp_master(i) / obsamp_sub(i, j))
+      normal_vector(1 : 3) = [sin(pi - ray_azinc(2, ii)) * cos(ray_azinc(1, ii)), &
+      &                       sin(pi - ray_azinc(2, ii)) * sin(ray_azinc(1, ii)), &
+      &                       cos(pi - ray_azinc(2, ii))]
+      inversion_matrix(nsta * (jj - 1) + ii, 4 * (jj - 1) + 1) = 1.0_fp
+      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(ii)
+      do ii = 1, 3
+        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = matrix_const * normal_vector(ii)
+      enddo
+    enddo
+  enddo
+
+  !!copy observation vector and inversion matrix
+  obsvector_copy(1 : nsta * nsubevent) = obsvector(1 : nsta * nsubevent)
+  inversion_matrix2(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
+  &  = inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent)
+
+  !!calculate least-squares solution
+#ifdef MKL
+  call gels(inversion_matrix, obsvector)
+#else
+  call la_gels(inversion_matrix, obsvector)
+#endif
+
+  !!calculate mean data residual
+  data_residual = 0.0_fp
+  do i = 1, nsta * nsubevent
+    data_residual = data_residual &
+    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+  enddo
+  data_residual = data_residual / real(nsta * nsubevent, kind = fp)
+  !!calculate variance
+  data_variance = 0.0_fp
+  do i = 1, nsta * nsubevent
+    data_variance = data_variance + (data_residual &
+    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
+  enddo
+  data_variance = data_variance / real(nsta * nsubevent - 1)
+
+  !!estimate error of inverted model parameters
+  allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
+  allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
+  sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
+  do i = 1, nsta * nsubevent
+    sigma_inv_data(i, i) = data_variance
+  enddo
+  error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
+#ifdef MKL
+  call getrf(error_matrix, ipiv)
+  call getri(error_matrix, ipiv)
+#else
+  call la_getrf(error_matrix, ipiv)
+  call la_getri(error_matrix, ipiv)
+#endif
+    
+  
+  
 
   stop
 end program AmplitudeSourceLocation_masterevent
