@@ -85,7 +85,7 @@ module grdfile_io
     do j = 1, ny
       do i = 1, nx
         tmp_array2d(i, j) = zval(i, j)
-        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = 0.0_sp / 0.0_sp
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1, 0.0_dp)
       enddo
     enddo
     ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
@@ -141,7 +141,7 @@ module grdfile_io
     do j = 1, ny
       do i = 1, nx
         tmp_array2d(i, j) = zval(i, j)
-        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = 0.0_fp / 0.0_fp
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1, 0.0_fp)
       enddo
     enddo
     ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
