@@ -26,6 +26,10 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 5.0_fp
+  real(kind = fp),    parameter :: dlon = 0.01_fp, dlat = 0.01_fp, dz = 0.1_fp
+  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
+  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
+  integer,            parameter :: nz = int((z_max - z_min) / dz) + 2
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
@@ -40,22 +44,26 @@ program AmplitudeSourceLocation_masterevent
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
-  real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp), allocatable  :: stlon(:), stlat(:), stdp(:), obsamp_master(:), obsamp_sub(:, :), &
+  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
+  &                                normal_vector(1 : 3)
+  real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
+  real(kind = fp),  allocatable :: stlon(:), stlat(:), stdp(:), obsamp_master(:), obsamp_sub(:, :), &
   &                                hypodist(:), ray_azinc(:, :), dist_min(:), &
-  &                                obs
+  &                                obsvector(:), obsvector_copy(:), &
+  &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
+  &                                sigma_inv_data(:, :), error_matrix(:, :)
+  integer,          allocatable :: ipiv
   
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, sourceamp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
-  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, &
-  &                                
+  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
+  &                                data_residual, data_variance
 
-  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo
+  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
-  integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, &
-  &                                lon_index, lat_index, z_index
+  integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
+  &                                i, j, ii, jj, icount
 
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param
 
@@ -102,7 +110,7 @@ program AmplitudeSourceLocation_masterevent
   read(10, *) (obsamp_master(i), i = 1, nsta)
   close(10)
   !!read subevent paramter
-  open(unit = 10, file = subevent_param_file)
+  open(unit = 10, file = subevent_param)
   read(10, *) nsubevent
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
@@ -150,7 +158,7 @@ program AmplitudeSourceLocation_masterevent
     &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)
     lon_index = int((stlon(jj) - lon_w) / dlon) + 1
     lat_index = int((stlat(jj) - lat_s) / dlat) + 1
-    z_index   = int((stdp(jj) - z_min / dz) + 1
+    z_index   = int((stdp(jj) - z_min) / dz) + 1
     !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
     !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
     hypodist(jj) = sqrt((r_earth - evdp_master) ** 2 + (r_earth - stdp(jj)) ** 2 &
@@ -280,14 +288,14 @@ program AmplitudeSourceLocation_masterevent
 
   !!copy observation vector and inversion matrix
   obsvector_copy(1 : nsta * nsubevent) = obsvector(1 : nsta * nsubevent)
-  inversion_matrix2(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
+  inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
   &  = inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent)
 
   !!calculate least-squares solution
 #ifdef MKL
-  call gels(inversion_matrix, obsvector)
+  call gels(inversion_matrix_copy, obsvector)
 #else
-  call la_gels(inversion_matrix, obsvector)
+  call la_gels(inversion_matrix_copy, obsvector)
 #endif
 
   !!calculate mean data residual
@@ -312,7 +320,7 @@ program AmplitudeSourceLocation_masterevent
   do i = 1, nsta * nsubevent
     sigma_inv_data(i, i) = data_variance
   enddo
-  error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
+  error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
 #ifdef MKL
   call getrf(error_matrix, ipiv)
   call getri(error_matrix, ipiv)
