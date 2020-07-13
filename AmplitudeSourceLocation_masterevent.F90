@@ -11,7 +11,6 @@ program AmplitudeSourceLocation_masterevent
   use set_velocity_model,   only : set_velocity
   use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
-  use itoa,                 only : int_to_char
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
 #ifdef MKL
@@ -52,18 +51,19 @@ program AmplitudeSourceLocation_masterevent
   &                                obsvector(:), obsvector_copy(:), &
   &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
   &                                sigma_inv_data(:, :), error_matrix(:, :)
-  integer,          allocatable :: ipiv
+  integer,          allocatable :: ipiv(:)
   
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, sourceamp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
+  &                                lon_min, lat_min, depth_min, &
   &                                data_residual, data_variance
 
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, ii, jj, icount
+  &                                i, j, ii, jj, kk, icount
 
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param
 
@@ -139,14 +139,13 @@ program AmplitudeSourceLocation_masterevent
   allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta))
   
   !$omp parallel default(none), &
-  !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
-  !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo), &
-  !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
-  !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
-  !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
-  !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
-  !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
-  !$omp&                inc_angle_ini, inc_angle_ini_min)
+  !$omp&         shared(nsta, evlon_master, evlat_master, evdp_master, stlon, stlat, stdp, hypodist, ray_azinc, &
+  !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, velocity, qinv), &
+  !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
+  !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
+  !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, &
+  !$omp&                 dist_tmp, lon_min, lat_min, depth_min, velocity_interpolate, dvdz, &
+  !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, ii, kk, omp_thread)
 
   !$ omp_thread = omp_get_thread_num()
 
@@ -230,7 +229,7 @@ program AmplitudeSourceLocation_masterevent
           !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
           !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
 
-          if(dist_tmp .lt. dist_min) then
+          if(dist_tmp .lt. dist_min(jj)) then
             dist_min(jj) = dist_tmp
             lon_min = lon_tmp
             lat_min = lat_tmp
@@ -266,6 +265,16 @@ program AmplitudeSourceLocation_masterevent
   enddo station_loop
   !$omp end do
   !$omp end parallel
+
+  !!Qinv at master event location
+  lon_index = int((evlon_master - lon_w) / dlon) + 1
+  lat_index = int((evlat_master - lat_s) / dlat) + 1
+  z_index   = int((evdp_master - z_min) / dz) + 1
+  xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
+  ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
+  zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+  val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+  call block_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
   !!Set up the observation vector and inversion matrix
   allocate(obsvector(1 : nsta * nsubevent), obsvector_copy(1 : nsta * nsubevent))
@@ -321,6 +330,7 @@ program AmplitudeSourceLocation_masterevent
     sigma_inv_data(i, i) = data_variance
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
+  allocate(ipiv(1 : size(error_matrix, 1)))
 #ifdef MKL
   call getrf(error_matrix, ipiv)
   call getri(error_matrix, ipiv)

@@ -12,8 +12,8 @@
 #OPTS = -assume byterecl -qopenmp -O3 -xHOST
 
 FC = gfortran
-FFLAGS = -g -Wall -fbounds-check -fbacktrace
-DEFS = -DDOUBLE -DV_CONST -DWIN
+FFLAGS = -g -Wall -fbounds-check -fbacktrace -fopenmp
+DEFS = -DDOUBLE -DV_MEA1D -DWIN
 INCDIR = -I/usr/include -I/usr/local/include
 LIBDIR = -llapack95 -llapack -lblas
 LIBS = -lnetcdff
@@ -29,4 +29,4 @@ asl_masterevent: nrtype.F90 constants.F90 greatcircle.f90 linear_interpolation.F
 	$(FC) $(FFLAGS) $(INCDIR) $^ $(DEFS) $(LIBDIR) $(LIBS) $(OPTS) -o $@
 
 clean:
-	rm -f *.mod asl_pw
+	rm -f *.mod asl_pw asl_masterevent
