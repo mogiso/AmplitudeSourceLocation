@@ -28,5 +28,9 @@ asl_masterevent: nrtype.F90 constants.F90 greatcircle.f90 linear_interpolation.F
         set_velocity_model.F90 AmplitudeSourceLocation_masterevent.F90 
 	$(FC) $(FFLAGS) $(INCDIR) $^ $(DEFS) $(LIBDIR) $(LIBS) $(OPTS) -o $@
 
+asl_synthwave: nrtype.F90 constants.F90 greatcircle.f90 linear_interpolation.F90 rayshooting.F90 read_sacfile.F90 \
+        grdfile_io.F90 wavelet.f90 set_velocity_model.F90 xorshift1024star.f90 AmplitudeSourceLocation_synthwave.F90 
+	$(FC) $(FFLAGS) $(INCDIR) $^ $(DEFS) $(LIBDIR) $(LIBS) $(OPTS) -o $@
+
 clean:
-	rm -f *.mod asl_pw asl_masterevent
+	rm -f *.mod asl_pw asl_masterevent asl_synthwave
