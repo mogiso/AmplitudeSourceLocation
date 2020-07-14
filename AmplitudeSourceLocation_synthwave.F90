@@ -1,0 +1,310 @@
+program AmplitudeSourceLocation_synthwave
+  !!Making synthetic waveform using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
+  !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
+  !!Copyright: (c) Masashi Ogiso 2020
+  !!License  : MIT License (https://opensource.org/licenses/MIT)
+
+  use nrtype,               only : fp, sp, dp
+  use constants,            only : rad2deg, deg2rad, pi, r_earth
+  use rayshooting,          only : rayshooting3D
+  use read_sacfile,         only : read_sachdr
+  use set_velocity_model,   only : set_velocity
+  use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
+  use greatcircle,          only : greatcircle_dist
+  use grdfile_io,           only : read_grdfile_2d
+  use xorshift1024star
+  !$ use omp_lib
+
+  implicit none
+
+  !!Search range
+  real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
+  real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
+  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
+  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!Ray shooting
+  real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
+  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
+  integer,            parameter :: nrayshoot = 2                            !!number of grid search
+  real(kind = fp),    parameter :: time_step = 0.01_fp
+  real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
+  !!Use station
+  integer,            parameter :: nsta = 4
+  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
+  character(len = 9), parameter :: sacfile_extension = "__U__.sac"
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
+  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp] !!static correction of traveltime
+  !!assumed hypocenter
+  integer,            parameter :: nhypo = 2
+  real(kind = fp),    parameter :: origintime(1 : nhypo) = [5.0_fp, 10.0_fp]
+  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0108_fp, 144.0122_fp]
+  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3815_fp, 43.3821_fp]
+  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [0.5_fp, 0.3_fp]
+  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [1.5_dp, 0.8_dp]
+  real(kind = dp),    parameter :: characteristicfreq    = 7.0_dp
+  real(kind = dp),    parameter :: asl_freq              = 7.5_dp
+
+  !!assumed data length, sampling frequency (s)
+  real(kind = fp),    parameter :: waveform_length = 100.0_fp
+  real(kind = fp),    parameter :: wavelet_length = 15.0_fp
+  real(kind = sp),    parameter :: sampling = 0.01_sp
+  integer,            parameter :: npts_waveform = int(waveform_length / real(sampling, kind = fp) + 0.5_fp)
+  integer,            parameter :: npts_wavelet = int(wavelet_length / real(sampling, kind = fp) + 0.5_fp)
+  real(kind = dp),    parameter :: noise_sigma = 0.05_dp
+
+  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
+  real(kind = dp),    parameter :: huge = 1.0e+5_dp
+
+  !real(kind = fp),    parameter :: dinc_angle1 = pi / real(ninc_angle, kind = fp)
+  !real(kind = fp),    parameter :: dinc_angle2 = 2.0_fp * dinc_angle1 / real(ninc_angle - 1, kind = fp)
+  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
+  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
+  integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
+
+  real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
+  &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
+  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), &
+  &                                lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), &
+  &                                width_min(1 : nhypo, 1 : nsta), &
+  &                                ttime_min(1 : nhypo, 1 : nsta), &
+  &                                hypodist(1 : nhypo, 1 : nsta), inc_angle_ini_min(0 : nrayshoot)
+  real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:), waveform(:), wavelet(:)
+  
+  real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
+  &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
+  &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, &
+  &                                dist_min, dist_tmp, dvdz, epdelta, lon_min, lat_min, depth_min, &
+  &                                dinc_angle, dinc_angle_org, inc_angle_ini
+  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, random_number1, random_number2
+  
+  integer                       :: i, j, ii, jj, icount, wave_index, lon_index, lat_index, z_index, nlon_topo, nlat_topo
+  character(len = 129)          :: dem_file, sacfile, sacfile_index
+
+  !!random number
+  type(xorshift1024star_state)  :: random_state
+  
+  !!OpenMP variable
+  !$ integer                    :: omp_thread
+
+  icount = iargc()
+  if(icount .ne. 2) then
+    write(0, '(a)') "usage: ./a.out sacfile_index dem_grdfile_name"
+    error stop
+  endif
+  
+  call getarg(1, sacfile_index)
+  call getarg(2, dem_file)
+
+  write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
+  write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
+
+  !!read topography file (netcdf grd format)
+  call read_grdfile_2d(dem_file, lon_topo, lat_topo, topography)
+  nlon_topo = ubound(lon_topo, 1)
+  nlat_topo = ubound(lat_topo, 1)
+  dlon_topo = lon_topo(2) - lon_topo(1)
+  dlat_topo = lat_topo(2) - lat_topo(1)
+  topography(1 : nlon_topo, 1 : nlat_topo) = topography(1 : nlon_topo, 1 : nlat_topo) * alt_to_depth
+
+  !!set velocity/attenuation structure
+  call set_velocity(z_min, dz, velocity, qinv)
+
+  !!read sac file
+  do j = 1, nsta
+    sacfile = trim(sacfile_index) // trim(stname(j)) // sacfile_extension
+    call read_sachdr(sacfile, stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j))
+  enddo
+
+  !!make traveltime/pulse width table for each grid point
+  write(0, '(a)') "calculate traveltime / pulse width ..."
+  !$omp parallel default(none), &
+  !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, &
+  !$omp&                ttime_min, width_min, hypodist, lon_topo, lat_topo, dlon_topo, dlat_topo), &
+  !$omp&         private(i, ii, jj, az_ini, epdelta, lon_index, lat_index, z_index, &
+  !$omp&                dist_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
+  !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
+  !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
+  !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
+  !$omp&                inc_angle_ini, inc_angle_ini_min)
+
+  !$ omp_thread = omp_get_thread_num()
+
+  !$omp do schedule(guided)
+  !!calculate traveltime to station        
+  station_loop: do j = 1, nsta
+
+    hypo_loop: do i = 1, nhypo
+      ttime_min(i, j) = huge
+      width_min(i, j) = huge
+
+      !!check the grid is lower than the topo
+      lon_index = int((lon_hypo(i) - lon_topo(1)) / dlon_topo) + 1
+      lat_index = int((lat_hypo(i) - lat_topo(1)) / dlat_topo) + 1
+      xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
+      ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
+      val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
+      call linear_interpolation_2d(lon_hypo(i), lat_hypo(i), xgrid, ygrid, val_2d, topography_interpolate)
+      if(depth_hypo(i) .lt. topography_interpolate) then
+        write(0, '(a, i0)') "depth_hypo is higher than altitude there, hypo_index = ", i
+        error stop
+      endif
+
+      !!calculate azimuth and hypocentral distance
+      call greatcircle_dist(lat_hypo(i), lon_hypo(i), lat_sta(j), lon_sta(j), azimuth = az_ini, delta_out = epdelta)
+      lon_index = int((lon_sta(j) - lon_w) / dlon) + 1
+      lat_index = int((lat_sta(j) - lat_s) / dlat) + 1
+      !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
+      !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
+      hypodist(i, j) = sqrt((r_earth - depth_hypo(i)) ** 2 + (r_earth - z_sta(j)) ** 2 &
+      &              - 2.0_fp * (r_earth - depth_hypo(i)) * (r_earth - z_sta(j)) * cos(epdelta))
+
+#ifdef V_CONST
+      !!homogeneous structure: using velocity/qinv at the grid
+      lon_index = int((lon_hypo(i) - lon_w) / dlon) + 1
+      lat_index = int((lat_hypo(i) - lat_s) / dlat) + 1
+      z_index = int((depth_hypo(i) - depth_min) / dz) + 1
+      ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index)
+      width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index)
+
+#else
+          
+      !!do ray shooting
+      dist_min = huge
+      incangle_loop2: do jj = 1, nrayshoot
+        if(jj .eq. 1) then
+          dinc_angle_org = pi / 2.0_fp
+        else
+          dinc_angle_org = dinc_angle
+        endif
+        dinc_angle = 2.0_fp * dinc_angle_org / real(ninc_angle, kind = fp)
+        inc_angle_ini_min(0) = dinc_angle_org
+        !print *, "dinc_angle = ", dinc_angle * rad2deg, inc_angle_ini_min(kk - 1) * rad2deg
+
+        incangle_loop: do ii = 1, ninc_angle
+          inc_angle_ini = (inc_angle_ini_min(jj - 1) - dinc_angle_org) + real(ii, kind = fp) * dinc_angle
+          !print '(2(i0, 1x), a, e15.7)', ii, kk, "inc_angle_ini = ", inc_angle_ini * rad2deg
+          
+          lon_tmp = lon_hypo(i)
+          lat_tmp = lat_hypo(i)
+          depth_tmp = depth_hypo(i)
+          az_tmp = az_ini
+          inc_angle_tmp = inc_angle_ini
+
+          ttime_tmp = 0.0_fp
+          width_tmp = 0.0_fp
+          !!loop until ray arrives at surface/boundary
+          shooting_loop: do
+
+            !!exit if ray approaches to the surface
+            lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
+            lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+            xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
+            ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
+            val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
+            call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
+            if(depth_tmp .lt. topography_interpolate) then
+              !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
+              exit shooting_loop
+            endif
+
+            lon_index = int((lon_tmp - lon_w) / dlon) + 1
+            lat_index = int((lat_tmp - lat_s) / dlat) + 1
+            z_index   = int((depth_tmp - z_min) / dz) + 1
+
+            !!exit if ray approaches to the boundary
+            if(lon_index .lt. 1 .or. lon_index .gt. nlon - 1      &
+            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat - 1 &
+            &  .or. z_index .lt. 1 .or. z_index .gt. nz - 1) then
+              exit shooting_loop
+            endif
+
+            xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
+            ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
+            zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+
+            !!calculate distance between ray and station
+            call greatcircle_dist(lat_tmp, lon_tmp, lat_sta(j), lon_sta(j), delta_out = epdelta)
+            dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - z_sta(j)) ** 2 &
+            &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - z_sta(j)) * cos(epdelta))
+            !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
+            !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
+
+            if(dist_tmp .lt. dist_min) then
+              dist_min = dist_tmp
+              ttime_min(i, j) = ttime_tmp
+              width_min(i, j) = width_tmp
+              lon_min = lon_tmp
+              lat_min = lat_tmp
+              depth_min = depth_tmp
+              inc_angle_ini_min(jj) = inc_angle_ini
+              !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
+              !&                                                                      dist_min
+            endif
+ 
+            !!shooting the ray
+            val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+            call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
+            val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+            call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
+
+            dvdz = (val_1d(2) - val_1d(1)) / dz
+            call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
+            &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
+            ttime_tmp = ttime_tmp + time_step
+            width_tmp = width_tmp + qinv_interpolate * time_step
+
+            lon_tmp = lon_new
+            lat_tmp = lat_new
+            depth_tmp = depth_new
+            az_tmp = az_new
+            inc_angle_tmp = inc_angle_new
+          enddo shooting_loop
+
+        enddo incangle_loop
+      enddo incangle_loop2
+      print '(a, 4(f8.4, 1x))', "hypo lon, lat, depth, az_ini = ", lon_hypo(i), lat_hypo(i), depth_hypo(i), az_ini * rad2deg
+      print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(j), lat_sta(j), z_sta(j)
+      print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
+      &                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
+      print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(i, j), width_min(i, j)
+      if(dist_min .gt. rayshoot_dist_thr) then
+        ttime_min(i, j) = huge
+        width_min(i, j) = 0.0_fp
+        write(0, '(a, i0)') "rayshooting failed, hypo_index = ", i
+        error stop
+      endif
+#endif
+    enddo hypo_loop
+  enddo station_loop
+  !$omp end do
+  !$omp end parallel
+
+  !!make waveform
+  allocate(waveform(1 : npts_waveform))
+  allocate(wavelet(1 : npts_wavelet))
+  call state_init_self(random_state)
+  do j = 1, nsta
+    waveform(1 : npts_waveform) = 0.0_dp
+    do i = 1, nhypo
+      call ricker_wavelet(npts_wavelet, sampling, characteristicfreq, amp_hypo(j), 0.0_dp, wavelet)
+      wave_index = int((origintime(i) + ttime_min(i, j)) / real(sampling, kind = fp) + 0.5_fp) + 1
+      do ii = 1, npts_wavelet
+        if(wave_index + ii - 1 .le. npts_waveform) then
+          waveform(wave_index + ii - 1) = wavelet(ii) * hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
+        endif
+      enddo
+    enddo
+    do i = 1, npts_waveform
+      random_number1 = draw_uniform(random_state)
+      random_number2 = draw_uniform(random_state)
+      waveform(i) = waveform(i) + sqrt(-log(random_number1 * random_number1)) * sin(2.0_dp * pi * random_number2) 
+    enddo
+  enddo
+
+      
+  
+
+
+  stop
+end program AmplitudeSourceLocation_synthwave
+
