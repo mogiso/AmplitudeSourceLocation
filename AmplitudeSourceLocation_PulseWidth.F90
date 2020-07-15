@@ -193,7 +193,9 @@ program AmplitudeSourceLocation_PulseWidth
     call read_sachdr(sacfile, delta=sampling(j), stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j), &
     &                npts = npts(j), begin = begin(j))
     if(npts(j) .gt. npts_max) npts_max = npts(j)
-    z_sta(j) = z_sta(j) * 0.001_fp
+#ifdef STDP_COR
+    z_sta(j) = z_sta(j) * (-alt_to_depth)
+#endif
     if(j .ne. 1) then
       do i = 1, j - 1
         if(begin(j) .ne. begin(i)) then
