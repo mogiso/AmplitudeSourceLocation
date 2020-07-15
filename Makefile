@@ -25,13 +25,13 @@
 #OPTS = -O3 -xHOST
 
 FC = gfortran
-#FFLAGS = -g -Wall -fbounds-check -fbacktrace
-FFLAGS = -fbacktrace
+FFLAGS = -g -Wall -fbounds-check -fbacktrace
+#FFLAGS = -fbacktrace
 DEFS = -DDOUBLE -DV_MEA1D -DWIN 
 INCDIR = -I/usr/include -I/usr/local/include
 LIBDIR = 
 LIBS = -lnetcdff -llapack95 -llapack -lblas
-OPTS = 
+#OPTS = -O3 -fopenmp
 
 TARGET		= asl_pw asl_masterevent asl_synthwave
 SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_masterevent.F90 \
