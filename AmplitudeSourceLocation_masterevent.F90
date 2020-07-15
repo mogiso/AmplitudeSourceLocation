@@ -9,7 +9,8 @@ program AmplitudeSourceLocation_masterevent
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
   use set_velocity_model,   only : set_velocity
-  use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
+  use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, linear_interpolation_3d, &
+  &                                block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
@@ -31,7 +32,7 @@ program AmplitudeSourceLocation_masterevent
   integer,            parameter :: nz = int((z_max - z_min) / dz) + 2
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
+  integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
@@ -53,11 +54,11 @@ program AmplitudeSourceLocation_masterevent
   &                                sigma_inv_data(:, :), error_matrix(:, :)
   integer,          allocatable :: ipiv(:)
   
-  real(kind = fp)               :: evlon_master, evlat_master, evdp_master, sourceamp_master, &
+  real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
-  &                                lon_min, lat_min, depth_min, &
+  &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance
 
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
@@ -105,12 +106,13 @@ program AmplitudeSourceLocation_masterevent
   !!read masterevent parameter
   allocate(obsamp_master(nsta))
   open(unit = 10, file = masterevent_param)
+  read(10, *)
   read(10, *) evlon_master, evlat_master, evdp_master
-  read(10, *) sourceamp_master
   read(10, *) (obsamp_master(i), i = 1, nsta)
   close(10)
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
+  read(10, *)
   read(10, *) nsubevent
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
@@ -266,13 +268,15 @@ program AmplitudeSourceLocation_masterevent
   !$omp end do
   !$omp end parallel
 
-  !!Qinv at master event location
+  !!velocity and Qinv at master event location
   lon_index = int((evlon_master - lon_w) / dlon) + 1
   lat_index = int((evlat_master - lat_s) / dlat) + 1
   z_index   = int((evdp_master - z_min) / dz) + 1
   xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
   ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
   zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+  val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+  call linear_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, velocity_interpolate)
   val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
   call block_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
@@ -284,11 +288,11 @@ program AmplitudeSourceLocation_masterevent
   do j = 1, nsubevent
     do i = 1, nsta
       obsvector(nsta * (j - 1) + i) = log(obsamp_master(i) / obsamp_sub(i, j))
-      normal_vector(1 : 3) = [sin(pi - ray_azinc(2, ii)) * cos(ray_azinc(1, ii)), &
-      &                       sin(pi - ray_azinc(2, ii)) * sin(ray_azinc(1, ii)), &
-      &                       cos(pi - ray_azinc(2, ii))]
-      inversion_matrix(nsta * (jj - 1) + ii, 4 * (jj - 1) + 1) = 1.0_fp
-      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(ii)
+      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
+      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
+      &                       cos(ray_azinc(2, i))]
+      inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1) = 1.0_fp
+      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
       do ii = 1, 3
         inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = matrix_const * normal_vector(ii)
       enddo
@@ -327,7 +331,7 @@ program AmplitudeSourceLocation_masterevent
   allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
   sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
   do i = 1, nsta * nsubevent
-    sigma_inv_data(i, i) = data_variance
+    sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
   allocate(ipiv(1 : size(error_matrix, 1)))
@@ -338,9 +342,19 @@ program AmplitudeSourceLocation_masterevent
   call la_getrf(error_matrix, ipiv)
   call la_getri(error_matrix, ipiv)
 #endif
+  
+
+  !!output result
+  do i = 1, nsubevent
+    delta_depth = sqrt(obsvector(4 * (i - 1) + 2) ** 2 &
+    &                + obsvector(4 * (i - 1) + 3) ** 2 &
+    &                + obsvector(4 * (i - 1) + 4) ** 2)
+    delta_lon = atan2(obsvector(4 * (i - 1) + 3), obsvector(4 * (i - 1) + 2)) * rad2deg
+    delta_lat = -acos(obsvector(4 * (i - 1) + 4) / delta_depth) * rad2deg
+    !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
+    print *, obsvector(4 * (i - 1) + 2), obsvector(4 * (i - 1) + 3), obsvector(4 * (i - 1) + 4)
+  enddo
     
-  
-  
 
   stop
 end program AmplitudeSourceLocation_masterevent
