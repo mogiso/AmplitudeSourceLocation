@@ -5,6 +5,8 @@
 
 ## -DDOUBLE: calculate in double precision (recommended)
 ## -DV_MEA1D, -DV_CONST: velocity structure defined in set_velocity_model.F90
+
+## some options for AmplitudeSourceLocation_PulseWidth.F90
 ## -DWIN: using win format waveform file as an input (otherwise sac binary format files are used) 
 ##        for AmplitudeSourcelocation_Pulsewidth.F90 
 ## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
@@ -14,23 +16,25 @@
 ##             in AmplitudeSourcelocation_PulseWidth.F90
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
 ##                  in AmplitudeSourceLocation_PulseWidth.F90
+
+## option for AmplitudeSourceLocation_masterevent.F90
 ## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
 
-#FC = ifort
-#FFLAGS = -traceback -assume byterecl -qopenmp
-#DEFS = -DDOUBLE -DV_MEA1D -DTESTDATA -DMKL
-#INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
-#LIBDIR = -L${MKLROOT}/lib/intel64
-#LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
-#OPTS = -O3 -xHOST
+FC = ifort
+FFLAGS = -traceback -assume byterecl -qopenmp
+DEFS = -DDOUBLE -DV_MEA1D -DTESTDATA -DMKL -DSTDP_COR
+INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
+LIBDIR = -L${MKLROOT}/lib/intel64
+LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
+OPTS = -O3 -xHOST
 
-FC = gfortran
-FFLAGS = -g -Wall -fbounds-check -fbacktrace
+#FC = gfortran
+#FFLAGS = -g -Wall -fbounds-check -fbacktrace
 #FFLAGS = -fbacktrace
-DEFS = -DDOUBLE -DV_MEA1D -DWIN 
-INCDIR = -I/usr/include -I/usr/local/include
-LIBDIR = 
-LIBS = -lnetcdff -llapack95 -llapack -lblas
+#DEFS = -DDOUBLE -DV_MEA1D -DWIN 
+#INCDIR = -I/usr/include -I/usr/local/include
+#LIBDIR = 
+#LIBS = -lnetcdff -llapack95 -llapack -lblas
 #OPTS = -O3 -fopenmp
 
 TARGET		= asl_pw asl_masterevent asl_synthwave
