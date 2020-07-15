@@ -229,6 +229,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
   enddo
 
+#ifndef TESTDATA
   !!bandpass filter
   do j = 1, nsta
     !!design
@@ -242,6 +243,7 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
+#endif
 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
