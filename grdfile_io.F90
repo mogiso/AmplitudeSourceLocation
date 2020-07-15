@@ -41,6 +41,7 @@ module grdfile_io
   end subroutine read_grdfile_2d
 
   subroutine write_grdfile_2d(xmin, ymin, dx, dy, nx, ny, zval, netcdf_file, nanval)
+    use iso_fortran_env
     use netcdf
     use nrtype, only : sp, dp
     implicit none
@@ -85,7 +86,7 @@ module grdfile_io
     do j = 1, ny
       do i = 1, nx
         tmp_array2d(i, j) = zval(i, j)
-        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1, 0.0_sp)
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1_int32, 0.0_sp)
       enddo
     enddo
     ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
@@ -97,6 +98,7 @@ module grdfile_io
   end subroutine write_grdfile_2d
 
   subroutine write_grdfile_fp_2d(xmin, ymin, dx, dy, nx, ny, zval, netcdf_file, nanval)
+    use iso_fortran_env
     use netcdf
     use nrtype, only : fp
     implicit none
@@ -141,7 +143,7 @@ module grdfile_io
     do j = 1, ny
       do i = 1, nx
         tmp_array2d(i, j) = zval(i, j)
-        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1, 0.0_fp)
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1_int, 0.0_fp)
       enddo
     enddo
     ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
