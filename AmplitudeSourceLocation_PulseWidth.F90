@@ -42,6 +42,7 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp] !!static correction of traveltime
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true.]
 
   !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
@@ -84,7 +85,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                dlon_topo, dlat_topo
   
   integer                       :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                npts_max, nlon_topo, nlat_topo
+  &                                npts_max, nlon_topo, nlat_topo, nsta_use
   character(len = 129)          :: dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, rms_tw_t, ot_shift_t, &
   &                                grdfile, resultfile, resultdir
   character(len = maxlen)       :: time_count_char
@@ -192,7 +193,9 @@ program AmplitudeSourceLocation_PulseWidth
     call read_sachdr(sacfile, delta=sampling(j), stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j), &
     &                npts = npts(j), begin = begin(j))
     if(npts(j) .gt. npts_max) npts_max = npts(j)
-    z_sta(j) = z_sta(j) * 0.001_fp
+#ifdef STDP_COR
+    z_sta(j) = z_sta(j) * (-alt_to_depth)
+#endif
     if(j .ne. 1) then
       do i = 1, j - 1
         if(begin(j) .ne. begin(i)) then
@@ -226,6 +229,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
   enddo
 
+#ifndef TESTDATA
   !!bandpass filter
   do j = 1, nsta
     !!design
@@ -239,6 +243,7 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
+#endif
 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
@@ -412,6 +417,19 @@ program AmplitudeSourceLocation_PulseWidth
   write(10, '(a)') "# OT min_lon min_lat min_dep source_amp residual"
   residual(1 : nlon, 1 : nlat, 1 : nz) = huge
 
+#ifdef OUT_AMPLITUDE
+  open(unit = 20, file = "subevent_amplitude.txt")
+  write(20, '(a)', advance = "no") "# "
+  do i = 1, nsta
+#ifdef WIN
+    write(20, '(a, 1x)', advance = "no") st_winch(i)
+#else
+    write(20, '(a, 1x)', advance = "no") stname(i)
+#endif
+  enddo
+  write(20, *)
+#endif
+
   time_count = 0
   time_loop: do
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
@@ -435,7 +453,9 @@ program AmplitudeSourceLocation_PulseWidth
         lon_loop2: do i = 1, nlon
 
           !!caluculate site-corrected amplitude
+          nsta_use = 0
           do jj = 1, nsta
+      
             if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
               cycle lon_loop2
             endif
@@ -457,14 +477,17 @@ program AmplitudeSourceLocation_PulseWidth
             rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
   
             !!calculate source amplitude and residual
+            if(use_flag(jj) .neqv. .true.) cycle
+            nsta_use = nsta_use + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta, kind = dp)
+          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp
           do ii = 1, nsta
+            if(use_flag(ii) .neqv. .true.) cycle
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
             &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
@@ -520,9 +543,32 @@ program AmplitudeSourceLocation_PulseWidth
     call write_grdfile_2d(z_min, lat_s, dz, dlat, nz, nlat, residual_grd, grdfile, nanval = real(huge, kind = sp))
     deallocate(residual_grd)
 
+#ifdef OUT_AMPLITUDE
+    do i = 1, nsta
+      wave_index = int((origintime &
+      &          + ttime_min(i, residual_minloc(1), residual_minloc(2), residual_minloc(3)) + ttime_cor(i)) / sampling(i) &
+      &          + 0.5_fp) + 1
+      rms_amp_obs(i) = 0.0_fp
+      icount = 0
+      do ii = wave_index, wave_index + int(rms_tw / sampling(i) + 0.5_fp) - 1
+         if(ii .lt. npts(i)) then
+           rms_amp_obs(i) = rms_amp_obs(i) + waveform_obs(ii, i) * waveform_obs(ii, i)
+           icount = icount + 1
+         endif
+      enddo
+      rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
+      write(20, '(e15.7, 1x)', advance = "no") rms_amp_obs(i)
+    enddo
+    write(20, '(f0.1)') origintime
+#endif
+    
+
     time_count = time_count + 1
   enddo time_loop
   close(10)
+#ifdef OUT_AMPLITUDE
+  close(20)
+#endif
 
   stop
 end program AmplitudeSourceLocation_PulseWidth
