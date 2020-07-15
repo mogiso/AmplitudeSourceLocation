@@ -19,12 +19,12 @@
 ## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
 
 FC = ifort
-FFLAGS = -traceback -assume byterecl -qopenmp
-DEFS = -DDOUBLE -DV_MEA1D -DTESTDATA -DMKL -DSTDP_COR
+FFLAGS = -traceback -assume byterecl -qopenmp -CB
+DEFS = -DDOUBLE -DV_MEA1D -DTESTDATA -DMKL -DSTDP_COR -DOUT_AMPLITUDE
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
 LIBDIR = -L${MKLROOT}/lib/intel64
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
-OPTS = -O3 -xHOST
+#OPTS = -O3 -xHOST
 
 #FC = gfortran
 #FFLAGS = -g -Wall -fbounds-check -fbacktrace
