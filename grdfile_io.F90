@@ -101,6 +101,7 @@ module grdfile_io
     use iso_fortran_env
     use netcdf
     use nrtype, only : fp
+    
     implicit none
 
     real(kind = fp),    intent(in)    :: xmin, ymin, dx, dy
@@ -112,6 +113,11 @@ module grdfile_io
     integer :: i, j, ncstatus, ncid, dimid_x, dimid_y, varid_x, varid_y, varid_z
     real(kind = fp), allocatable :: tmp_array(:)
     real(kind = fp), allocatable :: tmp_array2d(:, :)
+#ifdef DOUBLE
+    integer, parameter           :: intfp = int64
+#else
+    integer, parameter           :: intfp = int32
+#endif
 
     !!open file
     ncstatus = nf90_create(trim(netcdf_file), NF90_NETCDF4, ncid)
@@ -143,7 +149,7 @@ module grdfile_io
     do j = 1, ny
       do i = 1, nx
         tmp_array2d(i, j) = zval(i, j)
-        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1_int, 0.0_fp)
+        if(present(nanval) .and. zval(i, j) .eq. nanval) tmp_array2d(i, j) = transfer(-1_intfp, 0.0_fp)
       enddo
     enddo
     ncstatus = nf90_put_var(ncid, varid_z, tmp_array2d)
