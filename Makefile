@@ -11,11 +11,9 @@
 ##        for AmplitudeSourcelocation_Pulsewidth.F90 
 ## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
 ##             when sac files are uses as an input (if -DWIN is set, station location is given in altitude (m)
-##             at channel files, so this variable have no meanings)
-## -DTESTDATA: do not apply bandpass filter to input waveforms (to be used for synthetic data) 
-##             in AmplitudeSourcelocation_PulseWidth.F90
+##             at channel files, so this definition have no meanings)
+## -DTESTDATA: do not apply bandpass filter and site correction to input waveforms (to be used for synthetic data) 
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
-##                  in AmplitudeSourceLocation_PulseWidth.F90
 
 ## option for AmplitudeSourceLocation_masterevent.F90
 ## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
