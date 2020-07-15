@@ -13,7 +13,7 @@
 ## -DMKL: use MKL; otherwise use lapack95
 
 FC = ifort
-FFLAGS = -CB -assume byterecl -qopenmp
+FFLAGS = -traceback -assume byterecl -qopenmp
 DEFS_PW = -DDOUBLE -DV_MEA1D -DTESTDATA
 DEFS_MASTEREVENT = -DDOUBLE -DV_MEA1D -DMKL 
 DEFS_SYNTH = -DDOUBLE -DV_MEA1D -DSTDP_COR
