@@ -33,16 +33,29 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
   !!Use station
-  integer,            parameter :: nsta = 4
+  integer,            parameter :: nsta = 5
 #ifdef WIN    /* use win-format waveform file for input waveforms */
-  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720"]
+  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720", "2750"]
 #else         /* use sac binary files as input waveforms */
-  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
+  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
   character(len = 9), parameter :: sacfile_extension = "__U__.sac"
 #endif
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
-  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp] !!static correction of traveltime
-  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true.]
+
+#ifdef TESTDATA
+  !!site amplification factors
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp]
+  !!static correction of traveltime
+  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
+  !!use station flag
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
+#else
+  !!site amplification factors
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 1.0_dp]
+  !!static correction of traveltime
+  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
+  !!use station flag
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
+#endif
 
   !!Bandpass filter
   real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
@@ -441,7 +454,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp parallel default(none), &
     !$omp&         shared(ttime_min, origintime, ttime_cor, sampling, npts, waveform_obs, source_amp, siteamp, &
     !$omp&                rms_tw, hypodist, width_min, residual), &
-    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize)
+    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, nsta_use)
 
     !$ omp_thread = omp_get_thread_num()
 
