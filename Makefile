@@ -7,28 +7,32 @@
 ## -DV_MEA1D, -DV_CONST: velocity structure defined in set_velocity_model.F90
 ## -DWIN: using win format waveform file as an input (otherwise sac binary format files are used)
 ## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
+##             when sac files are uses as an input
 ## -DTESTDATA: do not apply bandpass filter to input waveforms (to be used for synthetic data)
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
+## -DMKL: use MKL; otherwise use lapack95
 
-#FC = ifort
-#FFLAGS =
+FC = ifort
+FFLAGS = -CB -assume byterecl -qopenmp
+DEFS_PW = -DDOUBLE -DV_MEA1D -DTESTDATA
+DEFS_MASTEREVENT = -DDOUBLE -DV_MEA1D -DMKL 
+DEFS_SYNTH = -DDOUBLE -DV_MEA1D -DSTDP_COR
+INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
+LIBDIR = -L${MKLROOT}/lib/intel64
+LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
+OPTS = -O3 -xHOST
+
+#FC = gfortran
+#FFLAGS = -g -Wall -fbounds-check -fbacktrace
 #DEFS_PW = -DDOUBLE -DV_MEA1D -DWIN -DSTDP_COR
 #DEFS_MASTEREVENT = -DDOUBLE -DV_MEA1D 
 #DEFS_SYNTH = -DDOUBLE -DV_MEA1D -DSTDP_COR
-#INCDIR = -I${NETCDF_FORTRAN_INC}
+#INCDIR = -I/usr/include -I/usr/local/include
 #LIBDIR = 
-#LIBS = -lnetcdff
-#OPTS = -assume byterecl -qopenmp -O3 -xHOST
+#LIBS = -lnetcdff -llapack95 -llapack -lblas
+#OPTS = 
 
-FC = gfortran
-FFLAGS = -g -Wall -fbounds-check -fbacktrace
-DEFS_PW = -DDOUBLE -DV_MEA1D -DWIN -DSTDP_COR
-DEFS_MASTEREVENT = -DDOUBLE -DV_MEA1D 
-DEFS_SYNTH = -DDOUBLE -DV_MEA1D -DSTDP_COR
-INCDIR = -I/usr/include -I/usr/local/include
-LIBDIR = -llapack95 -llapack -lblas
-LIBS = -lnetcdff
-OPTS = 
+all: asl_pw asl_masterevent asl_synthwave
 
 asl_pw: nrtype.F90 constants.F90 greatcircle.f90 calc_bpf_coef.f90 calc_bpf_order.f90 tandem.f90 \
 	itoa.F90 linear_interpolation.F90 rayshooting.F90 read_sacfile.F90 grdfile_io.F90 set_velocity_model.F90 \
