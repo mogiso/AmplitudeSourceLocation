@@ -28,12 +28,6 @@ program AmplitudeSourceLocation_synthwave
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
-  !!Use station
-  integer,            parameter :: nsta = 4
-  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM"]
-  character(len = 9), parameter :: sacfile_extension = "__U__.sac"
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp]
-  real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp] !!static correction of traveltime
   !!assumed hypocenter
   integer,            parameter :: nhypo = 2
   real(kind = fp),    parameter :: origintime(1 : nhypo) = [5.0_fp, 10.0_fp]
@@ -41,16 +35,16 @@ program AmplitudeSourceLocation_synthwave
   real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3815_fp, 43.3821_fp]
   real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [0.5_fp, 0.3_fp]
   real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [1.5_dp, 0.8_dp]
-  real(kind = dp),    parameter :: characteristicfreq    = 7.0_dp
+  real(kind = dp),    parameter :: characteristicfreq    = 0.5_dp
   real(kind = dp),    parameter :: asl_freq              = 7.5_dp
 
   !!assumed data length, sampling frequency (s)
   real(kind = fp),    parameter :: waveform_length = 100.0_fp
   real(kind = fp),    parameter :: wavelet_length = 15.0_fp
-  real(kind = sp),    parameter :: sampling = 0.01_sp
+  real(kind = dp),    parameter :: sampling = 0.01_dp
   integer,            parameter :: npts_waveform = int(waveform_length / real(sampling, kind = fp) + 0.5_fp)
   integer,            parameter :: npts_wavelet = int(wavelet_length / real(sampling, kind = fp) + 0.5_fp)
-  real(kind = dp),    parameter :: noise_sigma = 0.05_dp
+  real(kind = dp),    parameter :: sigma_noise = 0.01_dp
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
@@ -63,12 +57,9 @@ program AmplitudeSourceLocation_synthwave
 
   real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), &
-  &                                lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), &
-  &                                width_min(1 : nhypo, 1 : nsta), &
-  &                                ttime_min(1 : nhypo, 1 : nsta), &
-  &                                hypodist(1 : nhypo, 1 : nsta), inc_angle_ini_min(0 : nrayshoot)
+  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
   real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:), waveform(:), wavelet(:)
+  real(kind = fp), allocatable  :: lon_sta(:), lat_sta(:), z_sta(:), ttime_min(:, :), width_min(:, :), hypodist(:, :)
   
   real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
   &                                az_tmp, inc_angle_tmp, az_new, inc_angle_new, az_ini, &
@@ -77,8 +68,10 @@ program AmplitudeSourceLocation_synthwave
   &                                dinc_angle, dinc_angle_org, inc_angle_ini
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, random_number1, random_number2
   
-  integer                       :: i, j, ii, jj, icount, wave_index, lon_index, lat_index, z_index, nlon_topo, nlat_topo
-  character(len = 129)          :: dem_file, sacfile, sacfile_index
+  integer                       :: nsta, i, j, ii, jj, icount, wave_index, lon_index, lat_index, z_index, nlon_topo, nlat_topo
+  character(len = 129)          :: dem_file
+  character(len = 129), allocatable :: sacfile(:)
+  character(len = 4),   allocatable :: sachdr(:, :)
 
   !!random number
   type(xorshift1024star_state)  :: random_state
@@ -87,13 +80,18 @@ program AmplitudeSourceLocation_synthwave
   !$ integer                    :: omp_thread
 
   icount = iargc()
-  if(icount .ne. 2) then
-    write(0, '(a)') "usage: ./a.out sacfile_index dem_grdfile_name"
+  if(icount .le. 1) then
+    write(0, '(a)') "usage: ./a.out dem_grdfile_name sacfile1 sacfile2 ..."
     error stop
   endif
+  nsta = icount - 1
+  allocate(sacfile(1 : nsta), sachdr(1 : 158, 1 : nsta), lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), &
+  &        ttime_min(1 : nhypo, 1 : nsta), width_min(1 : nhypo, 1 : nsta), hypodist(1 : nhypo, 1 : nsta))
   
-  call getarg(1, sacfile_index)
-  call getarg(2, dem_file)
+  call getarg(1, dem_file)
+  do i = 1, nsta
+    call getarg(i + 1, sacfile(i))
+  enddo
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
   write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
@@ -110,15 +108,17 @@ program AmplitudeSourceLocation_synthwave
   call set_velocity(z_min, dz, velocity, qinv)
 
   !!read sac file
-  do j = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(j)) // sacfile_extension
-    call read_sachdr(sacfile, stlat = lat_sta(j), stlon = lon_sta(j), stdp = z_sta(j))
+  do i = 1, nsta
+    call read_sachdr(sacfile(i), header = sachdr(:, i), stlat = lat_sta(i), stlon = lon_sta(i), stdp = z_sta(i))
+#ifdef STDP_COR
+    z_sta(i) = z_sta(i) * (-alt_to_depth)
+#endif
   enddo
 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "calculate traveltime / pulse width ..."
   !$omp parallel default(none), &
-  !$omp&         shared(topography, lat_sta, lon_sta, z_sta, velocity, qinv, &
+  !$omp&         shared(topography, nsta, lat_sta, lon_sta, z_sta, velocity, qinv, &
   !$omp&                ttime_min, width_min, hypodist, lon_topo, lat_topo, dlon_topo, dlat_topo), &
   !$omp&         private(i, ii, jj, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
@@ -262,11 +262,11 @@ program AmplitudeSourceLocation_synthwave
 
         enddo incangle_loop
       enddo incangle_loop2
-      print '(a, 4(f8.4, 1x))', "hypo lon, lat, depth, az_ini = ", lon_hypo(i), lat_hypo(i), depth_hypo(i), az_ini * rad2deg
-      print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(j), lat_sta(j), z_sta(j)
-      print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
-      &                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
-      print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(i, j), width_min(i, j)
+      !print '(a, 4(f8.4, 1x))', "hypo lon, lat, depth, az_ini = ", lon_hypo(i), lat_hypo(i), depth_hypo(i), az_ini * rad2deg
+      !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(j), lat_sta(j), z_sta(j)
+      !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
+      !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
+      !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(i, j), width_min(i, j)
       if(dist_min .gt. rayshoot_dist_thr) then
         ttime_min(i, j) = huge
         width_min(i, j) = 0.0_fp
@@ -286,23 +286,39 @@ program AmplitudeSourceLocation_synthwave
   do j = 1, nsta
     waveform(1 : npts_waveform) = 0.0_dp
     do i = 1, nhypo
-      call ricker_wavelet(npts_wavelet, sampling, characteristicfreq, amp_hypo(j), 0.0_dp, wavelet)
+      call ricker_wavelet(npts_wavelet, sampling, characteristicfreq, amp_hypo(i), 0.0_dp, wavelet)
       wave_index = int((origintime(i) + ttime_min(i, j)) / real(sampling, kind = fp) + 0.5_fp) + 1
       do ii = 1, npts_wavelet
         if(wave_index + ii - 1 .le. npts_waveform) then
-          waveform(wave_index + ii - 1) = wavelet(ii) * hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
+          waveform(wave_index + ii - 1) = wavelet(ii) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
         endif
       enddo
     enddo
     do i = 1, npts_waveform
       random_number1 = draw_uniform(random_state)
       random_number2 = draw_uniform(random_state)
-      waveform(i) = waveform(i) + sqrt(-log(random_number1 * random_number1)) * sin(2.0_dp * pi * random_number2) 
+      waveform(i) = waveform(i) &
+      &           + sqrt(-log(random_number1 * random_number1)) * sin(2.0_dp * pi * random_number2) * sigma_noise
     enddo
-  enddo
 
-      
-  
+    write(0, '(2a)') "writing waveform to ", trim(sacfile(j))
+    open(unit = 10, file = trim(sacfile(j)), form = "unformatted", access = "direct", recl = 4)
+    do i = 1, 158
+      write(10, rec = i) sachdr(i, j)
+    enddo
+    write(10, rec = 1) real(sampling, kind = sp)
+    write(10, rec = 60) 0.0_sp
+    write(10, rec = 61) real(sampling, kind = sp) * real(npts_waveform - 1, kind = sp)
+    write(10, rec = 62) real(minval(waveform), kind = sp)
+    write(10, rec = 63) real(maxval(waveform), kind = sp)
+    write(10, rec = 80) npts_waveform
+    do i = 1, npts_waveform
+      write(10, rec = 158 + i) real(waveform(i), kind = sp)
+    enddo
+    close(10)
+    
+
+  enddo
 
 
   stop
