@@ -28,7 +28,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
+  integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
@@ -41,19 +41,16 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 9), parameter :: sacfile_extension = "__U__.sac"
 #endif
 
+  !!site amplification factors
+  !!static correction of traveltime
+  !!use station flag
 #ifdef TESTDATA
-  !!site amplification factors
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp]
-  !!static correction of traveltime
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
-  !!use station flag
-  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .true.]
 #else
-  !!site amplification factors
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 1.0_dp]
-  !!static correction of traveltime
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
-  !!use station flag
   logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
 #endif
 
