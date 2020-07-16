@@ -284,6 +284,7 @@ program AmplitudeSourceLocation_synthwave
   allocate(wavelet(1 : npts_wavelet))
   call state_init_self(random_state)
   do j = 1, nsta
+    write(0, '(2a)') "waveform file = ", trim(sacfile(j))
     waveform(1 : npts_waveform) = 0.0_dp
     do i = 1, nhypo
       call ricker_wavelet(npts_wavelet, sampling, characteristicfreq, amp_hypo(i), 0.0_dp, wavelet)
@@ -293,7 +294,11 @@ program AmplitudeSourceLocation_synthwave
           waveform(wave_index + ii - 1) = wavelet(ii) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
         endif
       enddo
+      write(0, '(a, i0, a, e15.7)') "hypo index = ", i, " theo. amp. = ", &
+      &                             amp_hypo(i) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
     enddo
+
+
     do i = 1, npts_waveform
       random_number1 = draw_uniform(random_state)
       random_number2 = draw_uniform(random_state)
