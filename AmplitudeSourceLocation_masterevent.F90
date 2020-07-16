@@ -59,28 +59,30 @@ program AmplitudeSourceLocation_masterevent
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
-  &                                data_residual, data_variance
+  &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
 
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, ii, jj, kk, icount
 
-  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param
+  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
 
   icount = iargc()
-  if(icount .ne. 4) then
+  if(icount .ne. 5) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)')               "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file)"
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
+    write(0, '(a)')               "(result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
+  call getarg(5, resultfile)
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -345,15 +347,33 @@ program AmplitudeSourceLocation_masterevent
   
 
   !!output result
+  open(unit = 10, file = trim(resultfile))
+  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth"
   do i = 1, nsubevent
-    delta_depth = sqrt(obsvector(4 * (i - 1) + 2) ** 2 &
-    &                + obsvector(4 * (i - 1) + 3) ** 2 &
-    &                + obsvector(4 * (i - 1) + 4) ** 2)
-    delta_lon = atan2(obsvector(4 * (i - 1) + 3), obsvector(4 * (i - 1) + 2)) * rad2deg
-    delta_lat = -acos(obsvector(4 * (i - 1) + 4) / delta_depth) * rad2deg
+    delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
+    delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
+    delta_depth = obsvector(4 * (i - 1) + 4)
     !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
-    print *, obsvector(4 * (i - 1) + 2), obsvector(4 * (i - 1) + 3), obsvector(4 * (i - 1) + 4)
+    sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
+    sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
+    sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
+    &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
+    sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
+
+    write(10, '(8(e14.7, 1x))') &
+    &          exp(-obsvector(4 * (i - 1) + 1)), sigma_amp, &
+    &          evlon_master - delta_lon, sigma_lon, &
+    &          evlat_master - delta_lat, sigma_lat, &
+    &          evdp_master - delta_depth, sigma_depth
+
+
+    write(0, '(a, i0)')           "subevent index = ", i
+    write(0, '(a, 2(e14.7, 1x))') "amp_ratio and sigma_amp = ", exp(-obsvector(4 * (i - 1) + 1)), sigma_amp
+    write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evlon_master - delta_lon, sigma_lon
+    write(0, '(a, 2(e14.7, 1x))') "latitude and sigma_lat = ", evlat_master - delta_lat, sigma_lat
+    write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master - delta_depth, sigma_depth
   enddo
+  close(10)
     
 
   stop
