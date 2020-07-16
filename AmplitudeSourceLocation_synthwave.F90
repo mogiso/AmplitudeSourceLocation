@@ -294,8 +294,9 @@ program AmplitudeSourceLocation_synthwave
           waveform(wave_index + ii - 1) = wavelet(ii) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
         endif
       enddo
-      write(0, '(a, i0, a, e15.7)') "hypo index = ", i, " theo. amp. = ", &
-      &                             amp_hypo(i) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
+      write(0, '(a, i0, a, 2(e15.7, 1x))') "hypo index = ", i, " theo. amp. and travel time = ", &
+      &                             amp_hypo(i) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j)), &
+      &                             ttime_min(i, j)
     enddo
 
 
