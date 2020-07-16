@@ -35,9 +35,9 @@ LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp
 #LIBS = -lnetcdff -llapack95 -llapack -lblas
 #OPTS = -O3 -fopenmp
 
-TARGET		= asl_pw asl_masterevent asl_synthwave
+TARGET		= asl_pw asl_masterevent asl_synthwave ttime_masterevent
 SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_masterevent.F90 \
-                  AmplitudeSourceLocation_synthwave.F90 \
+                  AmplitudeSourceLocation_synthwave.F90 TraveltimeSourceLocation_masterevent.F90 \
                   wavelet.f90 xorshift1024star.f90 nrtype.F90 linear_interpolation.F90 \
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
 		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 \
@@ -64,6 +64,10 @@ asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshoot
 		linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
+ttime_masterevent: TraveltimeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
+		linear_interpolation.o greatcircle.o grdfile_io.o
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+
 AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sacfile.o greatcircle.o \
 					set_velocity_model.o linear_interpolation.o itoa.o grdfile_io.o \
 					calc_bpf_coef.o calc_bpf_order.o tandem.o m_win.o m_winch.o m_util.o
@@ -73,6 +77,9 @@ AmplitudeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_ve
 
 AmplitudeSourceLocation_synthwave.o: nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
+
+TraveltimeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
+					linear_interpolation.o greatcircle.o grdfile_io.o
 
 rayshooting.o: greatcircle.o
 m_win.o: m_util.o
@@ -87,3 +94,4 @@ m_win.o: m_util.o
 
 clean:
 	rm -f core* $(TARGET) $(OBJS) $(MODS)
+
