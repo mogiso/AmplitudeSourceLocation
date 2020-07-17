@@ -286,9 +286,9 @@ program TraveltimeSourceLocation_masterevent
 
   !!Set up the observation vector and inversion matrix
   allocate(obsvector(1 : nsta * nsubevent), obsvector_copy(1 : nsta * nsubevent))
-  allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 3 * nsubevent), &
-  &        inversion_matrix_copy(1 : nsta * nsubevent, 1 : 3 * nsubevent))
-  inversion_matrix(1 : nsta * nsubevent, 1 : 3 * nsubevent) = 0.0_fp
+  allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
+  &        inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent))
+  inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
   do j = 1, nsubevent
     do i = 1, nsta
       obsvector(nsta * (j - 1) + i) = traveltime_master(i) - traveltime_sub(i, j)
@@ -297,15 +297,16 @@ program TraveltimeSourceLocation_masterevent
       &                       cos(ray_azinc(2, i))]
       matrix_const = 1.0_fp / velocity_interpolate
       do ii = 1, 3
-        inversion_matrix(nsta * (j - 1) + i, 3 * (j - 1) + ii) = matrix_const * normal_vector(ii)
+        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + ii) = matrix_const * normal_vector(ii)
       enddo
+      inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 4) = 1.0_fp
     enddo
   enddo
 
   !!copy observation vector and inversion matrix
   obsvector_copy(1 : nsta * nsubevent) = obsvector(1 : nsta * nsubevent)
-  inversion_matrix_copy(1 : nsta * nsubevent, 1 : 3 * nsubevent) &
-  &  = inversion_matrix(1 : nsta * nsubevent, 1 : 3 * nsubevent)
+  inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
+  &  = inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent)
 
   !!calculate least-squares solution
 #ifdef MKL
@@ -318,14 +319,14 @@ program TraveltimeSourceLocation_masterevent
   data_residual = 0.0_fp
   do i = 1, nsta * nsubevent
     data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 3 * nsubevent)))
+    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 4 * nsubevent)))
   enddo
   data_residual = data_residual / real(nsta * nsubevent, kind = fp)
   !!calculate variance
   data_variance = 0.0_fp
   do i = 1, nsta * nsubevent
     data_variance = data_variance + (data_residual &
-    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 3 * nsubevent)))) ** 2
+    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
   data_variance = data_variance / real(nsta * nsubevent - 1)
 
@@ -351,14 +352,14 @@ program TraveltimeSourceLocation_masterevent
   open(unit = 10, file = trim(resultfile))
   write(10, '(a)') "# longitude sigma_lon latitude sigma_lat depth sigma_depth"
   do i = 1, nsubevent
-    delta_lat = (obsvector(3 * (i - 1) + 1) / (r_earth - evdp_master)) * rad2deg
-    delta_lon = (obsvector(3 * (i - 1) + 2) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
-    delta_depth = obsvector(3 * (i - 1) + 3)
+    delta_lat = (obsvector(4 * (i - 1) + 1) / (r_earth - evdp_master)) * rad2deg
+    delta_lon = (obsvector(4 * (i - 1) + 2) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
+    delta_depth = obsvector(4 * (i - 1) + 3)
     !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
-    sigma_lat = sqrt(error_matrix(3 * (i - 1) + 1, 3 * (i - 1) + 1)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
-    sigma_lon = sqrt(error_matrix(3 * (i - 1) + 2, 3 * (i - 1) + 2)) &
+    sigma_lat = sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
+    sigma_lon = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
-    sigma_depth = sqrt(error_matrix(3 * (i - 1) + 3, 3 * (i - 1) + 3)) * 2.0_fp
+    sigma_depth = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) * 2.0_fp
 
     write(10, '(6(e14.7, 1x))') &
     &          evlon_master + delta_lon, sigma_lon, &
@@ -370,6 +371,9 @@ program TraveltimeSourceLocation_masterevent
     write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evlon_master + delta_lon, sigma_lon
     write(0, '(a, 2(e14.7, 1x))') "latitude and sigma_lat = ", evlat_master + delta_lat, sigma_lat
     write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master + delta_depth, sigma_depth
+    write(0, '(a, 2(e14.7, 1x))') "time_diff and sigma_time_diff = ", &
+    &                             obsvector(4 * (i - 1) + 4), &
+    &                             sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
   enddo
   close(10)
     
