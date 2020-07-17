@@ -488,7 +488,11 @@ program AmplitudeSourceLocation_PulseWidth
               cycle lon_loop2
             endif
 
+#ifdef WITHOUT_TTIME
+            wave_index = int(origintime / sampling(jj) + 0.5_fp) + 1
+#else
             wave_index = int((origintime + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
+#endif
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
               close(10)
