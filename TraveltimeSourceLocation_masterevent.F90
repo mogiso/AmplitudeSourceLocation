@@ -28,13 +28,13 @@ program TraveltimeSourceLocation_masterevent
   implicit none
 
   !!Range for velocity and attenuation structure
-  real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
-  real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
-  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 5.0_fp
-  real(kind = fp),    parameter :: dlon = 0.01_fp, dlat = 0.01_fp, dz = 0.1_fp
-  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
-  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
-  integer,            parameter :: nz = int((z_max - z_min) / dz) + 2
+  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.50_fp
+  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.01_fp, dlat_str = 0.01_fp, dz_str = 0.1_fp
+  integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
+  integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
+  integer,            parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
@@ -47,7 +47,8 @@ program TraveltimeSourceLocation_masterevent
   real(kind = dp),    parameter :: freq = 7.5_dp
   real(kind = dp),    parameter :: huge = 1.0e+10_dp
 
-  real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
+  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector(1 : 3)
@@ -100,9 +101,9 @@ program TraveltimeSourceLocation_masterevent
   !!read station parameter
   open(unit = 10, file = station_param)
   read(10, *) nsta
-  if(nsta .lt. 3) then
+  if(nsta .lt. 4) then
     close(10)
-    write(0, '(a)') "Number of station nsta should be larger than 3"
+    write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
   allocate(stlon(nsta), stlat(nsta), stdp(nsta))
@@ -128,7 +129,7 @@ program TraveltimeSourceLocation_masterevent
   close(10)
 
   !!set velocity/attenuation structure
-  call set_velocity(z_min, dz, velocity, qinv)
+  call set_velocity(z_str_min, dz_str, velocity, qinv)
 
   !!calculate ray length, pulse width, unit vector of ray incident
   write(0, '(a)') "calculate ray length and ray incident vector for master event"
@@ -149,7 +150,7 @@ program TraveltimeSourceLocation_masterevent
   
   !$omp parallel default(none), &
   !$omp&         shared(nsta, evlon_master, evlat_master, evdp_master, stlon, stlat, stdp, hypodist, ray_azinc, &
-  !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, velocity, qinv), &
+  !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, velocity, qinv), &
   !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
   !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
   !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, &
@@ -164,9 +165,9 @@ program TraveltimeSourceLocation_masterevent
     !!calculate azimuth and hypocentral distance
     call greatcircle_dist(evlat_master, evlon_master, stlat(jj), stlon(jj), &
     &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)
-    lon_index = int((stlon(jj) - lon_w) / dlon) + 1
-    lat_index = int((stlat(jj) - lat_s) / dlat) + 1
-    z_index   = int((stdp(jj) - z_min) / dz) + 1
+    !lon_index = int((stlon(jj) - lon_w) / dlon) + 1
+    !lat_index = int((stlat(jj) - lat_s) / dlat) + 1
+    !z_index   = int((stdp(jj) - z_min) / dz) + 1
     !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
     !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
     hypodist(jj) = sqrt((r_earth - evdp_master) ** 2 + (r_earth - stdp(jj)) ** 2 &
@@ -215,21 +216,26 @@ program TraveltimeSourceLocation_masterevent
             !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
             exit shooting_loop
           endif
-
-          lon_index = int((lon_tmp - lon_w) / dlon) + 1
-          lat_index = int((lat_tmp - lat_s) / dlat) + 1
-          z_index   = int((depth_tmp - z_min) / dz) + 1
-
-          !!exit if ray approaches to the boundary
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat - 1 &
-          &  .or. z_index .lt. 1 .or. z_index .gt. nz - 1) then
+          !!exit if ray approaches to the boundary of the topography array
+          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
             exit shooting_loop
           endif
 
-          xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
-          ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
-          zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+          lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
+          lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
+          z_index   = int((depth_tmp - z_str_min) / dz_str) + 1
+
+          !!exit if ray approaches to the boundary
+          if(lon_index .lt. 1 .or. lon_index .gt. nlon_str - 1      &
+          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_str - 1 &
+          &  .or. z_index .lt. 1 .or. z_index .gt. nz_str - 1) then
+            exit shooting_loop
+          endif
+
+          xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
+          ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
+          zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
 
           !!calculate distance between ray and station
           call greatcircle_dist(lat_tmp, lon_tmp, stlat(jj), stlon(jj), delta_out = epdelta)
@@ -252,7 +258,7 @@ program TraveltimeSourceLocation_masterevent
           !!shooting the ray
           val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
           call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-          dvdz = (val_1d(2) - val_1d(1)) / dz
+          dvdz = (val_1d(2) - val_1d(1)) / dz_str
           call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
           &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
 
@@ -275,12 +281,12 @@ program TraveltimeSourceLocation_masterevent
   !$omp end parallel
 
   !!velocity and Qinv at master event location
-  lon_index = int((evlon_master - lon_w) / dlon) + 1
-  lat_index = int((evlat_master - lat_s) / dlat) + 1
-  z_index   = int((evdp_master - z_min) / dz) + 1
-  xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
-  ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
-  zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+  lon_index = int((evlon_master - lon_str_w) / dlon_str) + 1
+  lat_index = int((evlat_master - lat_str_s) / dlat_str) + 1
+  z_index   = int((evdp_master - z_str_min) / dz_str) + 1
+  xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
+  ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
+  zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
   val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
   call linear_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, velocity_interpolate)
 
@@ -319,14 +325,14 @@ program TraveltimeSourceLocation_masterevent
   data_residual = 0.0_fp
   do i = 1, nsta * nsubevent
     data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
   enddo
   data_residual = data_residual / real(nsta * nsubevent, kind = fp)
   !!calculate variance
   data_variance = 0.0_fp
   do i = 1, nsta * nsubevent
     data_variance = data_variance + (data_residual &
-    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 3 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
+    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
   data_variance = data_variance / real(nsta * nsubevent - 1)
 

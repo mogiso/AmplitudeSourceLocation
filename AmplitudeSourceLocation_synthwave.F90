@@ -17,11 +17,11 @@ program AmplitudeSourceLocation_synthwave
 
   implicit none
 
-  !!Search range
-  real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
-  real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
-  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
-  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!Structure range
+  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
+  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
@@ -51,11 +51,12 @@ program AmplitudeSourceLocation_synthwave
 
   !real(kind = fp),    parameter :: dinc_angle1 = pi / real(ninc_angle, kind = fp)
   !real(kind = fp),    parameter :: dinc_angle2 = 2.0_fp * dinc_angle1 / real(ninc_angle - 1, kind = fp)
-  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
-  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
-  integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
+  integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
+  integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
+  integer,            parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
 
-  real(kind = fp)               :: velocity(1 : nlon, 1 : nlat, 1 : nz), qinv(1 : nlon, 1 : nlat, 1 : nz), &
+  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
   real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:), waveform(:), wavelet(:)
@@ -93,8 +94,8 @@ program AmplitudeSourceLocation_synthwave
     call getarg(i + 1, sacfile(i))
   enddo
 
-  write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
-  write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
+  write(0, '(a, 3(1x, f8.3))') "lon_str_w, lat_str_s, z_str_min =", lon_str_w, lat_str_s, z_str_min
+  write(0, '(a, 3(1x, i0))') "nlon_str, nlat_str, nz_str =", nlon_str, nlat_str, nz_str
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(dem_file, lon_topo, lat_topo, topography)
@@ -105,7 +106,7 @@ program AmplitudeSourceLocation_synthwave
   topography(1 : nlon_topo, 1 : nlat_topo) = topography(1 : nlon_topo, 1 : nlat_topo) * alt_to_depth
 
   !!set velocity/attenuation structure
-  call set_velocity(z_min, dz, velocity, qinv)
+  call set_velocity(z_str_min, dz_str, velocity, qinv)
 
   !!read sac file
   do i = 1, nsta
@@ -119,7 +120,7 @@ program AmplitudeSourceLocation_synthwave
   write(0, '(a)') "calculate traveltime / pulse width ..."
   !$omp parallel default(none), &
   !$omp&         shared(topography, nsta, lat_sta, lon_sta, z_sta, velocity, qinv, &
-  !$omp&                ttime_min, width_min, hypodist, lon_topo, lat_topo, dlon_topo, dlat_topo), &
+  !$omp&                ttime_min, width_min, hypodist, lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo), &
   !$omp&         private(i, ii, jj, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
@@ -151,8 +152,8 @@ program AmplitudeSourceLocation_synthwave
 
       !!calculate azimuth and hypocentral distance
       call greatcircle_dist(lat_hypo(i), lon_hypo(i), lat_sta(j), lon_sta(j), azimuth = az_ini, delta_out = epdelta)
-      lon_index = int((lon_sta(j) - lon_w) / dlon) + 1
-      lat_index = int((lat_sta(j) - lat_s) / dlat) + 1
+      !lon_index = int((lon_sta(j) - lon_w) / dlon) + 1
+      !lat_index = int((lat_sta(j) - lat_s) / dlat) + 1
       !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
       !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
       hypodist(i, j) = sqrt((r_earth - depth_hypo(i)) ** 2 + (r_earth - z_sta(j)) ** 2 &
@@ -160,9 +161,9 @@ program AmplitudeSourceLocation_synthwave
 
 #ifdef V_CONST
       !!homogeneous structure: using velocity/qinv at the grid
-      lon_index = int((lon_hypo(i) - lon_w) / dlon) + 1
-      lat_index = int((lat_hypo(i) - lat_s) / dlat) + 1
-      z_index = int((depth_hypo(i) - depth_min) / dz) + 1
+      lon_index = int((lon_hypo(i) - lon_str_w) / dlon_str) + 1
+      lat_index = int((lat_hypo(i) - lat_str_s) / dlat_str) + 1
+      z_index = int((depth_hypo(i) - depth_min) / dz_str) + 1
       ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index)
       width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index)
 
@@ -206,21 +207,26 @@ program AmplitudeSourceLocation_synthwave
               !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
               exit shooting_loop
             endif
-
-            lon_index = int((lon_tmp - lon_w) / dlon) + 1
-            lat_index = int((lat_tmp - lat_s) / dlat) + 1
-            z_index   = int((depth_tmp - z_min) / dz) + 1
-
-            !!exit if ray approaches to the boundary
-            if(lon_index .lt. 1 .or. lon_index .gt. nlon - 1      &
-            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat - 1 &
-            &  .or. z_index .lt. 1 .or. z_index .gt. nz - 1) then
+            !!exit if ray approaches to the boundary of the topography array
+            if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1 &
+            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
               exit shooting_loop
             endif
 
-            xgrid(1) = lon_w + real(lon_index - 1, kind = fp) * dlon; xgrid(2) = xgrid(1) + dlon
-            ygrid(1) = lat_s + real(lat_index - 1, kind = fp) * dlat; ygrid(2) = ygrid(1) + dlat
-            zgrid(1) = z_min + real(z_index - 1, kind = fp) * dz;     zgrid(2) = zgrid(1) + dz
+            lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
+            lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
+            z_index   = int((depth_tmp - z_str_min) / dz_str) + 1
+
+            !!exit if ray approaches to the boundary of the structure array
+            if(lon_index .lt. 1 .or. lon_index .gt. nlon_str - 1      &
+            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_str - 1 &
+            &  .or. z_index .lt. 1 .or. z_index .gt. nz_str - 1) then
+              exit shooting_loop
+            endif
+
+            xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
+            ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
+            zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
 
             !!calculate distance between ray and station
             call greatcircle_dist(lat_tmp, lon_tmp, lat_sta(j), lon_sta(j), delta_out = epdelta)
@@ -247,7 +253,7 @@ program AmplitudeSourceLocation_synthwave
             val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
             call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
-            dvdz = (val_1d(2) - val_1d(1)) / dz
+            dvdz = (val_1d(2) - val_1d(1)) / dz_str
             call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
             &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
             ttime_tmp = ttime_tmp + time_step
