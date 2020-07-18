@@ -325,6 +325,8 @@ program AmplitudeSourceLocation_masterevent
   do i = 1, nsta * nsubevent
     data_residual = data_residual &
     &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
+    &            dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
   enddo
   data_residual = data_residual / real(nsta * nsubevent, kind = fp)
   !!calculate variance
@@ -367,7 +369,7 @@ program AmplitudeSourceLocation_masterevent
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
 
-    write(10, '(8(e14.7, 1x))') &
+    write(10, '(8(e15.8, 1x))') &
     &          exp(-obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
