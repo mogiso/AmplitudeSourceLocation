@@ -36,7 +36,10 @@ program AmplitudeSourceLocation_masterevent
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
-  !!Use station
+
+#ifdef DAMPED
+  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]  !![amp, dx, dy, dz]
+#endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: freq = 7.5_dp
@@ -317,10 +320,9 @@ program AmplitudeSourceLocation_masterevent
       enddo
     enddo
 #ifdef DAMPED
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 1, 4 * (j - 1) + 1) = 0.0_fp  !!Amplitude
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 2, 4 * (j - 1) + 2) = 0.0_fp  !!delta_x(NS)
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 3, 4 * (j - 1) + 3) = 0.0_fp  !!delta_y(EW)
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 4, 4 * (j - 1) + 4) = 0.0_fp  !!delta_z(DU)
+    do i = 1, 4
+      inversion_matrix(nsta * nsubevent + 4 * (j - 1) + i, 4 * (j - 1) + i) = damp(i)
+    enddo
 #endif
   enddo
 
