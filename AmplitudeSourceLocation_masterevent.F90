@@ -317,9 +317,9 @@ program AmplitudeSourceLocation_masterevent
       enddo
     enddo
 #ifdef DAMPED
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 1, 4 * (j - 1) + 1) = 0_fp  !!Amplitude
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 2, 4 * (j - 1) + 2) = 0_fp  !!delta_x(NS)
-    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 3, 4 * (j - 1) + 3) = 0_fp  !!delta_y(EW)
+    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 1, 4 * (j - 1) + 1) = 0.0_fp  !!Amplitude
+    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 2, 4 * (j - 1) + 2) = 0.0_fp  !!delta_x(NS)
+    inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 3, 4 * (j - 1) + 3) = 0.0_fp  !!delta_y(EW)
     inversion_matrix(nsta * nsubevent + 4 * (j - 1) + 4, 4 * (j - 1) + 4) = 0.0_fp  !!delta_z(DU)
 #endif
   enddo
@@ -340,7 +340,8 @@ program AmplitudeSourceLocation_masterevent
   data_residual = 0.0_fp
   do i = 1, nsta * nsubevent
     data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    &             + (obsvector_copy(i) &
+    &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
     write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
     &            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
   enddo
@@ -348,8 +349,8 @@ program AmplitudeSourceLocation_masterevent
   !!calculate variance
   data_variance = 0.0_fp
   do i = 1, nsta * nsubevent
-    data_variance = data_variance + (data_residual &
-    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
+    data_variance = data_variance + (data_residual - (obsvector_copy(i) &
+    &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
   data_variance = data_variance / real(nsta * nsubevent - 1)
 
