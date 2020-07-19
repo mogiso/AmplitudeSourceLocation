@@ -208,17 +208,17 @@ program TraveltimeSourceLocation_masterevent
           !!exit if ray approaches to the surface
           lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
           lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+          !!exit if ray approaches to the boundary of the topography array
+          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
+            exit shooting_loop
+          endif
           xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
           ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
           val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
           call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
           if(depth_tmp .lt. topography_interpolate) then
             !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
-            exit shooting_loop
-          endif
-          !!exit if ray approaches to the boundary of the topography array
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
             exit shooting_loop
           endif
 
