@@ -19,6 +19,7 @@
 
 ## option for AmplitudeSourceLocation_masterevent.F90
 ## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
+## -DDAMPED: Damped least squares solution (check damp() array)
 
 #FC = ifort
 #FFLAGS = -traceback -assume byterecl -qopenmp
