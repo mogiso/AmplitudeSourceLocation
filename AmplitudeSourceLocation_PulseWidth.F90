@@ -22,7 +22,7 @@ program AmplitudeSourceLocation_PulseWidth
   implicit none
 
   !!Search range
-  real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
+  real(kind = fp),    parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
@@ -54,9 +54,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
   logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .true.]
 #else
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 1.0_dp]
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 2.761_dp]
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
-  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .true.]
 #endif
 
   !!Bandpass filter
