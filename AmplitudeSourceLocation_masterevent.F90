@@ -88,6 +88,11 @@ program AmplitudeSourceLocation_masterevent
   call getarg(4, subevent_param)
   call getarg(5, resultfile)
 
+#ifdef DAMPED
+  write(0, '(a)') "-DDAMPED set"
+  write(0, '(a, 4(f5.2, 1x), a)') "Damped matrix = [ ", (damp(i), i = 1, 4), "]"
+#endif
+
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
   nlon_topo = ubound(lon_topo, 1)
