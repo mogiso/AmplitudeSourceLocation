@@ -322,26 +322,29 @@ program TraveltimeSourceLocation_masterevent
 #endif
 
   !!calculate mean data residual
-  data_residual = 0.0_fp
-  do i = 1, nsta * nsubevent
-    data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
-  enddo
-  data_residual = data_residual / real(nsta * nsubevent, kind = fp)
+  !data_residual = 0.0_fp
+  !do i = 1, nsta * nsubevent
+  !  data_residual = data_residual &
+  !  &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+  !enddo
+  !data_residual = data_residual / real(nsta * nsubevent, kind = fp)
   !!calculate variance
-  data_variance = 0.0_fp
-  do i = 1, nsta * nsubevent
-    data_variance = data_variance + (data_residual &
-    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
-  enddo
-  data_variance = data_variance / real(nsta * nsubevent - 1)
+  !data_variance = 0.0_fp
+  !do i = 1, nsta * nsubevent
+  !  data_variance = data_variance + (data_residual &
+  !  &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
+  !enddo
+  !data_variance = data_variance / real(nsta * nsubevent - 1)
 
   !!estimate error of inverted model parameters
   allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
   allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
   sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
   do i = 1, nsta * nsubevent
-    sigma_inv_data(i, i) = 1.0_fp / data_variance
+    !sigma_inv_data(i, i) = 1.0_fp / data_variance
+    sigma_inv_data(i, i) = &
+    &  abs(obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    sigma_inv_data(i, i) = 1.0_fp / sigma_inv_data(i, i)
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
   allocate(ipiv(1 : size(error_matrix, 1)))
