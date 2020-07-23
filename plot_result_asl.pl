@@ -46,13 +46,15 @@ $lon_e = 144.04;
 $lat_s = 43.36;
 $lat_n = 43.405;
 $dep_min = -2.0;
-$dep_max = 3.0;
+$dep_max = 2.0;
 
 $mapsize_x = 10.0;
 $mapsize_y = `echo $lon_e $lat_n | gmt mapproject -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n`;
 @tmp = split /\s+/, $mapsize_y;
 $mapsize_y = $tmp[1];
 $mapsize_z = 4.5;
+$dx = 11.5;
+$dy = 5.7;
 
 $scale_x = 9.0;
 $scale_y = $mapsize_y + 0.9;
@@ -63,15 +65,25 @@ $cpt_y = -1.0;
 $cpt_len_x = $mapsize_x;
 $cpt_len_y = "0.3h";
 
-$symbolsize = 0.3;
-$symbolsize_st = 0.45;
+$symbolsize = 0.5;
+$symbolwidth = "1.0p";
+$symbolsize_st = 0.4;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
 
+$color_p1 = "red";
+$color_p2 = "green4";
+$color_p3 = "blue";
+
+$color_p1 = "black";
+$color_p2 = $color_p1;
+$color_p3 = $color_p1;
+
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
-system "gmt set FONT_LABEL 14p,Helvetica";
+system "gmt set FONT_LABEL 17p,Helvetica";
 system "gmt set MAP_FRAME_PEN thin";
+system "gmt set FONT_ANNOT_PRIMARY 16p,Helvetica";
 
 
 print stderr "output ps = $out\n";
@@ -82,9 +94,9 @@ close OUT;
 system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                       -Bxya0.02f0.01 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                       -O -K -P >> $out";
-system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C100 -W0.25p,black -O -K -P >> $out";
+system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.6p,dimgray -O -K -P >> $out";
 open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                       -Si$symbolsize_st -W0.8p,black -Gwhite -O -K -P >> $out";
+                       -Si$symbolsize_st -W0.9p,black -Gwhite -O -K -P >> $out";
 for($j = 0; $j <= $#stlon; $j++){
   print OUT "$stlon[$j] $stlat[$j]\n";
 }
@@ -93,22 +105,25 @@ close OUT;
 
 for($j = 0; $j <= $#origintime; $j++){
   if($origintime[$j] <= 555.0){
-    $color = "red";
+    $color = $color_p1;
   }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = "green";
+    $color = $color_p2;
   }else{
-    $color = "blue";
+    $color = $color_p3;
   }
   open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                         -Sa$symbolsize -W0.65p,$color -t100 -O -K -P >> $out";
+                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
     print OUT "$evlon[$j] $evlat[$j]\n";
   close OUT;
 }
 
+#96-1 crator
+open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -SE -Gblack -O -K -P >> $out";
+  print OUT "144.0097 43.3826 90.0 0.3 0.15\n";
+close OUT;
 
 
-
-open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -Y-7.5c >> $out";
+open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -Y-$dy >> $out";
 close OUT;
 
 ##lon-dep
@@ -117,22 +132,22 @@ system "gmt psbasemap -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_ma
 
 for($j = 0; $j <= $#origintime; $j++){
   if($origintime[$j] <= 555.0){
-    $color = "red";
+    $color = $color_p1;
   }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = "green";
+    $color = $color_p2;
   }else{
-    $color = "blue";
+    $color = $color_p3;
   }
   open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                         -Sa$symbolsize -W0.65p,$color -t100 -O -K -P >> $out";
+                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
   print OUT "$evlon[$j] $evdep[$j]\n";
   close OUT;
 }
 
 
-system "gmt psxy $dem_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.3p,black -O -K -P >> $out";
+system "gmt psxy $dem_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.6p,black -O -K -P >> $out";
 
-open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -X11c -Y7.5c >> $out";
+open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -X$dx -Y$dy >> $out";
 close OUT;
 
 ##lon-dep
@@ -140,20 +155,28 @@ system "gmt psbasemap -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n
                       -Byf0.01 -Bxa1f0.5+l\"Depth (km)\" -BwSen -O -K -P >> $out";
 
 
-for($j = 0; $j <= $#origintime; $j++){
+for($j = $#origintime; $j >= 0; $j--){
   if($origintime[$j] <= 555.0){
-    $color = "red";
+    $color = $color_p1;
   }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = "green";
+    $color = $color_p2;
   }else{
-    $color = "blue";
+    $color = $color_p3;
   }
   open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
-                       -Sa$symbolsize -W0.6p,$color -t100 -O -K -P >> $out";
+                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
     print OUT "$evdep[$j] $evlat[$j]\n";
   close OUT;
 }
-system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.3p,black -O -K -P >> $out";
+system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.6p,black -O -K -P >> $out";
+
+#open OUT, " | gmt pslegend -J -R -Dx0/-3+w$mapsize_x/3c+jTL -O -K >> $out";
+#print OUT "N 1\n";
+#print OUT "S 0.1c a $symbolsize - ${symbolwidth},$color_p1 0.6c phase 1\n";
+#print OUT "S 0.1c a $symbolsize - ${symbolwidth},$color_p2 0.6c phase 2\n";
+#print OUT "S 0.1c a $symbolsize - ${symbolwidth},$color_p3 0.6c phase 3\n";
+#close OUT;
+
 
 
 open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -P >> $out";
