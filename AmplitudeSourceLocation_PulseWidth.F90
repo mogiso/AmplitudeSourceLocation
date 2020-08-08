@@ -275,7 +275,8 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
   enddo
 
-#ifndef TESTDATA
+#ifdef TESTDATA
+#else
   !!bandpass filter
   do j = 1, nsta
     !!design
@@ -289,7 +290,7 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
-#endif   
+#endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
 
