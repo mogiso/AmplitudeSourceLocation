@@ -208,17 +208,17 @@ program TraveltimeSourceLocation_masterevent
           !!exit if ray approaches to the surface
           lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
           lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+          !!exit if ray approaches to the boundary of the topography array
+          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
+            exit shooting_loop
+          endif
           xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
           ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
           val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
           call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
           if(depth_tmp .lt. topography_interpolate) then
             !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
-            exit shooting_loop
-          endif
-          !!exit if ray approaches to the boundary of the topography array
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
             exit shooting_loop
           endif
 
@@ -342,6 +342,9 @@ program TraveltimeSourceLocation_masterevent
   sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
   do i = 1, nsta * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
+    !sigma_inv_data(i, i) = &
+    !&  abs(obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    !sigma_inv_data(i, i) = 1.0_fp / sigma_inv_data(i, i)
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
   allocate(ipiv(1 : size(error_matrix, 1)))

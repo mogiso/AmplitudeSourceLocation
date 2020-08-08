@@ -36,7 +36,10 @@ program AmplitudeSourceLocation_masterevent
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
-  !!Use station
+
+#ifdef DAMPED
+  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]  !![amp, dx, dy, dz]
+#endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: freq = 7.5_dp
@@ -84,6 +87,11 @@ program AmplitudeSourceLocation_masterevent
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
   call getarg(5, resultfile)
+
+#ifdef DAMPED
+  write(0, '(a)') "-DDAMPED set"
+  write(0, '(a, 4(f5.2, 1x), a)') "Damped matrix = [ ", (damp(i), i = 1, 4), "]"
+#endif
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -204,17 +212,18 @@ program AmplitudeSourceLocation_masterevent
           !!exit if ray approaches to the surface
           lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
           lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+          !!exit if ray approaches to the boundary of the topography array
+          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
+            exit shooting_loop
+          endif
+
           xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
           ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
           val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
           call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
           if(depth_tmp .lt. topography_interpolate) then
             !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
-            exit shooting_loop
-          endif
-          !!exit if ray approaches to the boundary of the topography array
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
             exit shooting_loop
           endif
 
@@ -290,10 +299,19 @@ program AmplitudeSourceLocation_masterevent
   call block_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
   !!Set up the observation vector and inversion matrix
-  allocate(obsvector(1 : nsta * nsubevent), obsvector_copy(1 : nsta * nsubevent))
+#ifdef DAMPED
+  allocate(inversion_matrix(1 : nsta * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent), &
+  &        obsvector(1 : nsta * nsubevent + 4 * nsubevent))
+  inversion_matrix(1 : nsta * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  obsvector(1 : nsta * nsubevent + 4 * nsubevent) = 0.0_fp
+#else
   allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
-  &        inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent))
+  &        obsvector(1 : nsta * nsubevent))
   inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  obsvector(1 : nsta * nsubevent) = 0.0_fp
+#endif
+  allocate(inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
+  &        obsvector_copy(1 : nsta * nsubevent))
   do j = 1, nsubevent
     do i = 1, nsta
       obsvector(nsta * (j - 1) + i) = log(obsamp_master(i) / obsamp_sub(i, j))
@@ -306,6 +324,11 @@ program AmplitudeSourceLocation_masterevent
         inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = matrix_const * normal_vector(ii)
       enddo
     enddo
+#ifdef DAMPED
+    do i = 1, 4
+      inversion_matrix(nsta * nsubevent + 4 * (j - 1) + i, 4 * (j - 1) + i) = damp(i)
+    enddo
+#endif
   enddo
 
   !!copy observation vector and inversion matrix
@@ -315,23 +338,26 @@ program AmplitudeSourceLocation_masterevent
 
   !!calculate least-squares solution
 #ifdef MKL
-  call gels(inversion_matrix_copy, obsvector)
+  call gels(inversion_matrix, obsvector)
 #else
-  call la_gels(inversion_matrix_copy, obsvector)
+  call la_gels(inversion_matrix, obsvector)
 #endif
 
   !!calculate mean data residual
   data_residual = 0.0_fp
   do i = 1, nsta * nsubevent
     data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    &             + (obsvector_copy(i) &
+    &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
+    !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
   enddo
   data_residual = data_residual / real(nsta * nsubevent, kind = fp)
   !!calculate variance
   data_variance = 0.0_fp
   do i = 1, nsta * nsubevent
-    data_variance = data_variance + (data_residual &
-    &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
+    data_variance = data_variance + (data_residual - (obsvector_copy(i) &
+    &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
   data_variance = data_variance / real(nsta * nsubevent - 1)
 
@@ -342,7 +368,7 @@ program AmplitudeSourceLocation_masterevent
   do i = 1, nsta * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
-  error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
+  error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
   allocate(ipiv(1 : size(error_matrix, 1)))
 #ifdef MKL
   call getrf(error_matrix, ipiv)
@@ -367,7 +393,7 @@ program AmplitudeSourceLocation_masterevent
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
 
-    write(10, '(8(e14.7, 1x))') &
+    write(10, '(8(e15.8, 1x))') &
     &          exp(-obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &

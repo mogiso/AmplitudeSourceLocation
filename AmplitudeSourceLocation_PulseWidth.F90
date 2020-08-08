@@ -22,7 +22,7 @@ program AmplitudeSourceLocation_PulseWidth
   implicit none
 
   !!Search range
-  real(kind = fp),    parameter :: lon_w = 143.90_fp, lon_e = 144.05_fp
+  real(kind = fp),    parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
   real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
   real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
   real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
@@ -54,9 +54,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
   logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .true.]
 #else
-  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 1.0_dp]
+  real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 0.738_dp, 2.213_dp, 1.487_dp, 2.761_dp]
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
-  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .false.]
+  logical,            parameter :: use_flag(1 : nsta) = [.true., .true., .true., .true., .true.]
 #endif
 
   !!Bandpass filter
@@ -352,6 +352,11 @@ program AmplitudeSourceLocation_PulseWidth
                 !!exit if ray approaches to the surface
                 lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
                 lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+                !!exit if ray approaches to the boundary of the topography array
+                if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+                &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
+                  exit shooting_loop
+                endif
                 xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
                 ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
                 val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
@@ -360,12 +365,6 @@ program AmplitudeSourceLocation_PulseWidth
                   !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
                   exit shooting_loop
                 endif
-                !!exit if ray approaches to the boundary of the topography array
-                if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-                &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
-                  exit shooting_loop
-                endif
-
 
                 lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
                 lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
@@ -488,7 +487,11 @@ program AmplitudeSourceLocation_PulseWidth
               cycle lon_loop2
             endif
 
+#ifdef WITHOUT_TTIME
+            wave_index = int(origintime / sampling(jj) + 0.5_fp) + 1
+#else
             wave_index = int((origintime + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
+#endif
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
               close(10)
