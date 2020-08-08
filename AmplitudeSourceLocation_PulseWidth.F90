@@ -114,6 +114,12 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp)               :: gn, c
   integer                       :: m, n
 
+#ifdef AMP_TXT
+  character(len = 129)          :: amp_filename
+  character(len = 129), allocatable :: eventindex(:)
+  integer                       :: namp
+  real(kind = dp), allocatable  :: amp_txt(:, :)
+#endif
 #ifdef WIN
   !!in case of win file input
   character(len = 129)          :: win_filename, win_chfilename
@@ -128,7 +134,18 @@ program AmplitudeSourceLocation_PulseWidth
   !$ integer                    :: omp_thread
 
   icount = iargc()
-#ifdef WIN
+#if defined (AMP_TXT)
+  if(icount .ne. 4) then
+    write(0, '(a)') "usage: ./a.out txtfile dem_grdfile_name resultdir result_file_name"
+    error stop
+  endif
+  
+  call getarg(1, amp_filename)
+  call getarg(2, dem_file)
+  call getarg(3, resultdir)
+  call getarg(4, resultfile)
+
+#elif defined (WIN)
   if(icount .ne. 9) then
     write(0, '(a)') "usage: ./a.out winfile win_chfile dem_grdfile_name ot_begin ot_end ot_shift rms_time_window &
     &resultdir result_file_name"
@@ -175,6 +192,16 @@ program AmplitudeSourceLocation_PulseWidth
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
 
+#ifdef AMP_TXT
+  open(unit = 40, file = amp_filename)
+  read(40, *)
+  read(40, *) namp
+  allocate(amp_txt(1 : nsta, 1 : namp), eventindex(1 : namp))
+  do j = 1, namp
+    read(40, *) (amp_txt(i, j), i = 1, nsta), eventindex(j)
+  enddo
+  close(40)
+#else 
 #ifdef WIN
   !!read waveform_obs_int from winfile
   call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
@@ -203,7 +230,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo chtbl_loop
   enddo
   
-#else
+#else /* -DWIN */
 
   !!read sac file
   npts_max = 0
@@ -232,7 +259,7 @@ program AmplitudeSourceLocation_PulseWidth
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
-#endif
+#endif   /* -DWIN */
 
   !!remove offset
   do j = 1, nsta
@@ -262,7 +289,9 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
-#endif
+#endif   
+
+#endif   /* -DAMP_TXT */
 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
@@ -459,14 +488,21 @@ program AmplitudeSourceLocation_PulseWidth
 
   time_count = 0
   time_loop: do
+#ifdef AMP_TXT
+    if(time_count + 1 .gt. namp) exit time_loop
+#else
     origintime = ot_begin + ot_shift * real(time_count, kind = fp)
     if(origintime .gt. ot_end) exit time_loop
     !write(0, '(a, f6.1)') "origin time = ", origintime
+#endif
 
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     !$omp parallel default(none), &
     !$omp&         shared(ttime_min, origintime, sampling, npts, waveform_obs, source_amp, &
+#ifdef AMP_TXT
+    !$omp&                amp_txt, &
+#endif
     !$omp&                rms_tw, hypodist, width_min, residual), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, nsta_use)
 
@@ -487,6 +523,9 @@ program AmplitudeSourceLocation_PulseWidth
               cycle lon_loop2
             endif
 
+#ifdef AMP_TXT
+            rms_amp_obs(jj) = amp_txt(jj, time_count + 1)
+#else
 #ifdef WITHOUT_TTIME
             wave_index = int(origintime / sampling(jj) + 0.5_fp) + 1
 #else
@@ -506,6 +545,7 @@ program AmplitudeSourceLocation_PulseWidth
               endif
             enddo
             rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
+#endif /* -DAMP_TXT */
   
             !!calculate source amplitude and residual
             if(use_flag(jj) .neqv. .true.) cycle
@@ -542,10 +582,17 @@ program AmplitudeSourceLocation_PulseWidth
     &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
     &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+#ifdef AMP_TXT
+    write(10, '(a, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7))') &
+    &                 trim(eventindex(timecount + 1)), lon_grid, lat_grid, depth_grid, &
+    &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
+    &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+#else
     write(10, '(f0.1, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7))') &
     &                 origintime, lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+#endif
 
     !!output grd files
     call int_to_char(time_count, maxlen, time_count_char)
@@ -590,6 +637,9 @@ program AmplitudeSourceLocation_PulseWidth
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
       write(20, '(e15.7, 1x)', advance = "no") rms_amp_obs(i)
     enddo
+#ifdef AMP_TXT
+    write(20, '(a)') trim(eventindex(time_count + 1))
+#else
     write(20, '(f0.1)') origintime
 #endif
     
