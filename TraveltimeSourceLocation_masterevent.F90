@@ -359,7 +359,7 @@ program TraveltimeSourceLocation_masterevent
 
   !!output result
   open(unit = 10, file = trim(resultfile))
-  write(10, '(a)') "# longitude sigma_lon latitude sigma_lat depth sigma_depth"
+  write(10, '(a)') "# OTdiff sigma_OTdiff longitude sigma_lon latitude sigma_lat depth sigma_depth"
   do i = 1, nsubevent
     delta_lat = (obsvector(4 * (i - 1) + 1) / (r_earth - evdp_master)) * rad2deg
     delta_lon = (obsvector(4 * (i - 1) + 2) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
@@ -370,7 +370,8 @@ program TraveltimeSourceLocation_masterevent
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) * 2.0_fp
 
-    write(10, '(6(e14.7, 1x))') &
+    write(10, '(8(e14.7, 1x))') &
+    &          obsvector(4 * (i - 1) + 4), sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp, 
     &          evlon_master + delta_lon, sigma_lon, &
     &          evlat_master + delta_lat, sigma_lat, &
     &          evdp_master + delta_depth, sigma_depth
