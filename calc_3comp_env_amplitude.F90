@@ -11,10 +11,12 @@ program calc_3comp_envelope
   integer, parameter :: npts_offset = 500                  !!number of data used for removal of offset measured from
                                                            !!initial of the waveform
   real(kind = fp), parameter :: order = 1.0_fp
-  real(kind = fp), parameter :: amp_timewindow = 10.0_fp
-  integer, parameter :: nsta = 6
-  character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.NSYM", "V.MNDK", &
-  &                                                "V.KNGM", "V.PNMM"]
+  real(kind = fp), parameter :: amp_timewindow = 7.0_fp
+  !integer, parameter :: nsta = 6
+  !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.NSYM", "V.MNDK", &
+  !&                                                "V.KNGM", "V.PNMM"]
+  integer, parameter :: nsta = 5
+  character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
   !integer, parameter :: nsta = 1
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB"]
 
@@ -60,82 +62,82 @@ program calc_3comp_envelope
 
   date_loop: do j = 1, ndate
     station_loop: do i = 1, nsta
-      infile_ns = trim(infile(j)) // "." // trim(stname(i)) // ".N.sac"
-      infile_ew = trim(infile(j)) // "." // trim(stname(i)) // ".E.sac"
+      !infile_ns = trim(infile(j)) // "." // trim(stname(i)) // ".N.sac"
+      !infile_ew = trim(infile(j)) // "." // trim(stname(i)) // ".E.sac"
       infile_ud = trim(infile(j)) // "." // trim(stname(i)) // ".U.sac"
 
-      write(0, *) "infile_ns = ", trim(infile_ns)
-      write(0, *) "infile_ew = ", trim(infile_ew)
+      !write(0, *) "infile_ns = ", trim(infile_ns)
+      !write(0, *) "infile_ew = ", trim(infile_ew)
       write(0, *) "infile_ud = ", trim(infile_ud)
 
-      open(unit = 10, file = infile_ns, form = "unformatted", access = "direct", recl = 4, iostat = ios)
-      if(ios .ne. 0) then
-        close(10)
-        cycle date_loop
-      endif
-      open(unit = 11, file = infile_ew, form = "unformatted", access = "direct", recl = 4, iostat = ios)
-      if(ios .ne. 0) then
-        close(10)
-        close(11)
-        cycle date_loop
-      endif
+      !open(unit = 10, file = infile_ns, form = "unformatted", access = "direct", recl = 4, iostat = ios)
+      !if(ios .ne. 0) then
+      !  close(10)
+      !  cycle date_loop
+      !endif
+      !open(unit = 11, file = infile_ew, form = "unformatted", access = "direct", recl = 4, iostat = ios)
+      !if(ios .ne. 0) then
+      !  close(10)
+      !  close(11)
+      !  cycle date_loop
+      !endif
       open(unit = 12, file = infile_ud, form = "unformatted", access = "direct", recl = 4, iostat = ios)
       if(ios .ne. 0) then
-        close(10)
-        close(11)
+        !close(10)
+        !close(11)
         close(12)
         cycle date_loop
       endif
 
       !!read header
       !!sample
-      read(10, rec = 1) buf; sample = dble(buf)
+      read(12, rec = 1) buf; sample = dble(buf)
       !!begin, end
-      read(10, rec = 6) begin
+      read(12, rec = 6) begin
       if(abs(buf - 0.01) .gt. 0.0001) then
         write(0, *) "sample time error", buf
-        close(10)
-        close(11)
+        !close(10)
+        !close(11)
         close(12)
         cycle date_loop
       endif
       !!npts
-      read(10, rec = 80) npts
+      read(12, rec = 80) npts
       write(0, *) "npts = ", npts
       if(npts .lt. 0) then
-        close(10)
-        close(11)
+        !close(10)
+        !close(11)
         close(12)
         cycle date_loop
       endif
 
       !!P-time
       !read(10, rec = 6) begin
-      read(10, rec = 9, iostat = ios) ptime
-      if(ptime .lt. 0.0 .or. ios .ne. 0) then
-        close(10)
-        close(11)
-        close(12)
-        cycle date_loop
-      endif
-      read(11, rec = 9, iostat = ios) ptime
-      if(ptime .lt. 0.0 .or. ios .ne. 0) then
-        close(10)
-        close(11)
-        close(12)
-        cycle date_loop
-      endif
+      !read(10, rec = 9, iostat = ios) ptime
+      !if(ptime .lt. 0.0 .or. ios .ne. 0) then
+        !close(10)
+        !close(11)
+        !close(12)
+        !cycle date_loop
+      !endif
+      !read(11, rec = 9, iostat = ios) ptime
+      !if(ptime .lt. 0.0 .or. ios .ne. 0) then
+        !close(10)
+        !close(11)
+        !close(12)
+        !cycle date_loop
+      !endif
       read(12, rec = 9, iostat = ios) ptime
       if(ptime .lt. 0.0 .or. ios .ne. 0) then
-        close(10)
-        close(11)
+        !close(10)
+        !close(11)
         close(12)
         cycle date_loop
       endif
       read(12, rec = 11) stime
       if(ptime .eq. -12345.0 .or. stime .eq. -12345.0) then
-        close(10)
-        close(11)
+        !close(10)
+        !close(11)
         close(12)
         cycle date_loop
       endif
@@ -146,49 +148,49 @@ program calc_3comp_envelope
 
       allocate(data_ns(npts), data_ew(npts), data_ud(npts))
       do k = 1, npts
-        read(10, rec = 158 + k) buf; data_ns(k) = dble(buf) / order
-        read(11, rec = 158 + k) buf; data_ew(k) = dble(buf) / order
+        !read(10, rec = 158 + k) buf; data_ns(k) = dble(buf) / order
+        !read(11, rec = 158 + k) buf; data_ew(k) = dble(buf) / order
         read(12, rec = 158 + k) buf; data_ud(k) = dble(buf) / order
-        read(10, rec = 158 + k) buf_i
-        if(buf_i .le. -2147483647) then
-          close(10)
-          close(11)
-          close(12)
-          deallocate(data_ns, data_ew, data_ud)
-          cycle date_loop
-        endif
-        read(11, rec = 158 + k) buf_i
-        if(buf_i .le. -2147483647) then
-          close(10)
-          close(11)
-          close(12)
-          deallocate(data_ns, data_ew, data_ud)
-          cycle date_loop
-        endif
+        !read(10, rec = 158 + k) buf_i
+        !if(buf_i .le. -2147483647) then
+          !close(10)
+          !close(11)
+          !close(12)
+          !deallocate(data_ns, data_ew, data_ud)
+          !cycle date_loop
+        !endif
+        !read(11, rec = 158 + k) buf_i
+        !if(buf_i .le. -2147483647) then
+          !close(10)
+          !close(11)
+          !close(12)
+          !deallocate(data_ns, data_ew, data_ud)
+          !cycle date_loop
+        !endif
         read(12, rec = 158 + k) buf_i
         if(buf_i .le. -2147483647) then
-          close(10)
-          close(11)
+          !close(10)
+          !close(11)
           close(12)
           deallocate(data_ns, data_ew, data_ud)
           cycle date_loop
         endif
       enddo
-      close(10)
-      close(11)
+      !close(10)
+      !close(11)
       close(12)
 
       !!remove offset
-      avg_ns = 0.0d0
-      avg_ew = 0.0d0
+      !avg_ns = 0.0d0
+      !avg_ew = 0.0d0
       avg_ud = 0.0d0
       do k = 1, npts_offset
-        avg_ns = avg_ns + data_ns(k)
-        avg_ew = avg_ew + data_ew(k)
+        !avg_ns = avg_ns + data_ns(k)
+        !avg_ew = avg_ew + data_ew(k)
         avg_ud = avg_ud + data_ud(k)
       enddo
-      data_ns(1 : npts) = data_ns(1 : npts) - avg_ns / dble(npts_offset)
-      data_ew(1 : npts) = data_ew(1 : npts) - avg_ew / dble(npts_offset)
+      !data_ns(1 : npts) = data_ns(1 : npts) - avg_ns / dble(npts_offset)
+      !data_ew(1 : npts) = data_ew(1 : npts) - avg_ew / dble(npts_offset)
       data_ud(1 : npts) = data_ud(1 : npts) - avg_ud / dble(npts_offset)
 
       !!フィルタパラメータ
@@ -196,11 +198,11 @@ program calc_3comp_envelope
       allocate(h(4 * m))
       call calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)
       !!フィルタ
-      call tandem1(data_ns, data_ns, npts, h, m, 1)
-      call tandem1(data_ew, data_ew, npts, h, m, 1)
+      !call tandem1(data_ns, data_ns, npts, h, m, 1)
+      !call tandem1(data_ew, data_ew, npts, h, m, 1)
       call tandem1(data_ud, data_ud, npts, h, m, 1)
-      data_ns(1 : npts) = data_ns(1 : npts) * gn
-      data_ew(1 : npts) = data_ew(1 : npts) * gn
+      !data_ns(1 : npts) = data_ns(1 : npts) * gn
+      !data_ew(1 : npts) = data_ew(1 : npts) * gn
       data_ud(1 : npts) = data_ud(1 : npts) * gn
       deallocate(h)
 
