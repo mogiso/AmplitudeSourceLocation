@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 use File::Basename;
 #
-#plot the results of hypomh using GMT5
+#plot the results of (Amplitude|Traveltime)SourceLocation_masterevent.F90 using GMT5
 #Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
 #Copyright: (c) Masashi Ogiso 2020
 #License  : MIT License https://opensource.org/licenses/MIT
@@ -31,9 +31,14 @@ while(<IN>){
   chomp;
   $_ =~ s/^\s*(.*?)\s*$/$1/;
   @tmp = split /\s+/, $_;
-  push @evlon, $tmp[7];
-  push @evlat, $tmp[6];
-  push @evdep, $tmp[8];
+  push @amp_ratio, $tmp[0];
+  push @sigma_amp_ratio, $tmp[1];
+  push @evlon, $tmp[2];
+  push @sigma_evlon, $tmp[3];
+  push @evlat, $tmp[4];
+  push @sigma_evlat, $tmp[5];
+  push @evdep, $tmp[6];
+  push @sigma_evdep, $tmp[7];
 }
 close IN;
 
@@ -76,8 +81,6 @@ $color_p1 = "black";
 $color_p2 = $color_p1;
 $color_p3 = $color_p1;
 
-$color = "black";
-
 
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
@@ -92,7 +95,7 @@ close OUT;
 
 ##lon-lat
 system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                      -Bxya0.01f0.005 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
+                      -Bxya0.02f0.01 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                       -O -K -P >> $out";
 system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.6p,dimgray -O -K -P >> $out";
 
@@ -103,12 +106,19 @@ for($j = 0; $j <= $#stlon; $j++){
 }
 close OUT;
 
-open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
-for($j = 0; $j <= $#evlon; $j++){
-  print OUT "$evlon[$j] $evlat[$j]\n";
+for($j = 0; $j <= $#amp_ratio; $j++){
+  if($j <= 16){
+    $color = $color_p1;
+  }elsif($j >= 17 && $j <= 33){
+    $color = $color_p2;
+  }else{
+    $color = $color_p3;
+  }
+  open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
+                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
+  print OUT "$evlon[$j] $evlat[$j] $sigma_evlon[$j] $sigma_evlat[$j]\n";
+  close OUT;
 }
-close OUT;
 
 ##96-1 crator
 #open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -SE -Gblack -O -K -P >> $out";
@@ -116,13 +126,13 @@ close OUT;
 #close OUT;
 
 ##error plot
-#open OUT, " | gmt pslegend -J -R -Dx0.1c/0.1c+w1c/1.2c+jBL -F+p0.6p,black+gwhite -O -K -P >> $out";
-#print OUT "N 1\n";
-#close OUT;
-#open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-#                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
-#print OUT "143.979 43.363 $sigma_evlon[1] $sigma_evlat[1]\n";
-#close OUT;
+open OUT, " | gmt pslegend -J -R -Dx0.1c/0.1c+w1c/1.2c+jBL -F+p0.6p,black+gwhite -O -K -P >> $out";
+print OUT "N 1\n";
+close OUT;
+open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
+                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
+print OUT "143.979 43.363 $sigma_evlon[1] $sigma_evlat[1]\n";
+close OUT;
 
 
 open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -Y-$dy >> $out";
@@ -130,48 +140,62 @@ close OUT;
 
 ##lon-dep
 system "gmt psbasemap -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                      -Bxf0.001 -Bya1f0.5+l\"Depth (km)\" -BWsen -O -K -P >> $out";
-open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
-for($j = 0; $j <= $#evlon; $j++){
-  print OUT "$evlon[$j] $evdep[$j]\n";
+                      -Bxf0.01 -Bya1f0.5+l\"Depth (km)\" -BWsen -O -K -P >> $out";
+for($j = 0; $j <= $#amp_ratio; $j++){
+  if($j <= 16){
+    $color = $color_p1;
+  }elsif($j >= 17 && $j <= 33){
+    $color = $color_p2;
+  }else{
+    $color = $color_p3;
+  }
+  open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
+                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
+    print OUT "$evlon[$j] $evdep[$j] $sigma_evlon[$j] $sigma_evdep[$j]\n";
+  close OUT;
 }
-close OUT;
 
 system "gmt psxy $dem_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.6p,black -O -K -P >> $out";
 
 ##error plot
-#open OUT, " | gmt pslegend -J -R -Dx0.1c/0.1c+w1c/1.2c+jBL -F+p0.6p,black+gwhite -O -K -P >> $out";
-#print OUT "N 1\n";
-#close OUT;
-#open OUT, " | gmt psxy -J -R \\
-#                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
-#print OUT "143.979 1.4 $sigma_evlon[1] $sigma_evdep[1]\n";
-#close OUT;
+open OUT, " | gmt pslegend -J -R -Dx0.1c/0.1c+w1c/1.2c+jBL -F+p0.6p,black+gwhite -O -K -P >> $out";
+print OUT "N 1\n";
+close OUT;
+open OUT, " | gmt psxy -J -R \\
+                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
+print OUT "143.979 1.4 $sigma_evlon[1] $sigma_evdep[1]\n";
+close OUT;
 
 open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -X$dx -Y$dy >> $out";
 close OUT;
 
 ##lon-dep
 system "gmt psbasemap -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
-                      -Byf0.001 -Bxa1f0.5+l\"Depth (km)\" -BwSen -O -K -P >> $out";
-open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
-                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
-for($j = 0; $j <= $#evdep; $j++){
-  print OUT "$evdep[$j] $evlat[$j]\n";
+                      -Byf0.01 -Bxa1f0.5+l\"Depth (km)\" -BwSen -O -K -P >> $out";
+for($j = $#amp_ratio; $j >= 0; $j--){
+  if($j <= 16){
+    $color = $color_p1;
+  }elsif($j >= 17 && $j <= 33){
+    $color = $color_p2;
+  }else{
+    $color = $color_p3;
+  }
+  open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
+                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
+  print OUT "$evdep[$j] $evlat[$j] $sigma_evdep[$j] $sigma_evlat[$j]\n";
+  close OUT;
 }
-close OUT;
 
 system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.6p,black -O -K -P >> $out";
 
 ##error plot
-#open OUT, " | gmt pslegend -J -R -Dx4.4c/0.1c+w1.2c/1.2c+jBR -F+p0.6p,black+gwhite -O -K -P >> $out";
-#print OUT "N 1\n";
-#close OUT;
-#open OUT, " | gmt psxy -J -R \\
-#                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
-#print OUT "1.4 43.363 $sigma_evdep[1] $sigma_evlat[1]\n";
-#close OUT;
+open OUT, " | gmt pslegend -J -R -Dx4.4c/0.1c+w1.2c/1.2c+jBR -F+p0.6p,black+gwhite -O -K -P >> $out";
+print OUT "N 1\n";
+close OUT;
+open OUT, " | gmt psxy -J -R \\
+                       -Sa$symbolsize -W${symbolwidth},black -E -O -K -P >> $out";
+print OUT "1.4 43.363 $sigma_evdep[1] $sigma_evlat[1]\n";
+close OUT;
 
 #open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -X$dx -Y$dy >> $out";
 #close OUT;
@@ -187,7 +211,7 @@ system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_
 open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -P >> $out";
 close OUT;
 
-#system "gmt psconvert $out -A -Tg";
+system "gmt psconvert $out -A -Tg";
 
 unlink "gmt.conf";
 unlink "gmt.history";
