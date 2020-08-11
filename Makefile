@@ -9,6 +9,7 @@
 ## some options for AmplitudeSourceLocation_PulseWidth.F90
 ## -DWIN: using win format waveform file as an input (otherwise sac binary format files are used) 
 ##        for AmplitudeSourcelocation_Pulsewidth.F90 
+## -DAMP_TXT: using amplitude and station parameters written in textfiles instead of win- or sac-formatted waveforms
 ## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
 ##             when sac files are uses as an input (if -DWIN is set, station location is given in altitude (m)
 ##             at channel files, so this definition have no meanings)
@@ -23,7 +24,7 @@
 
 FC = ifort
 FFLAGS = -traceback -assume byterecl -qopenmp
-DEFS = -DDOUBLE -DV_MEA1D -DMKL -DWIN -DOUT_AMPLITUDE -DWITHOUT_TTIME -DSTDP_COR
+DEFS = -DDOUBLE -DV_MEA1D -DMKL -DWIN -DAMP_TXT -DWITHOUT_TTIME
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
@@ -45,6 +46,7 @@ SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_mastereve
                   wavelet.f90 xorshift1024star.f90 nrtype.F90 linear_interpolation.F90 \
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
 		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 \
+                  calc_3comp_env_amplitude.F90 \
 		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90
 OBJS		= $(patsubst %.F90,%.o,$(patsubst %.f90,%.o,$(SRCS)))
 MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
@@ -90,7 +92,7 @@ TraveltimeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_v
 
 rayshooting.o: greatcircle.o
 m_win.o: m_util.o
-calc_3comp_env_amplitude.o: nrtype.o calc_bpf_coef.o calc_bpf_order.o tandem.o
+calc_3comp_env_amplitude.o: nrtype.o constants.o calc_bpf_coef.o calc_bpf_order.o tandem.o
 
 
 
