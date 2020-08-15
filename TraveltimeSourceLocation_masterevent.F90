@@ -371,7 +371,7 @@ program TraveltimeSourceLocation_masterevent
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) * 2.0_fp
 
     write(10, '(8(e14.7, 1x))') &
-    &          obsvector(4 * (i - 1) + 4), sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp, 
+    &          obsvector(4 * (i - 1) + 4), sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp, &
     &          evlon_master + delta_lon, sigma_lon, &
     &          evlat_master + delta_lat, sigma_lat, &
     &          evdp_master + delta_depth, sigma_depth
