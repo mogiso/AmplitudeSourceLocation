@@ -11,8 +11,8 @@ subroutine calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)
   !!! gn : gain factor
   !!! 
   !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!! Copyright: (c) Masashi Ogiso 2020
-  !!! License  : MIT License https://opensource.org/licenses/MIT
+  !!! Reference: Saito, M. (1978) An automatic design algorithm for band selective recursive
+  !!!                             digital filters, Geophysical Exploration, 31(4), 240-263 (In Japanese)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   integer, intent(IN) :: m, n
