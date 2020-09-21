@@ -46,12 +46,40 @@ shooting as ray tracing method, so making travel time table is time-consuming wo
 
 Grid search section to find minimum residual is also parallelized using OpenMP.
 
+# AmplitudeSourceLocation_masterevent
+## Description
+Relative location estimation using seismic amplitude.
+
+Input files format: txt files except topography file (netcdf format)
+
+Language: Fortran 90
+
+Require: Lapack (dgels, dgetrf, dgetri), netcdf-fortran
+
+## Compile
+    $ make asl_masterevent
+
+## Usage
+    $ ./asl_masterevent (topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) (result_file)
+
+### station_param_file
+example:
+    5
+    143.9775 43.3797  -0.68 V.MEAB
+    143.9867 43.3955  -0.74 V.MEAA
+    144.0017 43.3818  -1.27 V.PMNS
+    144.0042 43.3903  -1.28 V.NSYM
+    144.0160 43.3695  -1.10 V.MNDK
+
+
+  
 ## License
-MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda.
+MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978).
 
 ### References
 Kumagai et al., Amplitude Source Location Method With Depth-dependent Scattering and Attenuation Structures:
 Application at Nevado del Ruiz Volcano, Colombia, JGR, 2019, doi: 10.1029/2019JB018156.
+Saito, An automatic design algorithm for band selective recursive digital filters, Geophysical Prospecting (Butsuri Tanko), 31(4), 240-263, 1978. (In Japanese)
 
 ### Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
