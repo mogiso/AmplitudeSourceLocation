@@ -85,6 +85,7 @@ example:
 
 ### subevent_param_file
 example:
+
     # V.MEAB V.MEAA V.PMNS V.NSYM V.MNDK
     73
     0.1621667E+00   0.5075075E-01   0.5697313E+00   0.2616340E+00   0.6868658E+00 305.0
@@ -102,7 +103,25 @@ example:
 1st row is a comment raw. Same as the masterevent_param_file, this row is required. 2nd row is the number of subevents. 3rd, 4th, 5th, ..., row is the observed amplitudes of each subevent. Same as the masterevent_param_file, the order of the amplitudes musbe the same as the order in the station_param_file. 6th (in this case) row is a comment.
 
 If AMP_TXT is defined when you compile AmplitudeSourceLocation_Pulsewidth.F90, the program outputs observed amplitude at each station as a txt file so that you can make the masterevent_param_file and subevent_param_file by editing it. Note that each observed amplitude made by AmplitudeSourceLocation_Pulsewidth.F90 depends on the location of each event so that if the estimated location by AmplitudeSourceLocation_Pulsewidth.F90 is not appropriate, the text file made by the program would not be appropriate. Consider defining WITHOUT_TTIME when compile the program and taking a long time window for calculating RMS amplitude to neglect the effect of travel time. 
-  
+
+# TraveltimeSourceLocation_masterevent
+## Description
+Relative location estimation using either P- or S-wave arrival times.
+
+Input files format: txt files except topography file (netcdf format)
+
+Language: Fortran 90
+
+Require: Lapack (dgels, dgetrf, dgetri), netcdf-fortran
+
+## Compile
+    $ make ttime_masterevent
+
+## Usage
+    $ ./ttime_masterevent (dem_grdfile) (station_param_file) (masterevent_param_file) (subevent_param_file) (result_file)
+
+The formats of input files are the same as AmplitudeSourceLocation_masterevent.F90 except arrival times of P- or S-waves. Please check set_velocity_model.F90 to make observation and velocity model consistent with each other.
+
 ## License
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978).
 
