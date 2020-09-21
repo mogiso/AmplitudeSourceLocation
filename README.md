@@ -128,6 +128,7 @@ MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, c
 ### References
 Kumagai et al., Amplitude Source Location Method With Depth-dependent Scattering and Attenuation Structures:
 Application at Nevado del Ruiz Volcano, Colombia, JGR, 2019, doi: 10.1029/2019JB018156.
+
 Saito, An automatic design algorithm for band selective recursive digital filters, Geophysical Prospecting (Butsuri Tanko), 31(4), 240-263, 1978. (In Japanese)
 
 ### Acknowledgments
