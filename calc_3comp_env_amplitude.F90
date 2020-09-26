@@ -11,7 +11,7 @@ program calc_3comp_envelope
   integer, parameter :: npts_offset = 500                  !!number of data used for removal of offset measured from
                                                            !!initial of the waveform
   real(kind = fp), parameter :: order = 1.0_fp
-  real(kind = fp), parameter :: amp_timewindow = 7.0_fp
+  real(kind = fp), parameter :: amp_timewindow = 10.0_fp
   !integer, parameter :: nsta = 6
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.NSYM", "V.MNDK", &
   !&                                                "V.KNGM", "V.PNMM"]

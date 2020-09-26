@@ -43,7 +43,7 @@ $lon_e = 144.02;
 $lat_s = 43.375;
 $lat_n = 43.39;
 $dep_min = -2.0;
-$dep_max = 1.0;
+$dep_max = 1.5;
 
 $mapsize_x = 10.0;
 $mapsize_y = `echo $lon_e $lat_n | gmt mapproject -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n`;

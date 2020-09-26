@@ -43,12 +43,12 @@ while(<IN>){
 close IN;
 
 ##for GMT
-$lon_w = 143.975;
-$lon_e = 144.04;
-$lat_s = 43.36;
-$lat_n = 43.405;
+$lon_w = 144.0;
+$lon_e = 144.02;
+$lat_s = 43.375;
+$lat_n = 43.39;
 $dep_min = -2.0;
-$dep_max = 2.0;
+$dep_max = 1.5;
 
 $mapsize_x = 10.0;
 $mapsize_y = `echo $lon_e $lat_n | gmt mapproject -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n`;
@@ -121,9 +121,9 @@ for($j = 0; $j <= $#amp_ratio; $j++){
 }
 
 ##96-1 crator
-open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -SE -Gblack -O -K -P >> $out";
-  print OUT "144.0097 43.3826 90.0 0.3 0.15\n";
-close OUT;
+#open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -SE -Gblack -O -K -P >> $out";
+#  print OUT "144.0097 43.3826 90.0 0.3 0.15\n";
+#close OUT;
 
 ##error plot
 open OUT, " | gmt pslegend -J -R -Dx0.1c/0.1c+w1c/1.2c+jBL -F+p0.6p,black+gwhite -O -K -P >> $out";
