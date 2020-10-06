@@ -359,7 +359,9 @@ program AmplitudeSourceLocation_masterevent
     data_variance = data_variance + (data_residual - (obsvector_copy(i) &
     &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
-  data_variance = data_variance / real(nsta * nsubevent - 1)
+  if(nsta * nsubevent .ne. 1) then
+    data_variance = data_variance / real(nsta * nsubevent - 1)
+  endif
 
   !!estimate error of inverted model parameters
   allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
