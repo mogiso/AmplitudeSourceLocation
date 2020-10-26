@@ -35,7 +35,7 @@ module read_sacfile
     real(kind = fp), intent(out), optional :: user9
     character(len = 8), intent(out), optional :: stname
   
-    real(kind = sp) :: buf
+    real(kind = sp) :: buf, stel
     integer :: i
     character(len = 4) :: stname1, stname2
   
@@ -76,8 +76,10 @@ module read_sacfile
     if(present(stlon)) then
       read(10, rec = 33) buf; stlon = real(buf, kind = fp)
     endif
+    read(10, rec = 34) stel
     if(present(stdp)) then
       read(10, rec = 35) buf; stdp = real(buf, kind = fp)
+      if(stdp .eq. -12345.0_fp) stdp = stel
     endif
     if(present(eqlat)) then
       read(10, rec = 36) buf; eqlat = real(buf, kind = fp)
