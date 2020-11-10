@@ -314,14 +314,14 @@ program AmplitudeSourceLocation_masterevent
   &        obsvector_copy(1 : nsta * nsubevent))
   do j = 1, nsubevent
     do i = 1, nsta
-      obsvector(nsta * (j - 1) + i) = log(obsamp_master(i) / obsamp_sub(i, j))
+      obsvector(nsta * (j - 1) + i) = log(obsamp_sub(i, j) / obsamp_master(i))
       normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
       &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
       &                       cos(ray_azinc(2, i))]
       inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1) = 1.0_fp
       matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
       do ii = 1, 3
-        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = matrix_const * normal_vector(ii)
+        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
       enddo
     enddo
 #ifdef DAMPED
@@ -387,21 +387,22 @@ program AmplitudeSourceLocation_masterevent
     delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
     delta_depth = obsvector(4 * (i - 1) + 4)
     !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
-    sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
+    !sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
+    sigma_amp = abs(exp(obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
     sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
 
     write(10, '(8(e15.8, 1x))') &
-    &          exp(-obsvector(4 * (i - 1) + 1)), sigma_amp, &
+    &          exp(obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
     &          evdp_master - delta_depth, sigma_depth
 
 
     write(0, '(a, i0)')           "subevent index = ", i
-    write(0, '(a, 2(e14.7, 1x))') "amp_ratio and sigma_amp = ", exp(-obsvector(4 * (i - 1) + 1)), sigma_amp
+    write(0, '(a, 2(e14.7, 1x))') "amp_ratio and sigma_amp = ", exp(obsvector(4 * (i - 1) + 1)), sigma_amp
     write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evlon_master - delta_lon, sigma_lon
     write(0, '(a, 2(e14.7, 1x))') "latitude and sigma_lat = ", evlat_master - delta_lat, sigma_lat
     write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master - delta_depth, sigma_depth
