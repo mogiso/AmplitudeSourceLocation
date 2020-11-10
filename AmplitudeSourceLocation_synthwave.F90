@@ -29,12 +29,12 @@ program AmplitudeSourceLocation_synthwave
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
   !!assumed hypocenter
-  integer,            parameter :: nhypo = 2
-  real(kind = fp),    parameter :: origintime(1 : nhypo) = [5.0_fp, 10.0_fp]
-  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0108_fp, 144.0122_fp]
-  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3815_fp, 43.3821_fp]
-  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [0.5_fp, 0.3_fp]
-  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [1.5_dp, 0.8_dp]
+  integer,            parameter :: nhypo = 1
+  real(kind = fp),    parameter :: origintime(1 : nhypo) = [2.0_fp]
+  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0183_fp]
+  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3902_fp]
+  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [0.1_fp]
+  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [1.3_dp]
   real(kind = dp),    parameter :: characteristicfreq    = 0.5_dp
   real(kind = dp),    parameter :: asl_freq              = 7.5_dp
 
@@ -112,7 +112,7 @@ program AmplitudeSourceLocation_synthwave
   do i = 1, nsta
     call read_sachdr(sacfile(i), header = sachdr(:, i), stlat = lat_sta(i), stlon = lon_sta(i), stdp = z_sta(i))
 #ifdef STDP_COR
-    z_sta(i) = z_sta(i) * (-alt_to_depth)
+    z_sta(i) = z_sta(i) * (alt_to_depth)
 #endif
   enddo
 
@@ -268,11 +268,11 @@ program AmplitudeSourceLocation_synthwave
 
         enddo incangle_loop
       enddo incangle_loop2
-      !print '(a, 4(f8.4, 1x))', "hypo lon, lat, depth, az_ini = ", lon_hypo(i), lat_hypo(i), depth_hypo(i), az_ini * rad2deg
-      !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(j), lat_sta(j), z_sta(j)
-      !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
-      !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
-      !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(i, j), width_min(i, j)
+      print '(a, 4(f8.4, 1x))', "hypo lon, lat, depth, az_ini = ", lon_hypo(i), lat_hypo(i), depth_hypo(i), az_ini * rad2deg
+      print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(j), lat_sta(j), z_sta(j)
+      print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
+      &                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
+      print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(i, j), width_min(i, j)
       if(dist_min .gt. rayshoot_dist_thr) then
         ttime_min(i, j) = huge
         width_min(i, j) = 0.0_fp
@@ -319,6 +319,12 @@ program AmplitudeSourceLocation_synthwave
       write(10, rec = i) sachdr(i, j)
     enddo
     write(10, rec = 1) real(sampling, kind = sp)
+    !!reset origin time, travel time
+    write(10, rec = 6) 0.0_sp
+    write(10, rec = 7) real(sampling, kind = sp) * real(npts_waveform - 1, kind = sp)
+    write(10, rec = 8) -12345.0_sp
+    write(10, rec = 9) real(ttime_min(1, j) + origintime(1), kind = sp)
+    write(10, rec = 11) -12345.0_sp
     write(10, rec = 60) 0.0_sp
     write(10, rec = 61) real(sampling, kind = sp) * real(npts_waveform - 1, kind = sp)
     write(10, rec = 62) real(minval(waveform), kind = sp)
