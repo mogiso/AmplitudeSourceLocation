@@ -10,8 +10,8 @@ subroutine tandem1(x, y, n, h, m, nml)
   !!! m : filter order calclated by calc_[bhl]_pf_order.f90
   !!!
   !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!! Copyright: (c) Masashi Ogiso 2020
-  !!! License  : MIT License (https://opensource.org/licenses/MIT)
+  !!! Reference: Saito, M. (1978) An automatic design algorithm for band selective recursive
+  !!!                             digital filters, Geophysical Exploration, 31(4), 240-263 (In Japanese)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   integer, intent(IN) :: n, m, nml

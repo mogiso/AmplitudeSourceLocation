@@ -20,8 +20,8 @@ subroutine calc_bpf_order(fl, fh, fs, ap, as, sample, m, n, c)
   !!! 4. call tandem(data, data, ndata, h, m, nml)               
   !!!
   !!! Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!! Copyright: (c) Masashi Ogiso 2020
-  !!! License  : MIT License https://opensource.org/licenses/MIT
+  !!! Reference: Saito, M. (1978) An automatic design algorithm for band selective recursive
+  !!!                             digital filters, Geophysical Exploration, 31(4), 240-263 (In Japanese)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   real*8, intent(IN) :: fl,fh, fs, ap, as, sample
