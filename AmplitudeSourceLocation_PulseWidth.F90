@@ -64,7 +64,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
 
   integer,            parameter :: maxlen = 4
-  real(kind = dp),    parameter :: order = 1.0e-3_dp                        !!nano m/s to micro m/s
+  real(kind = dp),    parameter :: order = 1.0_dp                        !!nano m/s to micro m/s
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
@@ -259,8 +259,8 @@ program AmplitudeSourceLocation_PulseWidth
         endif
       enddo
     endif
-    write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
-    &     "station(", j, ") name = ", trim(stname(j)), " lon/lat/dep = ", lon_sta(j), lat_sta(j), z_sta(j)
+    !write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
+    !&     "station(", j, ") name = ", trim(stname(j)), " lon/lat/dep = ", lon_sta(j), lat_sta(j), z_sta(j)
   enddo
   allocate(waveform_obs(npts_max, nsta))
   do i = 1, nsta
@@ -271,6 +271,7 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DWIN */
 
   !!remove offset
+  write(0, '(a)') "Removing offset"
   do j = 1, nsta
     amp_avg = 0.0_dp
     icount = 0
@@ -287,6 +288,7 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef TESTDATA
 #else
   !!bandpass filter
+  write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
   do j = 1, nsta
     !!design
     call calc_bpf_order(fl, fh, fs, ap, as, sampling(j), m, n, c)
@@ -302,6 +304,12 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
+
+  !!station list
+  do i = 1, nsta
+    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, g0)') &
+    &     "station(", i, ") lon(deg) = ", lon_sta(i), " lat(deg) = ", lat_sta(i), " depth(km) = ", z_sta(i), use_flag(i)
+  enddo
 
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."

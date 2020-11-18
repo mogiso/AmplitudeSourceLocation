@@ -112,8 +112,12 @@ program AmplitudeSourceLocation_masterevent
   allocate(stlon(nsta), stlat(nsta), stdp(nsta))
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i)
+    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3)') &
+    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i)
   enddo
   close(10)
+
+
   !!read masterevent parameter
   allocate(obsamp_master(nsta))
   open(unit = 10, file = masterevent_param)
@@ -345,22 +349,28 @@ program AmplitudeSourceLocation_masterevent
 
   !!calculate mean data residual
   data_residual = 0.0_fp
+  icount = 0
   do i = 1, nsta * nsubevent
+    if(dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) .eq. 0.0_fp) cycle
+    icount = icount + 1
     data_residual = data_residual &
     &             + (obsvector_copy(i) &
     &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
     !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
     !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
   enddo
-  data_residual = data_residual / real(nsta * nsubevent, kind = fp)
+  data_residual = data_residual / real(icount, kind = fp)
   !!calculate variance
   data_variance = 0.0_fp
+  icount = 0
   do i = 1, nsta * nsubevent
+    if(dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) .eq. 0.0_fp) cycle
+    icount = icount + 1
     data_variance = data_variance + (data_residual - (obsvector_copy(i) &
     &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
   if(nsta * nsubevent .ne. 1) then
-    data_variance = data_variance / real(nsta * nsubevent - 1)
+    data_variance = data_variance / real(icount - 1)
   endif
 
   !!estimate error of inverted model parameters
