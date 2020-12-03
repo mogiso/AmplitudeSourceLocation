@@ -63,7 +63,8 @@ program AmplitudeSourceLocation_masterevent
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
-  &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
+  &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
+  &                                depth_max_tmp, depth_max
 
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
@@ -162,7 +163,7 @@ program AmplitudeSourceLocation_masterevent
   !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
   !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
   !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, &
-  !$omp&                 dist_tmp, lon_min, lat_min, depth_min, velocity_interpolate, dvdz, &
+  !$omp&                 dist_tmp, lon_min, lat_min, depth_min, depth_max, depth_max_tmp, velocity_interpolate, dvdz, &
   !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, ii, kk, omp_thread)
 
   !$ omp_thread = omp_get_thread_num()
@@ -200,6 +201,7 @@ program AmplitudeSourceLocation_masterevent
       inc_angle_ini_min(0) = dinc_angle_org
       !print *, "dinc_angle = ", dinc_angle * rad2deg, inc_angle_ini_min(kk - 1) * rad2deg
 
+      depth_max_tmp = evdp_master
       incangle_loop: do ii = 1, ninc_angle
         inc_angle_ini = (inc_angle_ini_min(kk - 1) - dinc_angle_org) + real(ii, kind = fp) * dinc_angle
         !print '(2(i0, 1x), a, e15.7)', ii, kk, "inc_angle_ini = ", inc_angle_ini * rad2deg
@@ -260,6 +262,7 @@ program AmplitudeSourceLocation_masterevent
             depth_min = depth_tmp
             inc_angle_ini_min(kk) = inc_angle_ini
             ray_azinc(2, jj) = inc_angle_ini
+            depth_max = depth_max_tmp
             !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
             !&                                                                      dist_min
           endif
@@ -277,6 +280,7 @@ program AmplitudeSourceLocation_masterevent
           depth_tmp = depth_new
           az_tmp = az_new
           inc_angle_tmp = inc_angle_new
+          if(depth_tmp .ge. depth_max_tmp) depth_max_tmp = depth_tmp
         enddo shooting_loop
 
       enddo incangle_loop
@@ -285,6 +289,8 @@ program AmplitudeSourceLocation_masterevent
     &                          evlon_master, evlat_master, evdp_master, az_ini * rad2deg
     print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
     print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
+    print '(a, 2(f8.4, 1x))', "inc_angle (deg), ray turning depth (km) = ", &
+    &                          inc_angle_ini_min(nrayshoot) * rad2deg, depth_max
 #endif
   enddo station_loop
   !$omp end do
