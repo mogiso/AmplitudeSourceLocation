@@ -510,7 +510,7 @@ program AmplitudeSourceLocation_PulseWidth
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     !$omp parallel default(none), &
-    !$omp&         shared(ttime_min, origintime, sampling, npts, waveform_obs, source_amp, &
+    !$omp&         shared(ttime_min, origintime, sampling, npts, waveform_obs, source_amp, begin, &
 #ifdef AMP_TXT
     !$omp&                amp_txt, time_count, &
 #endif
