@@ -14,6 +14,10 @@ program AmplitudeSourceLocation_masterevent
   use greatcircle,          only : greatcircle_dist
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
+#ifdef WIN
+  use m_win
+  use m_winch
+#endif
 #ifdef MKL
   use lapack95
 #else
@@ -36,6 +40,26 @@ program AmplitudeSourceLocation_masterevent
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
+
+#ifdef WIN /* use win-format waveform file for input waveforms */
+  character(len = 129)            :: win_filename, win_chfilename
+  character(len = 10)             :: ot_begin_t, ot_end_t, ot_shift_t, rms_tw_t
+  character(len = 1), parameter   :: cmpnm = "U"
+  character(len = 4), allocatable :: st_winch(:)
+  character(len = 6), allocatable :: stname(:)
+  type(winch__hdr),   allocatable :: chtbl(:)
+  real(kind = fp),    allocatable :: ttime(:)
+  real(kind = fp),    parameter   :: order_um = 1.0e+6_fp
+  integer                         :: nsec, tim, nch_chtbl
+  integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :)
+  real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
+  real(kind = dp),    allocatable :: waveform_obs(:, :)
+  !!bandpass filter
+  real(kind = dp),    parameter   :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp, ap = 0.5_dp, as = 5.0_dp
+  real(kind = dp),    allocatable :: h(:)
+  real(kind = dp)                 :: gn, c
+  integer                         :: m, n
+#endif
 
 #ifdef DAMPED
   real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]  !![amp, dx, dy, dz]
@@ -61,7 +85,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
-  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
+  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, ttime_tmp, matrix_const, &
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
   &                                depth_max_tmp, depth_max
@@ -77,6 +101,24 @@ program AmplitudeSourceLocation_masterevent
   !$ integer                    :: omp_thread
 
   icount = iargc()
+#ifdef WIN
+  if(icount .ne. 10) then
+    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile)"
+    write(0, '(a)')               "(ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    error stop
+  endif
+  call getarg(1, topo_grd)
+  call getarg(2, station_param)
+  call getarg(3, masterevent_param)
+  call getarg(4, win_filename)
+  call getarg(5, win_chfilename)
+  call getarg(6, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(7, ot_end_t); read(ot_end_t, *) ot_end
+  call getarg(8, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(9, rms_tw_t); read(rms_tw_t, *) rms_tw
+  call getarg(10, resultfile)
+#else
   if(icount .ne. 5) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
@@ -88,6 +130,7 @@ program AmplitudeSourceLocation_masterevent
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
   call getarg(5, resultfile)
+#endif
 
 #ifdef DAMPED
   write(0, '(a)') "-DDAMPED set"
@@ -110,11 +153,21 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
+#ifdef WIN
+  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), ttime(nsta))
+#else
   allocate(stlon(nsta), stlat(nsta), stdp(nsta))
+#endif
   do i = 1, nsta
+#ifdef WIN
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i)
+    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7)') &
+    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i))
+#else
     read(10, *) stlon(i), stlat(i), stdp(i)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i)
+#endif
   enddo
   close(10)
 
@@ -126,6 +179,8 @@ program AmplitudeSourceLocation_masterevent
   read(10, *) evlon_master, evlat_master, evdp_master
   read(10, *) (obsamp_master(i), i = 1, nsta)
   close(10)
+
+#ifndef WIN
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
   read(10, *)
@@ -135,6 +190,7 @@ program AmplitudeSourceLocation_masterevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
   close(10)
+#endif
 
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
@@ -159,10 +215,13 @@ program AmplitudeSourceLocation_masterevent
   !$omp parallel default(none), &
   !$omp&         shared(nsta, evlon_master, evlat_master, evdp_master, stlon, stlat, stdp, hypodist, ray_azinc, &
   !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, &
+#ifdef WIN
+  !$omp&                ttime, &
+#endif
   !$omp&                velocity, qinv), &
   !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
   !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
-  !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, &
+  !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, ttime_tmp, &
   !$omp&                 dist_tmp, lon_min, lat_min, depth_min, depth_max, depth_max_tmp, velocity_interpolate, dvdz, &
   !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, ii, kk, omp_thread)
 
@@ -213,6 +272,7 @@ program AmplitudeSourceLocation_masterevent
         inc_angle_tmp = inc_angle_ini
 
         !!loop until ray arrives at surface/boundary
+        ttime_tmp = 0.0_fp
         shooting_loop: do
 
           !!exit if ray approaches to the surface
@@ -263,6 +323,9 @@ program AmplitudeSourceLocation_masterevent
             inc_angle_ini_min(kk) = inc_angle_ini
             ray_azinc(2, jj) = inc_angle_ini
             depth_max = depth_max_tmp
+#ifdef WIN
+            ttime(jj) = ttime_tmp
+#endif
             !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
             !&                                                                      dist_min
           endif
@@ -280,6 +343,7 @@ program AmplitudeSourceLocation_masterevent
           depth_tmp = depth_new
           az_tmp = az_new
           inc_angle_tmp = inc_angle_new
+          ttime_tmp = ttime_tmp + velocity_interpolate * time_step
           if(depth_tmp .ge. depth_max_tmp) depth_max_tmp = depth_tmp
         enddo shooting_loop
 
@@ -295,6 +359,62 @@ program AmplitudeSourceLocation_masterevent
   enddo station_loop
   !$omp end do
   !$omp end parallel
+
+  !!make amplitude data from win-format waveform data
+#ifdef WIN
+  !!read channel table
+  call winch__read_tbl(trim(win_chfilename), chtbl)
+  !!find chid from given stname(nsta) and cmpnm
+  allocate(ikey(nsta))
+  do i = 1, nsta
+    call winch__st2chid(chtbl, stname(i), cmpnm, st_winch(i), ikey(i))
+    write(0, '(3(a, 1x))') "station name = ", trim(stname(i)), " comp = ", trim(cmpnm), " chid = ", st_winch(i)
+  enddo
+  !!read all waveform data from win-formatted file
+  call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
+  !!convert waveform data from digitized value to physical value, remove offset
+  allocate(waveform_obs(1 : ubound(waveform_obs_int, 1), 1 : ubound(waveform_obs_int, 2)))
+  do j = 1, nsta
+    amp_avg = 0.0_dp
+    icount = 0
+    do i = 1, sampling_int(j) * nsec
+      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(i)%conv * order_um
+      if(i .le. int(rms_tw / real(sampling_int(j), kind = dp))) then
+        amp_avg = amp_avg + waveform_obs(i, j)
+        icount = icount + 1
+      endif
+    enddo
+    amp_avg = amp_avg / real(icount, kind = dp)
+    waveform_obs(1 : sampling_int(j) * nsec, j) = waveform_obs(1 : sampling_int(j) * nsec, j) - amp_avg
+
+    !!bandpass filter
+    call calc_bpf_order(fl, fh, fs, ap, as, 1.0_dp / real(sampling_int(j), kind = dp), m, n, c)
+    allocate(h(4 * m))
+    call calc_bpf_coef(fl, fh, 1.0_dp / real(sampling_int(j), kind = dp), m, n, h, c, gn)
+    call tandem1(waveform_obs(:, j), waveform_obs(:, j), h, m, 1)
+    waveform_obs(1 : sampling_int(j) * nsec, j) = waveform_obs(1 : sampling_int(j), j) * gn
+    deallocate(h)
+  enddo
+
+  !!count nsubevent
+  nsubevent = 0
+  ot_tmp = ot_begin
+  count_loop: do
+    do i = 1, nsta
+      if(int(ot_tmp * real(sampling_int(i), kind = fp)) + 1 &
+      &  + int(ttime(i) * real(sampling_int(i), kind = fp)) &
+      &  + int(rms_tw * real(sampling_int(i), kind = fp)) .gt. sampling_int(i) * nsec) then
+        exit count_loop
+      endif
+    enddo
+    ot_tmp = ot_tmp + ot_shift
+    nsubevent = nsubevent + 1
+  enddo count_loop
+    
+     
+    
+ 
+#endif
 
   !!velocity and Qinv at master event location
   lon_index = int((evlon_master - lon_str_w) / dlon_str) + 1
