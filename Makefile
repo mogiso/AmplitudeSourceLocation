@@ -26,7 +26,7 @@ FC = ifort
 FFLAGS = -traceback -assume byterecl -qopenmp
 DEFS = -DDOUBLE -DV_MEA1D -DMKL -DWIN -DAMP_TXT -DWITHOUT_TTIME
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
-LIBDIR = -L${MKLROOT}/lib/intel64
+LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
 OPTS = -O3 -xHOST
 
