@@ -18,6 +18,9 @@ program AmplitudeSourceLocation_masterevent
   use m_win
   use m_winch
 #endif
+#ifdef SAC
+  use read_sacfile,         only : read_sachdr, read_sacdata
+#endif
 #ifdef MKL
   use lapack95
 #else
@@ -42,18 +45,31 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
-  character(len = 129)            :: win_filename, win_chfilename
-  character(len = 10)             :: ot_begin_t, ot_end_t, ot_shift_t, rms_tw_t
+  real(kind = fp),    parameter   :: order_um = 1.0e+6_fp
   character(len = 1), parameter   :: cmpnm = "U"
+  real(kind = fp),    allocatable :: ttime(:), sampling(:)
+  real(kind = dp),    allocatable :: waveform_obs(:, :)
+  integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
   character(len = 4), allocatable :: st_winch(:)
   character(len = 6), allocatable :: stname(:)
   type(winch__hdr),   allocatable :: chtbl(:)
-  real(kind = fp),    allocatable :: ttime(:)
-  real(kind = fp),    parameter   :: order_um = 1.0e+6_fp
   integer                         :: nsec, tim, nch_chtbl
-  integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :)
-  real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
+  character(len = 129)            :: win_filename, win_chfilename
+#endif
+#ifdef SAC
+  real(kind = dp),    parameter   :: order = 1.0_dp
+  character(len = 9), parameter   :: sacfile_extension = "__U__.sac"
+  character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
+  real(kind = fp),    allocatable :: begin(:), sampling(:)
+  integer,            allocatable :: npts(:)
+  integer                         :: npts_max
+  character(len = 129)            :: sacfile, sacfile_index
+#endif
+
+#if defined (WIN) || defined (SAC)
+  real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
+  character(len = 10)             :: ot_begin_t, ot_end_t, ot_shift_t, rms_tw_t
   !!bandpass filter
   real(kind = dp),    parameter   :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp, ap = 0.5_dp, as = 5.0_dp
   real(kind = dp),    allocatable :: h(:)
@@ -81,7 +97,6 @@ program AmplitudeSourceLocation_masterevent
   &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
   &                                sigma_inv_data(:, :), error_matrix(:, :)
   integer,          allocatable :: ipiv(:)
-  
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
@@ -89,12 +104,9 @@ program AmplitudeSourceLocation_masterevent
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
   &                                depth_max_tmp, depth_max
-
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
-
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, ii, jj, kk, icount
-
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
 
   !!OpenMP variable
@@ -118,6 +130,22 @@ program AmplitudeSourceLocation_masterevent
   call getarg(8, ot_shift_t); read(ot_shift_t, *) ot_shift
   call getarg(9, rms_tw_t); read(rms_tw_t, *) rms_tw
   call getarg(10, resultfile)
+#elif defined (SAC)
+  if(icount .ne. 9) then
+    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index)"
+    write(0, '(a)')               "(ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    error stop
+  endif
+  call getarg(1, topo_grd)
+  call getarg(2, station_param)
+  call getarg(3, masterevent_param)
+  call getarg(4, sacfile_index)
+  call getarg(5, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(6, ot_end_t); read(ot_end_t, *) ot_end
+  call getarg(7, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(8, rms_tw_t); read(rms_tw_t, *) rms_tw
+  call getarg(9, resultfile)
 #else
   if(icount .ne. 5) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
@@ -153,13 +181,13 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
-#ifdef WIN
+#if defined (WIN) || defined (SAC)
   allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), ttime(nsta))
 #else
   allocate(stlon(nsta), stlat(nsta), stdp(nsta))
 #endif
   do i = 1, nsta
-#ifdef WIN
+#if defined (WIN) || defined (SAC)
     read(10, *) stlon(i), stlat(i), stdp(i), stname(i)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i))
@@ -180,7 +208,68 @@ program AmplitudeSourceLocation_masterevent
   read(10, *) (obsamp_master(i), i = 1, nsta)
   close(10)
 
-#ifndef WIN
+#if defined (WIN) || defined (SAC)
+  allocate(sampling(1 : nsta), npts(1 : nsta))
+#if defined (WIN)
+  !!read channel table
+  call winch__read_tbl(trim(win_chfilename), chtbl)
+  !!find chid from given stname(nsta) and cmpnm
+  allocate(ikey(nsta))
+  do i = 1, nsta
+    call winch__st2chid(chtbl, stname(i), cmpnm, st_winch(i), ikey(i))
+    write(0, '(3(a, 1x))') "station name = ", trim(stname(i)), " comp = ", trim(cmpnm), " chid = ", st_winch(i)
+  enddo
+  !!read all waveform data from win-formatted file
+  call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
+  sampling(1 : nsta) = 1.0_fp / real(sampling_int(1 : nsta), kind = fp)
+  npts(1 : nsta) = sampling_int(1 : nsta) * nsec
+  !!convert waveform data from digitized value to physical value, remove offset
+  allocate(waveform_obs(1 : ubound(waveform_obs_int, 1), 1 : ubound(waveform_obs_int, 2)))
+  do j = 1, nsta
+    amp_avg = 0.0_dp
+    icount = 0
+    do i = 1, npts(j)
+      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(i)%conv * order_um
+      if(i .le. int(rms_tw / real(sampling_int(j), kind = dp))) then
+        amp_avg = amp_avg + waveform_obs(i, j)
+        icount = icount + 1
+      endif
+    enddo
+    amp_avg = amp_avg / real(icount, kind = dp)
+    waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
+#elif defined (SAC)
+  !!read waveform data from sac
+  allocate(npts(1 : nsta), begin(1 : nsta))
+  npts_max = 0
+  do j = 1, nsta
+    sacfile = trim(sacfile_index) // trim(stname(j)) // sacfile_extension
+    call read_sachdr(sacfile, delta=sampling(j), npts=npts(j), begin=begin(j))
+    if(npts(j) .ge. npts_max) npts_max = npts(j)
+    if(j .ne. 1) then
+      do i = 1, j - 1
+        if(begin(i) .ne. begin(j)) then
+          write(0, '(3(a, 1x))') "beginning time is different: ", trim(stname(j)), trim(stname(i))
+          error stop
+        endif
+      enddo
+    endif
+  enddo
+  allocate(waveform_obs(npts_max, nsta))
+  do i = 1, nsta
+    sacfile = trim(sacfile_index) // trim(stname(i)) // sacfile_extension
+    call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
+    waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
+  enddo
+#endif  /* -DWIN || -DSAC */
+    !!bandpass filter
+    call calc_bpf_order(fl, fh, fs, ap, as, 1.0_dp / real(sampling_int(j), kind = dp), m, n, c)
+    allocate(h(4 * m))
+    call calc_bpf_coef(fl, fh, 1.0_dp / real(sampling_int(j), kind = dp), m, n, h, c, gn)
+    call tandem1(waveform_obs(:, j), waveform_obs(:, j), h, m, 1)
+    waveform_obs(1 : sampling_int(j) * nsec, j) = waveform_obs(1 : sampling_int(j), j) * gn
+    deallocate(h)
+  enddo
+#else
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
   read(10, *)
@@ -215,7 +304,7 @@ program AmplitudeSourceLocation_masterevent
   !$omp parallel default(none), &
   !$omp&         shared(nsta, evlon_master, evlat_master, evdp_master, stlon, stlat, stdp, hypodist, ray_azinc, &
   !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, &
-#ifdef WIN
+#if defined (WIN) || defined (SAC)
   !$omp&                ttime, &
 #endif
   !$omp&                velocity, qinv), &
@@ -323,7 +412,7 @@ program AmplitudeSourceLocation_masterevent
             inc_angle_ini_min(kk) = inc_angle_ini
             ray_azinc(2, jj) = inc_angle_ini
             depth_max = depth_max_tmp
-#ifdef WIN
+#if defined (WIN) || defined (SAC)
             ttime(jj) = ttime_tmp
 #endif
             !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
@@ -360,42 +449,9 @@ program AmplitudeSourceLocation_masterevent
   !$omp end do
   !$omp end parallel
 
+
   !!make amplitude data from win-format waveform data
-#ifdef WIN
-  !!read channel table
-  call winch__read_tbl(trim(win_chfilename), chtbl)
-  !!find chid from given stname(nsta) and cmpnm
-  allocate(ikey(nsta))
-  do i = 1, nsta
-    call winch__st2chid(chtbl, stname(i), cmpnm, st_winch(i), ikey(i))
-    write(0, '(3(a, 1x))') "station name = ", trim(stname(i)), " comp = ", trim(cmpnm), " chid = ", st_winch(i)
-  enddo
-  !!read all waveform data from win-formatted file
-  call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
-  !!convert waveform data from digitized value to physical value, remove offset
-  allocate(waveform_obs(1 : ubound(waveform_obs_int, 1), 1 : ubound(waveform_obs_int, 2)))
-  do j = 1, nsta
-    amp_avg = 0.0_dp
-    icount = 0
-    do i = 1, sampling_int(j) * nsec
-      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(i)%conv * order_um
-      if(i .le. int(rms_tw / real(sampling_int(j), kind = dp))) then
-        amp_avg = amp_avg + waveform_obs(i, j)
-        icount = icount + 1
-      endif
-    enddo
-    amp_avg = amp_avg / real(icount, kind = dp)
-    waveform_obs(1 : sampling_int(j) * nsec, j) = waveform_obs(1 : sampling_int(j) * nsec, j) - amp_avg
-
-    !!bandpass filter
-    call calc_bpf_order(fl, fh, fs, ap, as, 1.0_dp / real(sampling_int(j), kind = dp), m, n, c)
-    allocate(h(4 * m))
-    call calc_bpf_coef(fl, fh, 1.0_dp / real(sampling_int(j), kind = dp), m, n, h, c, gn)
-    call tandem1(waveform_obs(:, j), waveform_obs(:, j), h, m, 1)
-    waveform_obs(1 : sampling_int(j) * nsec, j) = waveform_obs(1 : sampling_int(j), j) * gn
-    deallocate(h)
-  enddo
-
+#if defined (WIN) || defined (SAC)
   !!count nsubevent
   nsubevent = 0
   ot_tmp = ot_begin
@@ -410,8 +466,6 @@ program AmplitudeSourceLocation_masterevent
     ot_tmp = ot_tmp + ot_shift
     nsubevent = nsubevent + 1
   enddo count_loop
-    
-     
     
  
 #endif
