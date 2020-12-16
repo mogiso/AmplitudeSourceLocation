@@ -7,7 +7,6 @@ program AmplitudeSourceLocation_PulseWidth
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
-  use read_sacfile,         only : read_sachdr, read_sacdata
   use set_velocity_model,   only : set_velocity
   use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
@@ -17,9 +16,31 @@ program AmplitudeSourceLocation_PulseWidth
   use m_win
   use m_winch
 #endif
+#ifdef SAC
+  use read_sacfile,         only : read_sachdr, read_sacdata
+#endif
   !$ use omp_lib
 
   implicit none
+  !!Use station
+  integer,            parameter :: nsta = 5
+#if defined (WIN)    /* use win-format waveform file for input waveforms */
+  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720", "2750"]
+  character(len = 129)          :: win_filename, win_chfilename
+  real(dp), parameter           :: order_um = 1.0e+6_dp                     !! m/s to micro-m/s 
+  integer                       :: sampling_int(1 : nsta)
+  integer                       :: nsec, tim, nch_chtbl
+  integer,          allocatable :: waveform_obs_int(:, :), npts_win(:, :)
+  type(winch__hdr), allocatable :: chtbl(:)
+#elif defined (SAC)         /* use sac binary files as input waveforms */
+  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
+  character(len = 9), parameter :: sacfile_extension = "__U__.sac"
+#elif defined (AMP_TXT)
+  character(len = 129)          :: amp_filename, station_filename
+  character(len = 129), allocatable :: eventindex(:)
+  integer                       :: namp
+  real(kind = dp), allocatable  :: amp_txt(:, :)
+#endif
 
   !!Search range
   real(kind = fp),    parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
@@ -37,18 +58,8 @@ program AmplitudeSourceLocation_PulseWidth
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
-  !!Use station
-  integer,            parameter :: nsta = 5
-#ifdef WIN    /* use win-format waveform file for input waveforms */
-  character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720", "2750"]
-#else         /* use sac binary files as input waveforms */
-  character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
-  character(len = 9), parameter :: sacfile_extension = "__U__.sac"
-#endif
 
-  !!site amplification factors
-  !!static correction of traveltime
-  !!use station flag
+  !!site amplification factors, static correction of traveltime, use station flag
 #ifdef TESTDATA
   real(kind = dp),    parameter :: siteamp(1 : nsta) = [1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp, 1.0_dp]
   real(kind = fp),    parameter :: ttime_cor(1 : nsta) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]
@@ -114,24 +125,13 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp)               :: gn, c
   integer                       :: m, n
 
-#ifdef AMP_TXT
-  character(len = 129)          :: amp_filename, station_filename
-  character(len = 129), allocatable :: eventindex(:)
-  integer                       :: namp
-  real(kind = dp), allocatable  :: amp_txt(:, :)
-#endif
-#ifdef WIN
-  !!in case of win file input
-  character(len = 129)          :: win_filename, win_chfilename
-  real(dp), parameter           :: order_um = 1.0e+6_dp                     !! m/s to micro-m/s 
-  integer                       :: sampling_int(1 : nsta)
-  integer                       :: nsec, tim, nch_chtbl
-  integer,          allocatable :: waveform_obs_int(:, :), npts_win(:, :)
-  type(winch__hdr), allocatable :: chtbl(:)
-#endif
-
   !!OpenMP variable
   !$ integer                    :: omp_thread
+
+
+#if ! defined (WIN) && ! defined (SAC) && ! defined (AMP_TXT)
+#define SAC
+#endif
 
   icount = iargc()
 #if defined (AMP_TXT)
@@ -162,7 +162,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(7, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(8, resultdir)
   call getarg(9, resultfile)
-#else
+#elif defined (SAC)
   if(icount .ne. 8) then
     write(0, '(a)') "usage: ./a.out sacfile_index dem_grdfile_name ot_begin ot_end ot_shift rms_time_window resultdir &
     &result_file_name"
@@ -239,7 +239,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo chtbl_loop
   enddo
   
-#else /* -DWIN */
+#elif defined (SAC)
 
   !!read sac file
   npts_max = 0
@@ -254,7 +254,7 @@ program AmplitudeSourceLocation_PulseWidth
     if(j .ne. 1) then
       do i = 1, j - 1
         if(begin(j) .ne. begin(i)) then
-          write(0, '(3a)') "beginning time is different: ", trim(stname(j)), trim(stname(i))
+          write(0, '(3(a, 1x))') "beginning time is different: ", trim(stname(j)), trim(stname(i))
           error stop
         endif
       enddo
@@ -497,7 +497,7 @@ program AmplitudeSourceLocation_PulseWidth
   do i = 1, nsta
 #ifdef WIN
     write(20, '(a, 1x)', advance = "no") st_winch(i)
-#else
+#elif defined (SAC)
     write(20, '(a, 1x)', advance = "no") stname(i)
 #endif
   enddo
