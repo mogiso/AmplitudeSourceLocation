@@ -65,14 +65,14 @@ Require: Lapack (dgels, dgetrf, dgetri), netcdf-fortran
 ### station_param_file
 example:
 
-    5                              #(number of stations)
-    143.9775 43.3797  -0.68 V.MEAB #(longitude, latitude, and depth of 1st station)
-    143.9867 43.3955  -0.74 V.MEAA #(longitude, latitude, and depth of 2nd station)
-    144.0017 43.3818  -1.27 V.PMNS
-    144.0042 43.3903  -1.28 V.NSYM
-    144.0160 43.3695  -1.10 V.MNDK
+    5                                  #(number of stations)
+    143.9775 43.3797  -0.68 V.MEAB 0.0 #(longitude, latitude, depth, and traveltime correction of 1st station)
+    143.9867 43.3955  -0.74 V.MEAA 0.0 #(longitude, latitude, depth, and traveltime correction of 2nd station)
+    144.0017 43.3818  -1.27 V.PMNS 0.0
+    144.0042 43.3903  -1.28 V.NSYM 0.0
+    144.0160 43.3695  -1.10 V.MNDK 0.0
 
-The program reads 1st column of 1st row, and initial three columns of 2nd, 3rd, ... rows. Station names shown in 4th column of the example are not required.
+The program reads 1st column of 1st row, and initial three columns of 2nd, 3rd, ... rows, and station names shown in 4th column of the example are not required when the text-formatted subevent amplitude data file is used as an input. If win-formatted (set -DWIN) or sac-formmated (set -DSAC) waveform files are used, the 4th and 5th columns are required.
 
 ### masterevent_param_file
 example:
@@ -83,7 +83,7 @@ example:
 
 1st row is a comment row. The row is required but the program read nothing from it. 2nd row is the location (longitude, latitude, and depth) of the reference event. 3rd row is the observed amplitudes of the reference event at stations. The order of the colomn must be the same as the order in the station_param_file. In this example, I use five stations, and 6th column is a comment. The program does not read 6th (in this case) column.
 
-### subevent_param_file
+### subevent_param_file (text-formatted)
 example:
 
     # V.MEAB V.MEAA V.PMNS V.NSYM V.MNDK
