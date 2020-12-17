@@ -7,9 +7,12 @@
 ## -DV_MEA1D, -DV_CONST: velocity structure defined in set_velocity_model.F90
 
 ## some options for AmplitudeSourceLocation_PulseWidth.F90
-## -DWIN: using win format waveform file as an input (otherwise sac binary format files are used) 
-##        for AmplitudeSourcelocation_Pulsewidth.F90 
-## -DAMP_TXT: using amplitude and station parameters written in textfiles instead of win- or sac-formatted waveforms
+## -DWIN: using win format waveform file as an input for AmplitudeSourcelocation_PulseWidth.F90 and
+##        AmplitudeSourceLocation_masterevent.F90
+## -DSAC: use sac-formatted waveform file as an input waveform for AmplitudeSourceLocation_PulseWidth.F90 (default)
+##        and AmplitudeSourceLocation_masterevent.F90
+## -DAMP_TXT: using amplitude and station parameters written in textfiles instead of win- or sac-formatted waveforms for
+##            AmplitudeSourceLocation_PulseWidth.F90
 ## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
 ##             when sac files are uses as an input (if -DWIN is set, station location is given in altitude (m)
 ##             at channel files, so this definition have no meanings)
@@ -63,7 +66,8 @@ asl_pw: AmplitudeSourceLocation_PulseWidth.o nrtype.o constants.o rayshooting.o 
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
-	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o
+	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
+	read_sacfile.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
@@ -83,7 +87,7 @@ AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sa
 
 AmplitudeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_winch.o m_util.o \
-					calc_bpf_order.o calc_bpf_coef.o tandem.o
+					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o
 
 AmplitudeSourceLocation_synthwave.o: nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
