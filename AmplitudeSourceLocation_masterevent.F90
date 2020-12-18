@@ -8,6 +8,7 @@ program AmplitudeSourceLocation_masterevent
   !!-DWIN: use win-formatted waveform file for input
   !!-DSAC: use sac-formatted(binary) waveform file  for input
   !!default: txt format
+  !!-DWITHOUT_ERROR: do not calculate estimation errors
 
   use nrtype,               only : fp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
@@ -49,7 +50,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
-  real(kind = fp),    parameter   :: order_um = 1.0e+6_fp
+  real(kind = dp),    parameter   :: order_um = 1.0e+6_dp
   character(len = 1), parameter   :: cmpnm = "U"
   real(kind = fp),    allocatable :: ttime(:), ttime_cor(:), sampling(:), begin(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
@@ -99,7 +100,7 @@ program AmplitudeSourceLocation_masterevent
   &                                hypodist(:), ray_azinc(:, :), dist_min(:), &
   &                                obsvector(:), obsvector_copy(:), &
   &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
-  &                                sigma_inv_data(:, :), error_matrix(:, :)
+  &                                sigma_inv_data(:, :), error_matrix(:, :), data_residual_subevent(:)
   integer,          allocatable :: ipiv(:)
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
@@ -576,16 +577,25 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
   !!calculate mean data residual
+  allocate(data_residual_subevent(nsubevent))
   data_residual = 0.0_fp
   icount = 0
-  do i = 1, nsta * nsubevent
-    if(dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) .eq. 0.0_fp) cycle
-    icount = icount + 1
-    data_residual = data_residual &
-    &             + (obsvector_copy(i) &
-    &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
-    !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
-    !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
+  do j = 1, nsubevent
+    data_residual_subevent(j) = 0.0_fp
+    do i = 1, nsta
+    if(dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
+    &  .eq. 0.0_fp) cycle
+      icount = icount + 1
+      data_residual = data_residual &
+      &             + (obsvector_copy(nsta * (j - 1) + i) &
+      &             - dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+      !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
+      !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
+      data_residual_subevent(j) = data_residual_subevent(j) &
+      &             + (obsvector_copy(nsta * (j - 1) + i) &
+      &             - dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), &
+      &                           obsvector(1 : 4 * nsubevent))) ** 2
+    enddo
   enddo
   data_residual = data_residual / real(icount, kind = fp)
   !!calculate variance
@@ -604,6 +614,8 @@ program AmplitudeSourceLocation_masterevent
   !!estimate error of inverted model parameters
   allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
   allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
+  error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
+#ifndef WITOUT_ERROR
   sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
   do i = 1, nsta * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
@@ -617,12 +629,13 @@ program AmplitudeSourceLocation_masterevent
   call la_getrf(error_matrix, ipiv)
   call la_getri(error_matrix, ipiv)
 #endif
+#endif
   
 
   !!output result
   open(unit = 10, file = trim(resultfile))
 #if defined (WIN) || defined (SAC)
-  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth ot_tmp"
+  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum ot_tmp"
   do i = 1, nsubevent
     ot_tmp = ot_begin + ot_shift * real(i - 1, kind = fp)
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
@@ -636,11 +649,11 @@ program AmplitudeSourceLocation_masterevent
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
 
-    write(10, '(8(e15.8, 1x), f7.1)') &
+    write(10, '(9(e15.8, 1x), f7.1)') &
     &          exp(obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
-    &          evdp_master - delta_depth, sigma_depth, ot_tmp
+    &          evdp_master - delta_depth, sigma_depth, data_residual_subevent(i), ot_tmp
 
 
     write(0, '(a, i0, a, f8.1)')  "subevent index = ", i, " ot_tmp = ", ot_tmp
@@ -650,14 +663,8 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master - delta_depth, sigma_depth
   enddo
   close(10)
-  open(unit = 10, file = "amplitude.dat")
-  write(10, '(a, 5(a, 1x))') "# ", (trim(stname(i)), i = 1, nsta)
-  do j = 1, nsubevent
-    write(10, '(5(e15.7, 1x))') (obsamp_sub(i, j), i = 1, nsta)
-  enddo
-  close(10)
 #else
-  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth"
+  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum"
   do i = 1, nsubevent
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
     delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
@@ -670,11 +677,11 @@ program AmplitudeSourceLocation_masterevent
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_depth = sqrt(error_matrix(4 * (i - 1) + 4, 4 * (i - 1) + 4)) * 2.0_fp
 
-    write(10, '(8(e15.8, 1x))') &
+    write(10, '(9(e15.8, 1x))') &
     &          exp(obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
-    &          evdp_master - delta_depth, sigma_depth
+    &          evdp_master - delta_depth, sigma_depth, data_residual_subevent(i)
 
 
     write(0, '(a, i0)')           "subevent index = ", i
