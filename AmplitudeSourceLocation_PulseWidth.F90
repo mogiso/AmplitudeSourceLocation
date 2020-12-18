@@ -218,6 +218,7 @@ program AmplitudeSourceLocation_PulseWidth
   call winch__read_tbl(trim(win_chfilename), chtbl)
   npts_max = ubound(waveform_obs_int, 1)
   nch_chtbl = ubound(chtbl, 1)
+  begin(1 : nsta) = 0.0_fp
   allocate(waveform_obs(1 : npts_max, 1 : nsta))
   waveform_obs(1 : npts_max, 1 : nsta) = 0.0_dp
   do j = 1, nsta
@@ -251,14 +252,6 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef STDP_COR
     z_sta(j) = z_sta(j) * (-alt_to_depth)
 #endif
-    if(j .ne. 1) then
-      do i = 1, j - 1
-        if(begin(j) .ne. begin(i)) then
-          write(0, '(3(a, 1x))') "beginning time is different: ", trim(stname(j)), trim(stname(i))
-          error stop
-        endif
-      enddo
-    endif
     !write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
     !&     "station(", j, ") name = ", trim(stname(j)), " lon/lat/dep = ", lon_sta(j), lat_sta(j), z_sta(j)
   enddo
@@ -545,9 +538,9 @@ program AmplitudeSourceLocation_PulseWidth
             rms_amp_obs(jj) = amp_txt(jj, time_count + 1)
 #else
 #ifdef WITHOUT_TTIME
-            wave_index = int(origintime / sampling(jj) + 0.5_fp) + 1
+            wave_index = int((origintime - begin(jj)) / sampling(jj) + 0.5_fp) + 1
 #else
-            wave_index = int((origintime + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
+            wave_index = int((origintime - begin(jj) + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
 #endif
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
@@ -641,9 +634,13 @@ program AmplitudeSourceLocation_PulseWidth
 
 #ifdef OUT_AMPLITUDE
     do i = 1, nsta
-      wave_index = int((origintime &
+#ifdef WITHOUT_TTIME
+      wave_index = int((origintime - begin(i)) / sampling(i) + 0.5_fp) + 1
+#else
+      wave_index = int((origintime - begin(i) &
       &          + ttime_min(i, residual_minloc(1), residual_minloc(2), residual_minloc(3)) + ttime_cor(i)) / sampling(i) &
       &          + 0.5_fp) + 1
+#endif
       rms_amp_obs(i) = 0.0_fp
       icount = 0
       do ii = wave_index, wave_index + int(rms_tw / sampling(i) + 0.5_fp) - 1
