@@ -18,8 +18,9 @@
 ##             at channel files, so this definition have no meanings)
 ## -DTESTDATA: do not apply bandpass filter and site correction to input waveforms (to be used for synthetic data) 
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
-## -DWITHOUT_TTIME: neglect travel time from assumed source location to each station when extract the amplitude
-##                  from waveform array
+## -DWITHOUT_TTIME: neglect travel time from assumed source location (or reference source location) to each station
+##                  when extract the amplitude from waveform array for AmpliutudeSourceLocation_PulseWidth.F90
+##                  (or AmplitudeSourceLocation_masterevent.F90)
 
 ## option for AmplitudeSourceLocation_masterevent.F90
 ## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
@@ -27,7 +28,7 @@
 
 FC = ifort
 FFLAGS = -traceback -assume byterecl -qopenmp
-DEFS = -DDOUBLE -DV_MEA1D -DMKL -DWIN -DAMP_TXT -DWITHOUT_TTIME
+DEFS = -DDOUBLE -DV_MEA1D -DMKL -DSAC -DWITHOUT_TTIME
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
@@ -36,7 +37,7 @@ OPTS = -O3 -xHOST
 #FC = gfortran
 #FFLAGS = -g -Wall -fbounds-check -fbacktrace
 #FFLAGS = -fbacktrace
-#DEFS = -DDOUBLE -DV_MEA1D -DWIN -DDAMPED
+#DEFS = -DDOUBLE -DV_MEA1D -DWIN
 #INCDIR = -I/usr/include -I/usr/local/include
 #LIBDIR = 
 #LIBS = -lnetcdff -llapack95 -llapack -lblas
@@ -66,8 +67,7 @@ asl_pw: AmplitudeSourceLocation_PulseWidth.o nrtype.o constants.o rayshooting.o 
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
-	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
-	read_sacfile.o
+	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \ read_sacfile.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
