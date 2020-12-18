@@ -57,6 +57,7 @@ MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
 
 .PHONY: all clean
 .SUFFIXES: .f90 .F90
+%.o : %.mod
 
 
 all: $(TARGET)
