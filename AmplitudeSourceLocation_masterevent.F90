@@ -62,7 +62,7 @@ program AmplitudeSourceLocation_masterevent
   character(len = 129)            :: win_filename, win_chfilename
 #endif
 #ifdef SAC
-  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+  real(kind = dp),    parameter   :: order = 1.0_dp
   character(len = 6), parameter   :: sacfile_extension = ".U.sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
