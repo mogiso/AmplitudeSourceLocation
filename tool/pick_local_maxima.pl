@@ -5,9 +5,8 @@
 
 
 $in = $ARGV[0];
-$out_ps = $ARGV[1];
-$out_list = $ARGV[2];
-$sourceamp_min = $ARGV[3];
+$out_list = $ARGV[1];
+$sourceamp_min = $ARGV[2];
 
 ##read result file
 open IN, "<", $in;
