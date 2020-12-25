@@ -59,6 +59,7 @@ module set_velocity_model
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
 
 #elif defined (JMA2001)
+      if(i .eq. 1) write(0, '(a)') "velocity = (approx.) JMA2001, attenuation = F-net MT analysis"
       if(depth .le. 4.5_fp) then
         velocity(1 : nlon, 1 : nlat, i) = ((3.409_fp - 2.844_fp) / 4.5_fp) * depth + 2.844_fp
       elseif(depth .gt. 4.5_fp .and. depth .le. 21.0_fp) then
@@ -86,7 +87,7 @@ module set_velocity_model
 #endif
 
       !!Vp to Vs
-      velocity(1 : nlon, 1 : nlat, i) = velocity(1 : nlon, 1 : nlat, i) / VpVs
+      !velocity(1 : nlon, 1 : nlat, i) = velocity(1 : nlon, 1 : nlat, i) / VpVs
 
     enddo
     return
