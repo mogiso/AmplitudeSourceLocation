@@ -58,6 +58,28 @@ module set_velocity_model
       velocity(1 : nlon, 1 : nlat, i) = 2.5_fp
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
 
+#elif defined (JMA2001)
+      if(depth .le. 4.5_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = ((3.409_fp - 2.844_fp) / 4.5_fp) * depth + 2.844_fp
+      elseif(depth .gt. 4.5_fp .and. depth .le. 21.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = &
+        &  ((3.782_fp - 3.409_fp) / (21.0_fp - 4.5_fp)) * (depth - 4.5_fp) + 3.409_fp
+      elseif(depth .gt. 21.0_fp .and. depth .le. 45.5_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = &
+        &  ((4.362_fp - 3.782_fp) / (45.5_fp - 21.0_fp)) * (depth - 21.0_fp) + 3.782_fp
+      elseif(depth .gt. 45.5_fp .and. depth .le. 83.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = &
+        &  ((4.424_fp - 4.362_fp) / (83.0_fp - 45.5_fp)) * (depth - 45.5_fp) + 4.362_fp
+      elseif(depth .gt. 83.0_fp .and. depth .le. 175.5_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = &
+        &  ((4.558_fp - 4.424_fp) / (175.5_fp - 83.0_fp)) * (depth - 83.0_fp) + 4.424_fp
+      elseif(depth .gt. 175.5_fp) then
+        velocity(1 : nlon, 1 : nlat, i) = &
+        &  ((4.602_fp - 4.558_fp) / (200.0_fp - 175.5_fp)) * (depth - 175.5_fp) + 4.558_fp
+      endif
+
+      qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 300.0_fp !!attenuation value of F-net MT solution 
+
 #else
       write(0, *) "please set -DV_CONST or appropriate definition"
       stop
