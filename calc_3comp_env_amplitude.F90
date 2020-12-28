@@ -15,10 +15,15 @@ program calc_3comp_envelope
   !integer, parameter :: nsta = 6
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.NSYM", "V.MNDK", &
   !&                                                "V.KNGM", "V.PNMM"]
-  integer, parameter :: nsta = 5
-  character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
+  !integer, parameter :: nsta = 5
+  !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
   !integer, parameter :: nsta = 1
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB"]
+  integer, parameter :: nsta = 17
+  character(len = 6), parameter :: stname(nsta) = ["FKOH03", "FKOH06", "KGSH01", "KGSH03", "KGSH04", &
+  &                                                "KGSH05", "KGSH07", "MYZH08", "MYZH10", "MYZH12", &
+  &                                                "MYZH13", "NGSH02", "NGSH03", "NGSH04", "OITH03", &
+  &                                                "OITH10", "SAGH02"] 
 
   integer :: iarg, ndate, npts, i, j, k, ios, icount_p, icount_s, ptime_index, stime_index, buf_i
   real(kind = fp) :: sample, avg_ns, avg_ew, avg_ud, mean_amp_p(nsta), mean_amp_s(nsta)
@@ -27,8 +32,8 @@ program calc_3comp_envelope
   real(kind = fp) :: amp_p
   character(len = 128) :: infile_ns, infile_ew, infile_ud, outfile, outfile_P, outfile_S
   character(len = 128), allocatable :: infile(:) 
-  character(len = 4) :: header(158)
-  character(len = 17) :: cfmt 
+  character(len = 4) :: header(158), nsta_c
+  character(len = 20) :: cfmt 
 
   !!filter variables
   character(len = 8) :: fl_t, fh_t, fs_t
@@ -48,23 +53,24 @@ program calc_3comp_envelope
     call getarg(i + 4, infile(i))
   enddo
 
+  write(nsta_c, '(i0)') nsta
+
   outfile_P = trim(outfile) // "_P.txt"
   outfile_S = trim(outfile) // "_S.txt"
   open(30, file = outfile_P)
   open(31, file = outfile_S)
-  cfmt = "(i(a, 1x))"
-  write(cfmt(2 : 2), '(i1)') nsta + 1
+  cfmt = "(" // trim(nsta_c) // "(a, 1x))"
   write(30, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
   write(31, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
 
-  cfmt = "(i(e15.7, 1x), a)"
-  write(cfmt(2 : 2), '(i1)') nsta
+  cfmt = "(" // trim(nsta_c) // "(e15.7, 1x), a)"
 
   date_loop: do j = 1, ndate
     station_loop: do i = 1, nsta
       !infile_ns = trim(infile(j)) // "." // trim(stname(i)) // ".N.sac"
       !infile_ew = trim(infile(j)) // "." // trim(stname(i)) // ".E.sac"
-      infile_ud = trim(infile(j)) // "." // trim(stname(i)) // ".U.sac"
+      !infile_ud = trim(infile(j)) // "." // trim(stname(i)) // ".U.sac"
+      infile_ud = trim(infile(j)) // "_" // trim(stname(i)) // "_env_cal.sac"
 
       !write(0, *) "infile_ns = ", trim(infile_ns)
       !write(0, *) "infile_ew = ", trim(infile_ew)
@@ -94,13 +100,6 @@ program calc_3comp_envelope
       read(12, rec = 1) buf; sample = dble(buf)
       !!begin, end
       read(12, rec = 6) begin
-      if(abs(buf - 0.01) .gt. 0.0001) then
-        write(0, *) "sample time error", buf
-        !close(10)
-        !close(11)
-        close(12)
-        cycle date_loop
-      endif
       !!npts
       read(12, rec = 80) npts
       write(0, *) "npts = ", npts
@@ -141,6 +140,11 @@ program calc_3comp_envelope
         close(12)
         cycle date_loop
       endif
+      if(ptime .eq. -12345.0) then
+        ptime = stime
+      elseif(stime .eq. -12345.0) then
+        stime = stime
+      endif
       ptime_index = int((ptime - begin) / real(sample) + 0.5) + 1
       stime_index = int((stime - begin) / real(sample) + 0.5) + 1
       write(0, '(a, f0.2)') "begin = ", begin
@@ -180,6 +184,7 @@ program calc_3comp_envelope
       !close(11)
       close(12)
 
+#ifndef TESTDATA
       !!remove offset
       !avg_ns = 0.0d0
       !avg_ew = 0.0d0
@@ -193,11 +198,11 @@ program calc_3comp_envelope
       !data_ew(1 : npts) = data_ew(1 : npts) - avg_ew / dble(npts_offset)
       data_ud(1 : npts) = data_ud(1 : npts) - avg_ud / dble(npts_offset)
 
-      !!フィルタパラメータ
+      !!calculate coefficients of band-pass filter
       call calc_bpf_order(fl, fh, fs, 0.5d0, 5.0d0, sample, m, n, c)
       allocate(h(4 * m))
       call calc_bpf_coef(fl, fh, sample, m, n, h, c, gn)
-      !!フィルタ
+      !!apply filter
       !call tandem1(data_ns, data_ns, npts, h, m, 1)
       !call tandem1(data_ew, data_ew, npts, h, m, 1)
       call tandem1(data_ud, data_ud, npts, h, m, 1)
@@ -205,6 +210,7 @@ program calc_3comp_envelope
       !data_ew(1 : npts) = data_ew(1 : npts) * gn
       data_ud(1 : npts) = data_ud(1 : npts) * gn
       deallocate(h)
+#endif
 
       mean_amp_p(i) = 0.0_fp
       mean_amp_s(i) = 0.0_fp
@@ -215,17 +221,17 @@ program calc_3comp_envelope
         !&                                   + data_ew(ptime_index + k - 1) ** 2  &
         !&                                   + data_ud(ptime_index + k - 1) ** 2) &
         !&                                   / 3.0_fp)
-        mean_amp_p(i) = mean_amp_p(i) + sqrt(data_ud(ptime_index + k - 1) ** 2)
+        mean_amp_p(i) = mean_amp_p(i) + data_ud(ptime_index + k - 1) ** 2
         icount_p = icount_p + 1
         !mean_amp_s(i) = mean_amp_s(i) + sqrt((data_ns(stime_index + k - 1) ** 2  &
         !&                                   + data_ew(stime_index + k - 1) ** 2  &
         !&                                   + data_ud(stime_index + k - 1) ** 2) &
         !&                                   / 3.0_fp)
-        mean_amp_s(i) = mean_amp_s(i) + sqrt(data_ud(stime_index + k - 1) ** 2)
+        mean_amp_s(i) = mean_amp_s(i) + data_ud(stime_index + k - 1) ** 2
         icount_s = icount_s + 1
       enddo
-      mean_amp_p(i) = mean_amp_p(i) / real(icount_p, kind = fp)
-      mean_amp_s(i) = mean_amp_s(i) / real(icount_s, kind = fp)
+      mean_amp_p(i) = sqrt(mean_amp_p(i) / real(icount_p, kind = fp))
+      mean_amp_s(i) = sqrt(mean_amp_s(i) / real(icount_s, kind = fp))
 
       deallocate(data_ns, data_ew, data_ud)
     enddo station_loop
