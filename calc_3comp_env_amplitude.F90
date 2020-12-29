@@ -11,7 +11,6 @@ program calc_3comp_envelope
   integer, parameter :: npts_offset = 500                  !!number of data used for removal of offset measured from
                                                            !!initial of the waveform
   real(kind = fp), parameter :: order = 1.0_fp
-  real(kind = fp), parameter :: amp_timewindow = 10.0_fp
   !integer, parameter :: nsta = 6
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.NSYM", "V.MNDK", &
   !&                                                "V.KNGM", "V.PNMM"]
@@ -19,21 +18,22 @@ program calc_3comp_envelope
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
   !integer, parameter :: nsta = 1
   !character(len = 6), parameter :: stname(nsta) = ["V.MEAB"]
-  integer, parameter :: nsta = 17
-  character(len = 6), parameter :: stname(nsta) = ["FKOH03", "FKOH06", "KGSH01", "KGSH03", "KGSH04", &
-  &                                                "KGSH05", "KGSH07", "MYZH08", "MYZH10", "MYZH12", &
-  &                                                "MYZH13", "NGSH02", "NGSH03", "NGSH04", "OITH03", &
-  &                                                "OITH10", "SAGH02"] 
+  !integer, parameter :: nsta = 17
+  !character(len = 6), parameter :: stname(nsta) = ["FKOH03", "FKOH06", "KGSH01", "KGSH03", "KGSH04", &
+  !&                                                "KGSH05", "KGSH07", "MYZH08", "MYZH10", "MYZH12", &
+  !&                                                "MYZH13", "NGSH02", "NGSH03", "NGSH04", "OITH03", &
+  !&                                                "OITH10", "SAGH02"] 
 
-  integer :: iarg, ndate, npts, i, j, k, ios, icount_p, icount_s, ptime_index, stime_index, buf_i
-  real(kind = fp) :: sample, avg_ns, avg_ew, avg_ud, mean_amp_p(nsta), mean_amp_s(nsta)
-  real(kind = fp), allocatable :: data_ns(:), data_ew(:), data_ud(:)
+  integer :: iarg, nsta, ndate, npts, i, j, k, ios, icount_p, icount_s, ptime_index, stime_index, buf_i
+  real(kind = fp) :: sample, avg_ns, avg_ew, avg_ud, stlon, stlat, stdp
+  real(kind = fp), allocatable :: data_ns(:), data_ew(:), data_ud(:), mean_amp_p(:), mean_amp_s(:)
   real(kind = sp) :: buf, ptime, begin, end, stime
-  real(kind = fp) :: amp_p
-  character(len = 128) :: infile_ns, infile_ew, infile_ud, outfile, outfile_P, outfile_S
+  real(kind = fp) :: amp_p, amp_timewindow
+  character(len = 128) :: stationlist, infile_ns, infile_ew, infile_ud, outfile, outfile_P, outfile_S
   character(len = 128), allocatable :: infile(:) 
+  character(len = 6),   allocatable :: stname(:)
   character(len = 4) :: header(158), nsta_c
-  character(len = 20) :: cfmt 
+  character(len = 20) :: cfmt, amp_timewindow_t
 
   !!filter variables
   character(len = 8) :: fl_t, fh_t, fs_t
@@ -43,15 +43,30 @@ program calc_3comp_envelope
 
   
   iarg = iargc()
+  if(iarg .lt. 7) then
+    write(0, '(a)', advance = "no") "usage: ./calc_3comp_amplitude (fl) (fh) (fs) (rms_timewindow_length)"
+    write(0, '(a)')                 " (stationlist) (output) (sacfile_index1) (sacfile_index2) ..."
+    error stop
+  endif
   call getarg(1, fl_t); read(fl_t, *) fl
   call getarg(2, fh_t); read(fh_t, *) fh
   call getarg(3, fs_t); read(fs_t, *) fs
-  call getarg(4, outfile)
-  ndate = iarg - 4
+  call getarg(4, amp_timewindow_t); read(amp_timewindow_t, *) amp_timewindow
+  call getarg(5, stationlist)
+  call getarg(6, outfile)
+  ndate = iarg - 6
   allocate(infile(ndate))
   do i = 1, ndate
-    call getarg(i + 4, infile(i))
+    call getarg(i + 6, infile(i))
   enddo
+
+  open(unit = 10, file = stationlist)
+  read(10, *) nsta
+  allocate(stname(nsta), mean_amp_p(nsta), mean_amp_s(nsta))
+  do i = 1, nsta
+    read(10, *) stlon, stlat, stdp, stname(i)
+  enddo
+  close(10)
 
   write(nsta_c, '(i0)') nsta
 
@@ -59,7 +74,7 @@ program calc_3comp_envelope
   outfile_S = trim(outfile) // "_S.txt"
   open(30, file = outfile_P)
   open(31, file = outfile_S)
-  cfmt = "(" // trim(nsta_c) // "(a, 1x))"
+  cfmt = "(a, " // trim(nsta_c) // "(a, 1x))"
   write(30, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
   write(31, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
 
