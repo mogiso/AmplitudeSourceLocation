@@ -44,6 +44,8 @@ module set_velocity_model
       elseif(depth .ge. 3.0_fp) then
         velocity(1 : nlon, 1 : nlat, i) = (5.494_fp - 5.383_fp) / (3.5_fp - 3.0_fp) * (depth - 3.0_fp) + 5.383_fp
       endif
+      !!Vp to Vs
+      velocity(1 : nlon, 1 : nlat, i) = velocity(1 : nlon, 1 : nlat, i) / VpVs
 
       !!the values of Qinv are taken from Kumagai et al (2019): case of Nevado
       !del Ruiz volcano (layer thickness is different)
@@ -56,6 +58,8 @@ module set_velocity_model
 #elif defined (V_CONST)
       if(i .eq. 1) write(0, '(a)') "Velocity/Qinv = constant"
       velocity(1 : nlon, 1 : nlat, i) = 2.5_fp
+      !!Vp to Vs
+      velocity(1 : nlon, 1 : nlat, i) = velocity(1 : nlon, 1 : nlat, i) / VpVs
       qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 50.0_fp
 
 #elif defined (JMA2001)
@@ -78,16 +82,13 @@ module set_velocity_model
         velocity(1 : nlon, 1 : nlat, i) = &
         &  ((4.602_fp - 4.558_fp) / (200.0_fp - 175.5_fp)) * (depth - 175.5_fp) + 4.558_fp
       endif
-
-      qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 300.0_fp !!attenuation value of F-net MT solution 
+      qinv(1 : nlon, 1 : nlat, i) = 1.0_fp / 200.0_fp
 
 #else
       write(0, *) "please set -DV_CONST or appropriate definition"
       stop
 #endif
 
-      !!Vp to Vs
-      !velocity(1 : nlon, 1 : nlat, i) = velocity(1 : nlon, 1 : nlat, i) / VpVs
 
     enddo
     return
