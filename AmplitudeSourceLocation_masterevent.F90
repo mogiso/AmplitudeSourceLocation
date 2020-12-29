@@ -35,10 +35,11 @@ program AmplitudeSourceLocation_masterevent
   implicit none
 
   !!Range for velocity and attenuation structure
-  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.50_fp
-  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.01_fp, dlat_str = 0.01_fp, dz_str = 0.1_fp
+  !!whole Japan
+  real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
+  real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
+  real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
   integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,            parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
@@ -46,7 +47,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,            parameter :: nrayshoot = 2                            !!number of grid search
-  real(kind = fp),    parameter :: time_step = 0.01_fp
+  real(kind = fp),    parameter :: time_step = 0.005_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
@@ -64,6 +65,7 @@ program AmplitudeSourceLocation_masterevent
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
   character(len = 6), parameter   :: sacfile_extension = ".U.sac"
+  !character(len = 12), parameter   :: sacfile_extension = "_env_cal.sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), ttime(:), ttime_cor(:), sampling(:), stime(:)
@@ -87,7 +89,6 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = dp),    parameter :: freq = 7.5_dp
   real(kind = dp),    parameter :: huge = 1.0e+10_dp
 
   real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
@@ -109,20 +110,21 @@ program AmplitudeSourceLocation_masterevent
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
   &                                depth_max_tmp, depth_max
-  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
+  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, icount
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
+  character(len = 20)           :: cfmt, nsta_c, freq_t
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
 
   icount = iargc()
 #ifdef WIN
-  if(icount .ne. 10) then
+  if(icount .ne. 11) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile)"
-    write(0, '(a)')               "(ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile) "
+    write(0, '(a)')               "(frequency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -130,39 +132,42 @@ program AmplitudeSourceLocation_masterevent
   call getarg(3, masterevent_param)
   call getarg(4, win_filename)
   call getarg(5, win_chfilename)
-  call getarg(6, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(7, ot_end_t); read(ot_end_t, *) ot_end
-  call getarg(8, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(9, rms_tw_t); read(rms_tw_t, *) rms_tw
-  call getarg(10, resultfile)
+  call getarg(6, freq_t);     read(freq_t, *) freq
+  call getarg(7, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(8, ot_end_t);   read(ot_end_t, *) ot_end
+  call getarg(9, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(10, rms_tw_t);  read(rms_tw_t, *) rms_tw
+  call getarg(11, resultfile)
 #elif defined (SAC)
   if(icount .ne. 9) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index)"
-    write(0, '(a)')               "(ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index) "
+    write(0, '(a)')               "(freqency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, sacfile_index)
+  call getarg(5, freq_t);     read(freq_t, *) freq
   call getarg(5, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(6, ot_end_t); read(ot_end_t, *) ot_end
+  call getarg(6, ot_end_t);   read(ot_end_t, *) ot_end
   call getarg(7, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(8, rms_tw_t); read(rms_tw_t, *) rms_tw
+  call getarg(8, rms_tw_t);   read(rms_tw_t, *) rms_tw
   call getarg(9, resultfile)
 #else
-  if(icount .ne. 5) then
+  if(icount .ne. 6) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
-    write(0, '(a)')               "(result_file)"
+    write(0, '(a)')               "(frequency) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
-  call getarg(5, resultfile)
+  call getarg(5, freq_t); read(freq_t, *) freq
+  call getarg(6, resultfile)
 #endif
 
 #ifdef DAMPED
@@ -277,8 +282,10 @@ program AmplitudeSourceLocation_masterevent
   enddo
 #endif  /* -DWIN || -DSAC */
 
+#ifndef TESTDATA
+  !!bandpass filter
+  write(0, '(a)') "Applying bandpass filter"
   do j = 1, nsta
-    !!bandpass filter
     call calc_bpf_order(fl, fh, fs, ap, as, real(sampling(j), kind = dp), m, n, c)
     allocate(h(4 * m))
     call calc_bpf_coef(fl, fh, real(sampling(j), kind = dp), m, n, h, c, gn)
@@ -286,6 +293,7 @@ program AmplitudeSourceLocation_masterevent
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) * gn
     deallocate(h)
   enddo
+#endif
 #else
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
@@ -455,12 +463,15 @@ program AmplitudeSourceLocation_masterevent
 
       enddo incangle_loop
     enddo incangle_loop2
-    print '(a, 4(f8.4, 1x))', "masterevent lon, lat, depth, az_ini = ", &
-    &                          evlon_master, evlat_master, evdp_master, az_ini * rad2deg
-    print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
-    print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
-    print '(a, 2(f8.4, 1x))', "inc_angle (deg), ray turning depth (km) = ", &
-    &                          inc_angle_ini_min(nrayshoot) * rad2deg, depth_max
+    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
+    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+    write(0, '(a, 4(f8.4, 1x))') "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
+    write(0, '(a, 2(f8.4, 1x))') "inc_angle (deg), ray turning depth (km) = ", &
+    &                             inc_angle_ini_min(nrayshoot) * rad2deg, depth_max
+#if defined (WIN) || defined (SAC)
+    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
+#endif
 #endif
   enddo station_loop
   !$omp end do
@@ -470,6 +481,7 @@ program AmplitudeSourceLocation_masterevent
 #ifdef SAC
   do i = 1, nsta
     if(stime(i) .ne. -12345.0_fp) then
+      write(0, '(a, i0, a, f5.2)') "station(", i, ") read traveltime from sacfile ", stime(i)
       ttime(i) = stime(i)
     else
       ttime(i) = ttime(i) + ttime_cor(i)
