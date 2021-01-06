@@ -4,6 +4,10 @@ program AmplitudeSourceLocation_PulseWidth
   !!Copyright: (c) Masashi Ogiso 2020
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
+#if ! defined (WIN) && ! defined (SAC) && ! defined (AMP_TXT)  /* define default waveform data format */
+#define SAC
+#endif
+
   use nrtype,               only : fp, sp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
@@ -23,110 +27,99 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   !!Use station
-  integer                         :: nsta
-  character(len = 6), allocatable :: stname(:)
+  integer                           :: nsta
+  integer,              allocatable :: npts(:)
+  character(len = 6),   allocatable :: stname(:)
 #if defined (WIN)    /* use win-format waveform file for input waveforms */
-  !character(len = 4), parameter :: st_winch(1 : nsta) = ["2724", "13F1", "274D", "2720", "2750"]
-  character(len = 129)            :: win_filename, win_chfilename
-  character(len = 10)             :: cmpnm
-  real(dp), parameter             :: order_um = 1.0e+6_dp                     !! m/s to micro-m/s 
-  !integer                       :: sampling_int(1 : nsta)
-  integer                         :: nsec, tim, nch_chtbl
-  integer,            allocatable :: waveform_obs_int(:, :), npts_win(:, :), sampling_int(:), ikey(:), npts(:)
-  character(len = 4), allocatable :: st_winch(:)
-  type(winch__hdr),   allocatable :: chtbl(:)
+  character(len = 129)              :: win_filename, win_chfilename
+  character(len = 10)               :: cmpnm
+  real(dp),               parameter :: order = 1.0e+6_dp                       !! m/s to micro-m/s 
+  integer                           :: nsec, tim, nch_chtbl
+  integer,              allocatable :: waveform_obs_int(:, :), npts_win(:, :), sampling_int(:), ikey(:)
+  character(len = 4),   allocatable :: st_winch(:)
+  type(winch__hdr),     allocatable :: chtbl(:)
 #elif defined (SAC)         /* use sac binary files as input waveforms */
-  !character(len = 6), parameter :: stname(1 : nsta) = ["V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK"]
-  !character(len = 9), parameter :: sacfile_extension = "__U__.sac"
-  character(len = 10)             :: cmpnm
-  character(len = 4), parameter   :: sacfile_extension = ".sac"
-  integer,            allocatable :: npts(:)
+  real(kind = dp),        parameter :: order = 1.0_dp
+  character(len = 10)               :: cmpnm
+  character(len = 4),     parameter :: sacfile_extension = ".sac"
 #elif defined (AMP_TXT)
-  character(len = 129)            :: amp_filename
+  character(len = 129)              :: amp_filename
   character(len = 129), allocatable :: eventindex(:)
-  integer                         :: namp
-  real(kind = dp), allocatable    :: amp_txt(:, :)
+  integer                           :: namp
+  real(kind = dp),      allocatable :: amp_txt(:, :)
 #endif
 
   !!Search range
-  real(kind = fp),    parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
-  real(kind = fp),    parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
-  real(kind = fp),    parameter :: z_min = -1.5_fp, z_max = 3.2_fp
-  real(kind = fp),    parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
+  real(kind = fp),        parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
+  real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.2_fp
+  real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!structure range
-  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),    parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
-  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
+  real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
   !!Ray shooting
-  real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
-  integer,            parameter :: nrayshoot = 2                            !!number of grid search
-  real(kind = fp),    parameter :: time_step = 0.01_fp
-  real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
+  real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
+  integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
+  integer,                parameter :: nrayshoot = 2                            !!number of grid search
+  real(kind = fp),        parameter :: time_step = 0.005_fp
+  real(kind = fp),        parameter :: rayshoot_dist_thr = 0.05_fp
 
-  real(kind = dp),    allocatable :: siteamp(:)
-  real(kind = fp),    allocatable :: ttime_cor(:)
-  logical,            allocatable :: use_flag(:)
+  real(kind = dp),      allocatable :: siteamp(:)
+  real(kind = fp),      allocatable :: ttime_cor(:)
+  logical,              allocatable :: use_flag(:)
 
   !!Bandpass filter
-  real(kind = dp),    parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
-  real(kind = dp),    parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
+  real(kind = dp),        parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
+  real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
 
-  integer,            parameter :: maxlen = 4
-  real(kind = dp),    parameter :: order = 1.0_dp                        !!nano m/s to micro m/s
-  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = dp),    parameter :: huge = 1.0e+5_dp
+  integer,                parameter :: maxlen = 4
+  real(kind = fp),        parameter :: alt_to_depth = -1.0e-3_fp
+  real(kind = dp),        parameter :: huge = 1.0e+5_dp
 
-  !real(kind = fp),    parameter :: dinc_angle1 = pi / real(ninc_angle, kind = fp)
-  !real(kind = fp),    parameter :: dinc_angle2 = 2.0_fp * dinc_angle1 / real(ninc_angle - 1, kind = fp)
-  integer,            parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
-  integer,            parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
-  integer,            parameter :: nz   = int((z_max - z_min) / dz) + 2
-  integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
-  integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
-  integer,            parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
-  real(kind = dp),    parameter :: freq = (fl + fh) * 0.5_dp
+  integer,                parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
+  integer,                parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
+  integer,                parameter :: nz   = int((z_max - z_min) / dz) + 2
+  integer,                parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
+  integer,                parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
+  integer,                parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
+  real(kind = dp),        parameter :: freq = (fl + fh) * 0.5_dp
 
-  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
-  real(kind = dp)               :: residual(1 : nlon, 1 : nlat, 1 : nz), source_amp(1 : nlon, 1 : nlat, 1 : nz)
-  integer                       :: residual_minloc(3)
-  real(kind = sp), allocatable  :: residual_grd(:, :)
-  real(kind = fp),  allocatable :: lon_sta(:), lat_sta(:), z_sta(:), sampling(:), begin(:), &
-  &                                width_min(:, :, :, :), ttime_min(:, :, :, :), hypodist(:, :, :, :)
-  real(kind = dp), allocatable  :: waveform_obs(:, :), topography(:, :), lon_topo(:), lat_topo(:), rms_amp_obs(:)
+  real(kind = fp)                   :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  &                                    qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  &                                    val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
+  &                                    xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
+  real(kind = dp)                   :: residual(1 : nlon, 1 : nlat, 1 : nz), source_amp(1 : nlon, 1 : nlat, 1 : nz)
+  integer                           :: residual_minloc(3)
+  real(kind = sp),      allocatable :: residual_grd(:, :)
+  real(kind = fp),      allocatable :: lon_sta(:), lat_sta(:), z_sta(:), sampling(:), begin(:), &
+  &                                    width_min(:, :, :, :), ttime_min(:, :, :, :), hypodist(:, :, :, :)
+  real(kind = dp),      allocatable :: waveform_obs(:, :), topography(:, :), lon_topo(:), lat_topo(:), rms_amp_obs(:)
   
-  real(kind = fp)               :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
-  &                                az_tmp, inc_angle_tmp, inc_angle_min, az_new, inc_angle_new, az_ini, &
-  &                                lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
-  &                                lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
-  &                                ot_begin, ot_end, ot_shift, rms_tw, lon_min, lat_min, depth_min, &
-  &                                dinc_angle, dinc_angle_org, inc_angle_ini
-  real(kind = sp)               :: lon_r, lat_r, topo_r
-  real(kind = dp)               :: residual_normalize, amp_avg, topography_interpolate, &
-  &                                dlon_topo, dlat_topo
+  real(kind = fp)                   :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
+  &                                    az_tmp, inc_angle_tmp, inc_angle_min, az_new, inc_angle_new, az_ini, &
+  &                                    lon_tmp, lat_tmp, depth_tmp, lon_new, lat_new, depth_new, origintime, &
+  &                                    lon_grid, lat_grid, depth_grid, dist_min, dist_tmp, dvdz, epdelta, &
+  &                                    ot_begin, ot_end, ot_shift, rms_tw, lon_min, lat_min, depth_min, &
+  &                                    dinc_angle, dinc_angle_org, inc_angle_ini
+  real(kind = sp)                   :: lon_r, lat_r, topo_r
+  real(kind = dp)                   :: residual_normalize, amp_avg, topography_interpolate, &
+  &                                    dlon_topo, dlat_topo
   
-  integer                       :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                npts_max, nlon_topo, nlat_topo, nsta_use
-  character(len = 129)          :: station_param, dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, &
-  &                                rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir
-  character(len = maxlen)       :: time_count_char
+  integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
+  &                                    npts_max, nlon_topo, nlat_topo, nsta_use
+  character(len = 129)              :: station_param, dem_file, sacfile, sacfile_index, ot_begin_t, ot_end_t, &
+  &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir
+  character(len = maxlen)           :: time_count_char
 
   !!filter variables
-  real(kind = dp), allocatable  :: h(:), waveform_tmp(:)
-  real(kind = dp)               :: gn, c
-  integer                       :: m, n
+  real(kind = dp),      allocatable :: h(:), waveform_tmp(:)
+  real(kind = dp)                   :: gn, c
+  integer                           :: m, n
 
   !!OpenMP variable
-  !$ integer                    :: omp_thread
-
-
-#if ! defined (WIN) && ! defined (SAC) && ! defined (AMP_TXT)
-#define SAC
-#endif
+  !$ integer                        :: omp_thread
 
   icount = iargc()
 #if defined (AMP_TXT)
@@ -159,6 +152,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(9, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(10, resultdir)
   call getarg(11, resultfile)
+
 #elif defined (SAC)
   if(icount .ne. 10) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (sacfile_index) (compnent_name)"
@@ -176,6 +170,7 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(8, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(9, resultdir)
   call getarg(10, resultfile)
+
 #endif
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
@@ -195,7 +190,7 @@ program AmplitudeSourceLocation_PulseWidth
   write(0, '(2a)') "read station paramters from ", trim(station_param)
   open(unit = 40, file = station_param)
   read(40, *) nsta
-  allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), &
+  allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta), siteamp(1 : nsta), use_flag(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
@@ -203,8 +198,8 @@ program AmplitudeSourceLocation_PulseWidth
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), ttime_cor(i), siteamp(i), use_flag(i)
 #ifdef TESTDATA
     ttime_cor(i) = 0.0_fp
-    siteamp(i) = 1.0_dp
-    use_flag(i) = .true.
+    siteamp(i)   = 1.0_dp
+    use_flag(i)  = .true.
 #endif
   enddo
   close(40)
@@ -246,7 +241,7 @@ program AmplitudeSourceLocation_PulseWidth
     npts(j) = nsec * sampling_int(j)
     sampling(j) = 1.0_fp / real(sampling_int(j), kind = fp)
     do i = 1, npts(j)
-      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(ikey(j))%conv * order_um
+      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(ikey(j))%conv * order
     enddo
   enddo
   deallocate(sampling_int, chtbl, waveform_obs_int, ikey, st_winch)
@@ -569,7 +564,6 @@ program AmplitudeSourceLocation_PulseWidth
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
-          print *, i, j, k, "source_amp done"
           source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp
