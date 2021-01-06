@@ -13,9 +13,6 @@
 ##        and AmplitudeSourceLocation_masterevent.F90
 ## -DAMP_TXT: using amplitude and station parameters written in textfiles instead of win- or sac-formatted waveforms for
 ##            AmplitudeSourceLocation_PulseWidth.F90
-## -DSTDP_COR: convert the depth of station from meters to kilometers (origin: sea level, downward positive)
-##             when sac files are uses as an input (if -DWIN is set, station location is given in altitude (m)
-##             at channel files, so this definition have no meanings)
 ## -DTESTDATA: do not apply bandpass filter and site correction to input waveforms (to be used for synthetic data) 
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
 ## -DWITHOUT_TTIME: neglect travel time from assumed source location (or reference source location) to each station
@@ -27,8 +24,8 @@
 ## -DDAMPED: Damped least squares solution (check damp() array)
 
 FC = ifort
-FFLAGS = -traceback -assume byterecl -CB
-DEFS = -DDOUBLE -DMKL -DWIN -DV_CONST
+FFLAGS = -traceback -assume byterecl
+DEFS = -DDOUBLE -DMKL -DWIN -DV_MEA1D -DOUT_AMPLITUDE
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
