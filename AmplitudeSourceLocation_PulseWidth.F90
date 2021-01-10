@@ -197,7 +197,8 @@ program AmplitudeSourceLocation_PulseWidth
   read(40, *) nsta
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), &
   &        ttime_cor(1 : nsta), siteamp(1 : nsta), use_flag(1 : nsta), &
-  &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
+  &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
+  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
   do i = 1, nsta
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), ttime_cor(i), siteamp(i), use_flag(i)
 #ifdef TESTDATA
@@ -221,7 +222,7 @@ program AmplitudeSourceLocation_PulseWidth
 #else 
 #ifdef WIN
   allocate(st_winch(1 : nsta), sampling_int(1 : nsta), ikey(1 : nsta), &
-  &        sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
+  &        sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta))
   !!read channel_table
   call winch__read_tbl(trim(win_chfilename), chtbl)
   !!find chid from given stname
@@ -248,11 +249,11 @@ program AmplitudeSourceLocation_PulseWidth
       waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(ikey(j))%conv * order_um
     enddo
   enddo
-  deallocate(sampling_int, chtbl, waveform_obs_int, ikey)
+  deallocate(sampling_int, chtbl, waveform_obs_int, ikey, st_winch)
   
 #elif defined (SAC)
   !!read sac file
-  allocate(sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
+  allocate(sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta))
   npts_max = 0
   do i = 1, nsta
     sacfile = trim(sacfile_index) // trim(stname(i)) // trim(cmpnm) // sacfile_extension
@@ -568,6 +569,7 @@ program AmplitudeSourceLocation_PulseWidth
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
+          print *, i, j, k, "source_amp done"
           source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp

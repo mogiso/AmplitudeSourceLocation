@@ -27,12 +27,12 @@
 ## -DDAMPED: Damped least squares solution (check damp() array)
 
 FC = ifort
-FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DSAC -DJMA2001 -DTESTDATA -DDAMPED
+FFLAGS = -traceback -assume byterecl -CB
+DEFS = -DDOUBLE -DMKL -DWIN -DV_CONST
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
-OPTS = -O3 -xHOST
+OPTS = -O3 -xHOST -qopenmp
 
 #FC = gfortran
 #FFLAGS = -g -Wall -fbounds-check -fbacktrace
