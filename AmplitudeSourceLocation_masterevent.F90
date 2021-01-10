@@ -52,7 +52,6 @@ program AmplitudeSourceLocation_masterevent
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
   real(kind = dp),    parameter   :: order_um = 1.0e+6_dp
-  character(len = 1), parameter   :: cmpnm = "U"
   real(kind = fp),    allocatable :: ttime(:), ttime_cor(:), sampling(:), begin(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
@@ -61,17 +60,19 @@ program AmplitudeSourceLocation_masterevent
   type(winch__hdr),   allocatable :: chtbl(:)
   integer                         :: nsec, tim, time_index
   character(len = 129)            :: win_filename, win_chfilename
+  character(len = 10)             :: cmpnm
 #endif
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
-  character(len = 6), parameter   :: sacfile_extension = ".U.sac"
-  !character(len = 12), parameter   :: sacfile_extension = "_env_cal.sac"
+  !character(len = 6), parameter   :: sacfile_extension = ".U.sac"
+  character(len = 12), parameter   :: sacfile_extension = ".sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), ttime(:), ttime_cor(:), sampling(:), stime(:)
   integer,            allocatable :: npts(:)
   integer                         :: time_index
   character(len = 129)            :: sacfile, sacfile_index
+  character(len = 10)             :] cmpnm
 #endif
 
 #if defined (WIN) || defined (SAC)
@@ -85,7 +86,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
 #ifdef DAMPED
-  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 0.0_fp]  !![amp, dx, dy, dz]
+  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 1.0_fp]  !![amp, dx, dy, dz]
 #endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
@@ -121,10 +122,11 @@ program AmplitudeSourceLocation_masterevent
 
   icount = iargc()
 #ifdef WIN
-  if(icount .ne. 11) then
+  if(icount .ne. 12) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile) "
-    write(0, '(a)')               "(frequency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    write(0, '(a)', advance="no") "(component name) (frequency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)')               "(result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -132,29 +134,32 @@ program AmplitudeSourceLocation_masterevent
   call getarg(3, masterevent_param)
   call getarg(4, win_filename)
   call getarg(5, win_chfilename)
-  call getarg(6, freq_t);     read(freq_t, *) freq
-  call getarg(7, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(8, ot_end_t);   read(ot_end_t, *) ot_end
-  call getarg(9, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(10, rms_tw_t);  read(rms_tw_t, *) rms_tw
-  call getarg(11, resultfile)
+  call getarg(6, cmpnm)
+  call getarg(7, freq_t);     read(freq_t, *) freq
+  call getarg(8, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(9, ot_end_t);   read(ot_end_t, *) ot_end
+  call getarg(10, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(11, rms_tw_t);  read(rms_tw_t, *) rms_tw
+  call getarg(12, resultfile)
 #elif defined (SAC)
-  if(icount .ne. 9) then
+  if(icount .ne. 11) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index) "
-    write(0, '(a)')               "(freqency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_file)"
+    write(0, '(a)', advance="no") "(component_name) (freqency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)', advance="no") "(result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, sacfile_index)
-  call getarg(5, freq_t);     read(freq_t, *) freq
-  call getarg(5, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(6, ot_end_t);   read(ot_end_t, *) ot_end
-  call getarg(7, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(8, rms_tw_t);   read(rms_tw_t, *) rms_tw
-  call getarg(9, resultfile)
+  call getarg(5, cmpnm)
+  call getarg(6, freq_t);     read(freq_t, *) freq
+  call getarg(7, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(8, ot_end_t);   read(ot_end_t, *) ot_end
+  call getarg(9, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(10, rms_tw_t);   read(rms_tw_t, *) rms_tw
+  call getarg(11, resultfile)
 #else
   if(icount .ne. 6) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
@@ -227,7 +232,7 @@ program AmplitudeSourceLocation_masterevent
   !!find chid from given stname(nsta) and cmpnm
   allocate(ikey(nsta))
   do i = 1, nsta
-    call winch__st2chid(chtbl, stname(i), cmpnm, st_winch(i), ikey(i))
+    call winch__st2chid(chtbl, stname(i), trim(cmpnm), st_winch(i), ikey(i))
     if(ikey(i) .eq. 0) then
       write(0, '(5(a, 1x))') "station/comp =", trim(stname(i)), trim(cmpnm), "does not exist in", trim(win_chfilename)
       error stop
@@ -260,7 +265,7 @@ program AmplitudeSourceLocation_masterevent
   !!read waveform data from sac
   allocate(stime(1 : nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(i)) // sacfile_extension
+    sacfile = trim(sacfile_index) // trim(stname(i)) // trim(cmpnm) // sacfile_extension
     call read_sachdr(sacfile, delta=sampling(i), npts=npts(i), begin=begin(i), t0=stime(i))
   enddo
   allocate(waveform_obs(maxval(npts), nsta))
@@ -282,7 +287,8 @@ program AmplitudeSourceLocation_masterevent
   enddo
 #endif  /* -DWIN || -DSAC */
 
-#ifndef TESTDATA
+#ifdef TESTDATA
+#else
   !!bandpass filter
   write(0, '(a)') "Applying bandpass filter"
   do j = 1, nsta
@@ -478,7 +484,9 @@ program AmplitudeSourceLocation_masterevent
   !$omp end parallel
 
 #if defined (WIN) || defined (SAC)
-#ifdef SAC
+#if defined (WIN)
+  ttime(1 : nsta) = ttime(1 : nsta) + ttime_cor(1 : nsta)
+#elif defined (SAC)
   do i = 1, nsta
     if(stime(i) .ne. -12345.0_fp) then
       write(0, '(a, i0, a, f5.2)') "station(", i, ") read traveltime from sacfile ", stime(i)
@@ -487,15 +495,13 @@ program AmplitudeSourceLocation_masterevent
       ttime(i) = ttime(i) + ttime_cor(i)
     endif
   enddo
-#elif defined (WIN)
-  ttime(1 : nsta) = ttime(1 : nsta) + ttime_cor(1 : nsta)
 #endif
 #ifdef WITHOUT_TTIME
   ttime(1 : nsta) = 0.0_fp
 #endif
 #endif
 
-  !!make amplitude data from win-format waveform data
+  !!make amplitude data from win- or sac-formatted waveform data
 #if defined (WIN) || defined (SAC)
   !!count nsubevent
   nsubevent = 0
@@ -510,7 +516,7 @@ program AmplitudeSourceLocation_masterevent
     ot_tmp = ot_tmp + ot_shift
     nsubevent = nsubevent + 1
   enddo count_loop
-  print *, "nsubevent = ", nsubevent
+  write(0, '(a, i0)') "nsubevent = ", nsubevent
   !!calculate rms amplitude of each subevent
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
   do k = 1, nsubevent
@@ -521,6 +527,7 @@ program AmplitudeSourceLocation_masterevent
       do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
         time_index = int((ot_tmp - begin(j) + ttime(j)) / sampling(j) + 0.5_fp) + i
         if(time_index .ge. 1 .and. time_index .le. npts(j)) then
+          if(i .eq. 1) write(0, *) k, trim(stname(j)), real(time_index, kind = fp) * sampling(j)
           obsamp_sub(j, k) = obsamp_sub(j, k) + waveform_obs(time_index, j) ** 2
           !print *, time_index, obsamp_sub(j, k), waveform_obs(time_index, j)
           icount = icount + 1
