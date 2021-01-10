@@ -65,7 +65,7 @@ program AmplitudeSourceLocation_masterevent
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
   !character(len = 6), parameter   :: sacfile_extension = ".U.sac"
-  character(len = 12), parameter   :: sacfile_extension = ".sac"
+  character(len = 4), parameter   :: sacfile_extension = ".sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), ttime(:), ttime_cor(:), sampling(:), stime(:)
