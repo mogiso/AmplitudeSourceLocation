@@ -64,7 +64,6 @@ program AmplitudeSourceLocation_masterevent
 #endif
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
-  !character(len = 6), parameter   :: sacfile_extension = ".U.sac"
   character(len = 4), parameter   :: sacfile_extension = ".sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
@@ -78,12 +77,13 @@ program AmplitudeSourceLocation_masterevent
 #if defined (WIN) || defined (SAC)
   real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
   character(len = 10)             :: ot_begin_t, ot_end_t, ot_shift_t, rms_tw_t
-  !!bandpass filter
-  real(kind = dp),    parameter   :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp, ap = 0.5_dp, as = 5.0_dp
-  real(kind = dp),    allocatable :: h(:)
-  real(kind = dp)                 :: gn, c
-  integer                         :: m, n
 #endif
+  !!bandpass filter
+  real(kind = dp),    parameter   :: ap = 0.5_dp, as = 5.0_dp
+  real(kind = dp),    allocatable :: h(:)
+  character(len = 6)              :: fl_t, fh_t, fs_t
+  real(kind = dp)                 :: fl, fh, fs, gn, c
+  integer                         :: m, n
 
 #ifdef DAMPED
   real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 1.0_fp]  !![amp, dx, dy, dz]
@@ -115,17 +115,17 @@ program AmplitudeSourceLocation_masterevent
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, icount
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
-  character(len = 20)           :: cfmt, nsta_c, freq_t
+  character(len = 20)           :: cfmt, nsta_c
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
 
   icount = iargc()
 #ifdef WIN
-  if(icount .ne. 12) then
+  if(icount .ne. 14) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile) "
-    write(0, '(a)', advance="no") "(component name) (frequency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)', advance="no") "(component name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
     write(0, '(a)')               "(result_file)"
     error stop
   endif
@@ -135,17 +135,19 @@ program AmplitudeSourceLocation_masterevent
   call getarg(4, win_filename)
   call getarg(5, win_chfilename)
   call getarg(6, cmpnm)
-  call getarg(7, freq_t);     read(freq_t, *) freq
-  call getarg(8, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(9, ot_end_t);   read(ot_end_t, *) ot_end
-  call getarg(10, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(11, rms_tw_t);  read(rms_tw_t, *) rms_tw
-  call getarg(12, resultfile)
+  call getarg(7, fl_t)       ; read(fl_t, *) fl
+  call getarg(8, fh_t)       ; read(fh_t, *) fh
+  call getarg(9, fs_t)       ; read(fs_t, *) fs
+  call getarg(10, ot_begin_t); read(ot_begin_t, *) ot_begin
+  call getarg(11, ot_end_t)  ; read(ot_end_t, *) ot_end
+  call getarg(12, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(13, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(14, resultfile)
 #elif defined (SAC)
-  if(icount .ne. 11) then
+  if(icount .ne. 13) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index) "
-    write(0, '(a)', advance="no") "(component_name) (freqency) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)', advance="no") "(component_name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
     write(0, '(a)', advance="no") "(result_file)"
     error stop
   endif
@@ -154,31 +156,38 @@ program AmplitudeSourceLocation_masterevent
   call getarg(3, masterevent_param)
   call getarg(4, sacfile_index)
   call getarg(5, cmpnm)
-  call getarg(6, freq_t);     read(freq_t, *) freq
-  call getarg(7, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(8, ot_end_t);   read(ot_end_t, *) ot_end
-  call getarg(9, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(10, rms_tw_t);   read(rms_tw_t, *) rms_tw
-  call getarg(11, resultfile)
+  call getarg(6, fl_t)       ; read(fl_t, *) fl
+  call getarg(7, fh_t)       ; read(fh_t, *) fh
+  call getarg(8, fs_t)       ; read(fs_t, *) fs
+  call getarg(9, ot_begin_t) ; read(ot_begin_t, *) ot_begin
+  call getarg(10, ot_end_t)  ; read(ot_end_t, *) ot_end
+  call getarg(11, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(12, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(13, resultfile)
 #else
-  if(icount .ne. 6) then
+  if(icount .ne. 8) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
-    write(0, '(a)')               "(frequency) (result_file)"
+    write(0, '(a)')               "(fl) (fh) (fs) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
-  call getarg(5, freq_t); read(freq_t, *) freq
-  call getarg(6, resultfile)
+  call getarg(5, fl_t); read(fl_t, *) fl
+  call getarg(6, fh_t); read(fh_t, *) fh
+  call getarg(7, fs_t); read(fs_t, *) fs
+  call getarg(8, resultfile)
 #endif
 
 #ifdef DAMPED
   write(0, '(a)') "-DDAMPED set"
   write(0, '(a, 4(f5.2, 1x), a)') "Damped matrix = [ ", (damp(i), i = 1, 4), "]"
 #endif
+
+  write(0, '(a, 3(f5.2, 1x))') "Bandpass filter parameter fl, fh, fs (Hz) = ", fl, fh, fs
+  freq = (fl + fh) * 0.5_dp
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)

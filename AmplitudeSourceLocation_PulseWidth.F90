@@ -30,6 +30,9 @@ program AmplitudeSourceLocation_PulseWidth
   integer                           :: nsta
   integer,              allocatable :: npts(:)
   character(len = 6),   allocatable :: stname(:)
+  real(kind = dp),      allocatable :: siteamp(:)
+  real(kind = fp),      allocatable :: ttime_cor(:)
+  logical,              allocatable :: use_flag(:)
 #if defined (WIN)    /* use win-format waveform file for input waveforms */
   character(len = 129)              :: win_filename, win_chfilename
   character(len = 10)               :: cmpnm
@@ -40,12 +43,12 @@ program AmplitudeSourceLocation_PulseWidth
   type(winch__hdr),     allocatable :: chtbl(:)
 #elif defined (SAC)         /* use sac binary files as input waveforms */
   real(kind = dp),        parameter :: order = 1.0_dp
-  character(len = 10)               :: cmpnm
   character(len = 4),     parameter :: sacfile_extension = ".sac"
+  character(len = 10)               :: cmpnm
 #elif defined (AMP_TXT)
+  integer                           :: namp
   character(len = 129)              :: amp_filename
   character(len = 129), allocatable :: eventindex(:)
-  integer                           :: namp
   real(kind = dp),      allocatable :: amp_txt(:, :)
 #endif
 
@@ -66,14 +69,6 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: time_step = 0.005_fp
   real(kind = fp),        parameter :: rayshoot_dist_thr = 0.05_fp
 
-  real(kind = dp),      allocatable :: siteamp(:)
-  real(kind = fp),      allocatable :: ttime_cor(:)
-  logical,              allocatable :: use_flag(:)
-
-  !!Bandpass filter
-  real(kind = dp),        parameter :: fl = 5.0_dp, fh = 10.0_dp, fs = 12.0_dp  !!bandpass filter parameters
-  real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
-
   integer,                parameter :: maxlen = 4
   real(kind = fp),        parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),        parameter :: huge = 1.0e+5_dp
@@ -84,7 +79,6 @@ program AmplitudeSourceLocation_PulseWidth
   integer,                parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,                parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,                parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
-  real(kind = dp),        parameter :: freq = (fl + fh) * 0.5_dp
 
   real(kind = fp)                   :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
   &                                    qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
@@ -105,7 +99,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dinc_angle, dinc_angle_org, inc_angle_ini
   real(kind = sp)                   :: lon_r, lat_r, topo_r
   real(kind = dp)                   :: residual_normalize, amp_avg, topography_interpolate, &
-  &                                    dlon_topo, dlat_topo
+  &                                    dlon_topo, dlat_topo, freq
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
   &                                    npts_max, nlon_topo, nlat_topo, nsta_use
@@ -114,30 +108,37 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = maxlen)           :: time_count_char
 
   !!filter variables
+  real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
   real(kind = dp),      allocatable :: h(:), waveform_tmp(:)
-  real(kind = dp)                   :: gn, c
+  real(kind = dp)                   :: gn, c, fl, fh, fs
   integer                           :: m, n
+  character(len = 6)                :: fl_t, fh_t, fs_t
 
   !!OpenMP variable
   !$ integer                        :: omp_thread
 
   icount = iargc()
 #if defined (AMP_TXT)
-  if(icount .ne. 5) then
-    write(0, '(a)') "usage: ./asl_pw (topography_grd) (station_param_file) (txtfile_amplitude) (result_dir) (result_file_name)"
+  if(icount .ne. 8) then
+    write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (txtfile_amplitude) (fl) (fh) (fs)"
+    write(0, '(a)')               " (result_dir) (result_file_name)"
     error stop
   endif
   
   call getarg(1, dem_file)
   call getarg(2, station_param)
   call getarg(3, amp_filename)
-  call getarg(4, resultdir)
-  call getarg(5, resultfile)
+  call getarg(4, fl_t); read(fl_t, *) fl
+  call getarg(5, fh_t); read(fh_t, *) fh
+  call getarg(6, fs_t); read(fs_t, *) fs
+  call getarg(7, resultdir)
+  call getarg(8, resultfile)
 
 #elif defined (WIN)
-  if(icount .ne. 11) then
+  if(icount .ne. 14) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (winfile) (win_chfile) (component_name)"
-    write(0, '(a)')               " (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_dir) (result_file_name)"
+    write(0, '(a)', advance="no") " (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_dir)"
+    write(0, '(a)')               " (result_file_name)"
     error stop
   endif
   
@@ -146,17 +147,21 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(3, win_filename)
   call getarg(4, win_chfilename)
   call getarg(5, cmpnm)
-  call getarg(6, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(7, ot_end_t)  ; read(ot_end_t, *) ot_end
-  call getarg(8, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(9, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(10, resultdir)
-  call getarg(11, resultfile)
+  call getarg(6, fl_t)       ; read(fl_t, *) fl
+  call getarg(7, fh_t)       ; read(fh_t, *) fh
+  call getarg(8, fs_t)       ; read(fs_t, *) fs
+  call getarg(9, ot_begin_t) ; read(ot_begin_t, *) ot_begin
+  call getarg(10, ot_end_t)  ; read(ot_end_t, *) ot_end
+  call getarg(11, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(12, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(13, resultdir)
+  call getarg(14, resultfile)
 
 #elif defined (SAC)
-  if(icount .ne. 10) then
+  if(icount .ne. 13) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (sacfile_index) (compnent_name)"
-    write(0, '(a)')               " (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_dir) (result_file_name)"
+    write(0, '(a)', advance="no") " (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_dir)"
+    write(0, '(a)')               " (result_file_name)"
     error stop
   endif
   
@@ -164,17 +169,22 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(2, station_param)
   call getarg(3, sacfile_index)
   call getarg(4, cmpnm)
-  call getarg(5, ot_begin_t); read(ot_begin_t, *) ot_begin
-  call getarg(6, ot_end_t)  ; read(ot_end_t, *) ot_end
-  call getarg(7, ot_shift_t); read(ot_shift_t, *) ot_shift
-  call getarg(8, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
-  call getarg(9, resultdir)
-  call getarg(10, resultfile)
+  call getarg(5, fl_t)       ; read(fl_t, *) fl
+  call getarg(6, fh_t)       ; read(fh_t, *) fh
+  call getarg(7, fs_t)       ; read(fs_t, *) fs
+  call getarg(8, ot_begin_t) ; read(ot_begin_t, *) ot_begin
+  call getarg(9, ot_end_t)   ; read(ot_end_t, *) ot_end
+  call getarg(10, ot_shift_t); read(ot_shift_t, *) ot_shift
+  call getarg(11, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
+  call getarg(12, resultdir)
+  call getarg(13, resultfile)
 
 #endif
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
   write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
+  write(0, '(a, 3(f5.2, 1x))') "Bandpass filter parameter fl, fh, fs (Hz) = ", fl, fh, fs
+  freq = (fl + fh) * 0.5_dp
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(dem_file, lon_topo, lat_topo, topography)
@@ -509,7 +519,7 @@ program AmplitudeSourceLocation_PulseWidth
     source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
     residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     !$omp parallel default(none), &
-    !$omp&         shared(nsta, ttime_min, origintime, sampling, npts, waveform_obs, source_amp, begin, &
+    !$omp&         shared(nsta, freq, ttime_min, origintime, sampling, npts, waveform_obs, source_amp, begin, &
 #ifdef AMP_TXT
     !$omp&                amp_txt, time_count, &
 #endif
