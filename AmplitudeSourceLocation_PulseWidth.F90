@@ -262,7 +262,7 @@ program AmplitudeSourceLocation_PulseWidth
   allocate(sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta))
   npts_max = 0
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(i)) // trim(cmpnm) // sacfile_extension
+    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
     call read_sachdr(sacfile, delta=sampling(i), npts = npts(i), begin = begin(i))
     if(npts(i) .gt. npts_max) npts_max = npts(i)
     !write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &

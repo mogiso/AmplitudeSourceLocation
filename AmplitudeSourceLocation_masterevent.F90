@@ -270,7 +270,7 @@ program AmplitudeSourceLocation_masterevent
   !!read waveform data from sac
   allocate(stime(1 : nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(i)) // trim(cmpnm) // sacfile_extension
+    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
     call read_sachdr(sacfile, delta=sampling(i), npts=npts(i), begin=begin(i), t0=stime(i))
   enddo
   allocate(waveform_obs(maxval(npts), nsta))
