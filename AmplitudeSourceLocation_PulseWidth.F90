@@ -533,7 +533,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp do schedule(guided)
     z_loop2: do k = 1, nz - 1
       depth_grid = z_min + dz * real(k - 1, kind = fp)
-      !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
+      !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
       lat_loop2: do j = 1, nlat
         lon_loop2: do i = 1, nlon
 
