@@ -26,6 +26,7 @@ program AmplitudeSourceLocation_PulseWidth
   !$ use omp_lib
 
   implicit none
+  integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -80,8 +81,8 @@ program AmplitudeSourceLocation_PulseWidth
   integer,                parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,                parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
 
-  real(kind = fp)                   :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                    qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  real(kind = fp)                   :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
+  &                                    qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                    val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                    xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
   real(kind = dp)                   :: residual(1 : nlon, 1 : nlat, 1 : nz), source_amp(1 : nlon, 1 : nlat, 1 : nz)
@@ -205,7 +206,7 @@ program AmplitudeSourceLocation_PulseWidth
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
   do i = 1, nsta
-    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), ttime_cor(i), siteamp(i), use_flag(i)
+    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i), siteamp(i)
 #ifdef TESTDATA
     ttime_cor(i) = 0.0_fp
     siteamp(i)   = 1.0_dp
@@ -367,8 +368,8 @@ program AmplitudeSourceLocation_PulseWidth
           lon_index = int((lon_grid - lon_str_w) / dlon_str) + 1
           lat_index = int((lat_grid - lat_str_s) / dlat_str) + 1
           z_index   = int((depth_grid - z_str_min) / dz_str) + 1
-          ttime_min(jj, i, j, k) = hypodist(jj, i, j, k) / velocity(lon_index, lat_index, z_index)
-          width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(lon_index, lat_index, z_index)
+          ttime_min(jj, i, j, k) = hypodist(jj, i, j, k) / velocity(lon_index, lat_index, z_index, wavetype)
+          width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(lon_index, lat_index, z_index, wavetype)
 
 #else
           
@@ -453,9 +454,10 @@ program AmplitudeSourceLocation_PulseWidth
                 endif
  
                 !!shooting the ray
-                val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+                val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
                 call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-                val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+                val_3d(1 : 2, 1 : 2, 1 : 2) &
+                &  = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
                 call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
                 dvdz = (val_1d(2) - val_1d(1)) / dz

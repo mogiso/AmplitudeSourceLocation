@@ -17,6 +17,7 @@ program AmplitudeSourceLocation_synthwave
 
   implicit none
 
+  integer,            parameter :: wavetype = 2      !!1 for P-wave, 2 for S-wave
   !!Structure range
   real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
   real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
@@ -55,8 +56,8 @@ program AmplitudeSourceLocation_synthwave
   integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,            parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
 
-  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
+  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
   real(kind = dp), allocatable  :: topography(:, :), lon_topo(:), lat_topo(:), waveform(:), wavelet(:)
@@ -248,9 +249,10 @@ program AmplitudeSourceLocation_synthwave
             endif
  
             !!shooting the ray
-            val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+            val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
             call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-            val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+            val_3d(1 : 2, 1 : 2, 1 : 2) &
+            &  = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
             call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
             dvdz = (val_1d(2) - val_1d(1)) / dz_str

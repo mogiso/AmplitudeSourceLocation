@@ -5,11 +5,6 @@ program TraveltimeSourceLocation_masterevent
   !!Copyright: (c) Masashi Ogiso 2020
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
-  !!velocity(1 : nlon, 1 : nlat, 1 : nz) defines wave type; if P-wave,
-  !!observation should be P-wave travel time, while S-wave travel time when
-  !!S-wave velocity is given in velocity(1 : nlon, 1 : nlat, 1 : nz).
-  !!In this source, I do not check whether P- or S-wave velocity is given
-
   use nrtype,               only : fp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
   use rayshooting,          only : rayshooting3D
@@ -27,55 +22,56 @@ program TraveltimeSourceLocation_masterevent
 
   implicit none
 
+  integer,              parameter :: wavetype = 1    !!1 for P-wave, 2 for S-wave
   !!Range for velocity and attenuation structure
-  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.50_fp
-  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.01_fp, dlat_str = 0.01_fp, dz_str = 0.1_fp
-  integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
-  integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
-  integer,            parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
+  real(kind = fp),      parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),      parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.50_fp
+  real(kind = fp),      parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),      parameter :: dlon_str = 0.01_fp, dlat_str = 0.01_fp, dz_str = 0.1_fp
+  integer,              parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
+  integer,              parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
+  integer,              parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
   !!Ray shooting
-  real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
-  integer,            parameter :: ninc_angle = 180                         !!grid search in incident angle
-  integer,            parameter :: nrayshoot = 2                            !!number of grid search
-  real(kind = fp),    parameter :: time_step = 0.01_fp
-  real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
-  !!Use station
+  real(kind = fp),      parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
+  integer,              parameter :: ninc_angle = 180                         !!grid search in incident angle
+  integer,              parameter :: nrayshoot = 2                            !!number of grid search
+  real(kind = fp),      parameter :: time_step = 0.005_fp
+  real(kind = fp),      parameter :: rayshoot_dist_thr = 0.05_fp
 
-  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = dp),    parameter :: freq = 7.5_dp
-  real(kind = dp),    parameter :: huge = 1.0e+10_dp
+  real(kind = fp),      parameter :: alt_to_depth = -1.0e-3_fp
+  real(kind = dp),      parameter :: huge = 1.0e+10_dp
 
-  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
-  &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
-  &                                normal_vector(1 : 3)
-  real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp),  allocatable :: stlon(:), stlat(:), stdp(:), traveltime_master(:), traveltime_sub(:, :), &
-  &                                hypodist(:), ray_azinc(:, :), dist_min(:), &
-  &                                obsvector(:), obsvector_copy(:), &
-  &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
-  &                                sigma_inv_data(:, :), error_matrix(:, :)
-  integer,          allocatable :: ipiv(:)
+  real(kind = fp)                 :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
+  &                                  qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
+  &                                  val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
+  &                                  xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
+  &                                  normal_vector(1 : 3)
+  real(kind = dp),    allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
+  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), traveltime_master(:), traveltime_sub(:, :), &
+  &                                  hypodist(:), ray_azinc(:, :), dist_min(:), &
+  &                                  obsvector(:), obsvector_copy(:), &
+  &                                  inversion_matrix(:, :), inversion_matrix_copy(:, :), &
+  &                                  sigma_inv_data(:, :), error_matrix(:, :)
+  integer,            allocatable :: ipiv(:)
+  logical,            allocatable :: use_flag(:)
+  character(len = 6), allocatable :: stname(:)
   
-  real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
-  &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
-  &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
-  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
-  &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
-  &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
+  real(kind = fp)                 :: evlon_master, evlat_master, evdp_master, &
+  &                                  epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
+  &                                  lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
+  &                                  dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
+  &                                  lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
+  &                                 data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
+ 
+  real(kind = dp)                 :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
-  real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
-
-  integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, ii, jj, kk, icount
-
-  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
+  integer                         :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
+  &                                 i, j, ii, jj, kk, icount, nsta_use
+ 
+  character(len = 129)            :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
 
   !!OpenMP variable
-  !$ integer                    :: omp_thread
+  !$ integer                      :: omp_thread
 
   icount = iargc()
   if(icount .ne. 5) then
@@ -106,9 +102,11 @@ program TraveltimeSourceLocation_masterevent
     write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
-  allocate(stlon(nsta), stlat(nsta), stdp(nsta))
+  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), use_flag(nsta))
+  nsta_use = 0
   do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i)
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i)
+    if(use_flag(i) .eqv. .true.) nsta_use = nsta_use + 1
   enddo
   close(10)
   !!read masterevent parameter
@@ -256,7 +254,7 @@ program TraveltimeSourceLocation_masterevent
           endif
 
           !!shooting the ray
-          val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+          val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
           call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
           dvdz = (val_1d(2) - val_1d(1)) / dz_str
           call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
@@ -287,32 +285,35 @@ program TraveltimeSourceLocation_masterevent
   xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
   ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
   zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
-  val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+  val_3d(1 : 2, 1 : 2, 1 : 2) &
+  &  = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
   call linear_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, velocity_interpolate)
 
   !!Set up the observation vector and inversion matrix
-  allocate(obsvector(1 : nsta * nsubevent), obsvector_copy(1 : nsta * nsubevent))
-  allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
-  &        inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent))
-  inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  allocate(obsvector(1 : nsta_use * nsubevent), obsvector_copy(1 : nsta_use * nsubevent))
+  allocate(inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), &
+  &        inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent))
+  inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
   do j = 1, nsubevent
+    icount = 0
     do i = 1, nsta
-      obsvector(nsta * (j - 1) + i) = traveltime_master(i) - traveltime_sub(i, j)
-      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
-      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
-      &                       cos(ray_azinc(2, i))]
+      if(use_flag(i) .eqv. .false.) cycle
+      obsvector(nsta * (j - 1) + icount) = traveltime_master(icount) - traveltime_sub(icount, j)
+      normal_vector(1 : 3) = [sin(ray_azinc(2, icount)) * cos(ray_azinc(1, icount)), &
+      &                       sin(ray_azinc(2, icount)) * sin(ray_azinc(1, icount)), &
+      &                       cos(ray_azinc(2, icount))]
       matrix_const = 1.0_fp / velocity_interpolate
       do ii = 1, 3
-        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + ii) = matrix_const * normal_vector(ii)
+        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + ii) = matrix_const * normal_vector(ii)
       enddo
-      inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 4) = 1.0_fp
+      inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 4) = 1.0_fp
     enddo
   enddo
 
   !!copy observation vector and inversion matrix
-  obsvector_copy(1 : nsta * nsubevent) = obsvector(1 : nsta * nsubevent)
-  inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
-  &  = inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent)
+  obsvector_copy(1 : nsta_use * nsubevent) = obsvector(1 : nsta_use * nsubevent)
+  inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) &
+  &  = inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent)
 
   !!calculate least-squares solution
 #ifdef MKL
@@ -323,24 +324,24 @@ program TraveltimeSourceLocation_masterevent
 
   !!calculate mean data residual
   data_residual = 0.0_fp
-  do i = 1, nsta * nsubevent
+  do i = 1, nsta_use * nsubevent
     data_residual = data_residual &
     &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
   enddo
-  data_residual = data_residual / real(nsta * nsubevent, kind = fp)
+  data_residual = data_residual / real(nsta_use * nsubevent, kind = fp)
   !!calculate variance
   data_variance = 0.0_fp
-  do i = 1, nsta * nsubevent
+  do i = 1, nsta_use * nsubevent
     data_variance = data_variance + (data_residual &
     &             - (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
-  data_variance = data_variance / real(nsta * nsubevent - 1)
+  data_variance = data_variance / real(nsta_use * nsubevent - 1, kind = fp)
 
   !!estimate error of inverted model parameters
-  allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
-  allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
-  sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
-  do i = 1, nsta * nsubevent
+  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  allocate(error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
+  do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
     !sigma_inv_data(i, i) = &
     !&  abs(obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))

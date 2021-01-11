@@ -34,6 +34,7 @@ program AmplitudeSourceLocation_masterevent
 
   implicit none
 
+  integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -51,8 +52,8 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
-  real(kind = dp),    parameter   :: order_um = 1.0e+6_dp
-  real(kind = fp),    allocatable :: ttime(:), ttime_cor(:), sampling(:), begin(:)
+  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+  real(kind = fp),    allocatable :: ttime(:), sampling(:), begin(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
   character(len = 4), allocatable :: st_winch(:)
@@ -67,12 +68,14 @@ program AmplitudeSourceLocation_masterevent
   character(len = 4), parameter   :: sacfile_extension = ".sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
-  real(kind = fp),    allocatable :: begin(:), ttime(:), ttime_cor(:), sampling(:), stime(:)
+  real(kind = fp),    allocatable :: begin(:), ttime(:), sampling(:), stime(:)
   integer,            allocatable :: npts(:)
   integer                         :: time_index
   character(len = 129)            :: sacfile, sacfile_index
-  character(len = 10)             :] cmpnm
+  character(len = 10)             :: cmpnm
 #endif
+  real(kind = fp),    allocatable :: ttime_cor(:)
+  logical,            allocatable :: use_flag(:)
 
 #if defined (WIN) || defined (SAC)
   real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
@@ -92,8 +95,8 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),    parameter :: huge = 1.0e+10_dp
 
-  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
-  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str), &
+  real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
+  &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector(1 : 3)
@@ -113,7 +116,7 @@ program AmplitudeSourceLocation_masterevent
   &                                depth_max_tmp, depth_max
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, icount
+  &                                i, j, k, ii, jj, kk, icount, nsta_use
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
   character(len = 20)           :: cfmt, nsta_c
 
@@ -205,21 +208,14 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
-#if defined (WIN) || defined (SAC)
-  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), ttime(nsta), ttime_cor(nsta))
-#else
-  allocate(stlon(nsta), stlat(nsta), stdp(nsta))
-#endif
+  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), ttime(nsta), ttime_cor(nsta), use_flag(nsta))
+  nsta_use = 0
   do i = 1, nsta
-#if defined (WIN) || defined (SAC)
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), ttime_cor(i)
-    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7)') &
-    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i))
-#else
-    read(10, *) stlon(i), stlat(i), stdp(i)
-    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3)') &
-    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i)
-#endif
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i)
+    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
+    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
+    &     use_flag(i)
+    if(use_flag(i) .eqv. .true.) nsta_use = nsta_use + 1
   enddo
   close(10)
 
@@ -260,7 +256,7 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = 0.0_dp
     icount = 0
     do i = 1, npts(j)
-      waveform_obs(i, j) = real(waveform_obs_int(i, j), kind = dp) * chtbl(ikey(j))%conv * order_um
+      waveform_obs(i, j) = real(waveform_obs_int(i, j), kind = dp) * chtbl(ikey(j))%conv * order
       if(i .le. int(rms_tw / sampling(j))) then
         amp_avg = amp_avg + waveform_obs(i, j)
         icount = icount + 1
@@ -460,9 +456,8 @@ program AmplitudeSourceLocation_masterevent
           endif
 
           !!shooting the ray
-          val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1)
+          val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
           call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-          val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
           dvdz = (val_1d(2) - val_1d(1)) / dz_str
           call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
           &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
@@ -554,48 +549,53 @@ program AmplitudeSourceLocation_masterevent
   xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
   ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
   zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
-  val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+  val_3d(1 : 2, 1 : 2, 1 : 2) &
+  &  = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
   call linear_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, velocity_interpolate)
-  val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
+  val_3d(1 : 2, 1 : 2, 1 : 2) &
+  &  = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
   call block_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
   !!Set up the observation vector and inversion matrix
 #ifdef DAMPED
-  allocate(inversion_matrix(1 : nsta * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent), &
-  &        obsvector(1 : nsta * nsubevent + 4 * nsubevent))
-  inversion_matrix(1 : nsta * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
-  obsvector(1 : nsta * nsubevent + 4 * nsubevent) = 0.0_fp
+  allocate(inversion_matrix(1 : nsta_use * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent), &
+  &        obsvector(1 : nsta_use * nsubevent + 4 * nsubevent))
+  inversion_matrix(1 : nsta_use * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  obsvector(1 : nsta_use * nsubevent + 4 * nsubevent) = 0.0_fp
 #else
-  allocate(inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
-  &        obsvector(1 : nsta * nsubevent))
-  inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
-  obsvector(1 : nsta * nsubevent) = 0.0_fp
+  allocate(inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), &
+  &        obsvector(1 : nsta_use * nsubevent))
+  inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+  obsvector(1 : nsta_use * nsubevent) = 0.0_fp
 #endif
-  allocate(inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent), &
-  &        obsvector_copy(1 : nsta * nsubevent))
+  allocate(inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), &
+  &        obsvector_copy(1 : nsta_use * nsubevent))
   do j = 1, nsubevent
+    icount = 1
     do i = 1, nsta
-      obsvector(nsta * (j - 1) + i) = log(obsamp_sub(i, j) / obsamp_master(i))
-      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
-      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
-      &                       cos(ray_azinc(2, i))]
-      inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1) = 1.0_fp
-      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
+      if(use_flag(i) .eqv. .false.) cycle
+      obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(icount, j) / obsamp_master(icount))
+      normal_vector(1 : 3) = [sin(ray_azinc(2, icount)) * cos(ray_azinc(1, icount)), &
+      &                       sin(ray_azinc(2, icount)) * sin(ray_azinc(1, icount)), &
+      &                       cos(ray_azinc(2, icount))]
+      inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
+      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(icount)
       do ii = 1, 3
-        inversion_matrix(nsta * (j - 1) + i, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
+        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
       enddo
+      icount = icount + 1
     enddo
 #ifdef DAMPED
     do i = 1, 4
-      inversion_matrix(nsta * nsubevent + 4 * (j - 1) + i, 4 * (j - 1) + i) = damp(i)
+      inversion_matrix(nsta_use * nsubevent + 4 * (j - 1) + i, 4 * (j - 1) + i) = damp(i)
     enddo
 #endif
   enddo
 
   !!copy observation vector and inversion matrix
-  obsvector_copy(1 : nsta * nsubevent) = obsvector(1 : nsta * nsubevent)
-  inversion_matrix_copy(1 : nsta * nsubevent, 1 : 4 * nsubevent) &
-  &  = inversion_matrix(1 : nsta * nsubevent, 1 : 4 * nsubevent)
+  obsvector_copy(1 : nsta_use * nsubevent) = obsvector(1 : nsta_use * nsubevent)
+  inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) &
+  &  = inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent)
 
   !!calculate least-squares solution
 #ifdef MKL
@@ -610,9 +610,9 @@ program AmplitudeSourceLocation_masterevent
   icount = 0
   do j = 1, nsubevent
     data_residual_subevent(j) = 0.0_fp
-    do i = 1, nsta
-    if(dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
-    &  .eq. 0.0_fp) cycle
+    do i = 1, nsta_use
+      if(dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
+      &  .eq. 0.0_fp) cycle
       icount = icount + 1
       data_residual = data_residual &
       &             + (obsvector_copy(nsta * (j - 1) + i) &
@@ -629,7 +629,7 @@ program AmplitudeSourceLocation_masterevent
   !!calculate variance
   data_variance = 0.0_fp
   icount = 0
-  do i = 1, nsta * nsubevent
+  do i = 1, nsta_use * nsubevent
     if(dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) .eq. 0.0_fp) cycle
     icount = icount + 1
     data_variance = data_variance + (data_residual - (obsvector_copy(i) &
@@ -640,12 +640,13 @@ program AmplitudeSourceLocation_masterevent
   endif
 
   !!estimate error of inverted model parameters
-  allocate(sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent))
-  allocate(error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent))
-  error_matrix(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
-#ifndef WITOUT_ERROR
-  sigma_inv_data(1 : nsta * nsubevent, 1 : nsta * nsubevent) = 0.0_fp
-  do i = 1, nsta * nsubevent
+  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  allocate(error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
+#ifdef WITOUT_ERROR
+#else
+  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
+  do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
