@@ -1,13 +1,27 @@
 # AmplitudeSourceLocation
 
 ## Description
-Amplitude Source Location method considering depth-dependent 1D velocity structure and 3D attenuation structure.
-Waveform format: SAC binary file or WIN format file
+A fortran program package that contains the Amplitude Source Location method using depth-dependent
+1-D velocity structure and 3-D attenuation structure, relative source location method using seismic
+amplitudes, and relative source location method using arrival times of seismic waves (master event method).
 
 Language: Fortran 90
 
-Require: netcdf-fortran
+Require: [NetCDF-Fortran](https://www.unidata.ucar.edu/software/netcdf/docs-fortran/index.html "NetCDF-Fortran"),
+and [LAPACK95](http://www.netlib.org/lapack95/ "LAPACK95")
 
+NetCDF-Fortran depends on [NetCDF](https://www.unidata.ucar.edu/software/netcdf/),
+and LAPACK95 depends on [LAPACK](http://www.netlib.org/lapack/). 
+
+## AmplitudeSourceLocation_PulseWidth.F90
+### Description
+
+### Compile
+    $ make asl_pw
+
+### Compile options
+
+<!--
 ## Search parameters
 Almost all the parameters are hard coded in AmplitudeSourceLocation_PulseWidth.F90 except velocity and attenuation
 structure in set_velocity_model.F90.
@@ -136,3 +150,5 @@ I utilize a part of fwin source code written by Takuto Maeda (https://github.com
 Also, this project takes advantage of netCDF software developed by UCAR/Unidata (http://doi.org/10.5065/D6H70CW6).
 
 I appreciate their efforts.
+
+-->
