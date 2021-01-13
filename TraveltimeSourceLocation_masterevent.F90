@@ -75,7 +75,7 @@ program TraveltimeSourceLocation_masterevent
 
   icount = iargc()
   if(icount .ne. 5) then
-    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance="no") "usage: ./ttime_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
     write(0, '(a)')               "(result_file)"
     error stop
@@ -298,10 +298,10 @@ program TraveltimeSourceLocation_masterevent
     icount = 0
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
-      obsvector(nsta * (j - 1) + icount) = traveltime_master(icount) - traveltime_sub(icount, j)
-      normal_vector(1 : 3) = [sin(ray_azinc(2, icount)) * cos(ray_azinc(1, icount)), &
-      &                       sin(ray_azinc(2, icount)) * sin(ray_azinc(1, icount)), &
-      &                       cos(ray_azinc(2, icount))]
+      obsvector(nsta * (j - 1) + icount) = traveltime_master(i) - traveltime_sub(i, j)
+      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
+      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
+      &                       cos(ray_azinc(2, i))]
       matrix_const = 1.0_fp / velocity_interpolate
       do ii = 1, 3
         inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + ii) = matrix_const * normal_vector(ii)

@@ -53,11 +53,10 @@ program AmplitudeSourceLocation_masterevent
 
 #ifdef WIN /* use win-format waveform file for input waveforms */
   real(kind = dp),    parameter   :: order = 1.0e+6_dp
-  real(kind = fp),    allocatable :: ttime(:), sampling(:), begin(:)
+  real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
   character(len = 4), allocatable :: st_winch(:)
-  character(len = 6), allocatable :: stname(:)
   type(winch__hdr),   allocatable :: chtbl(:)
   integer                         :: nsec, tim, time_index
   character(len = 129)            :: win_filename, win_chfilename
@@ -66,16 +65,17 @@ program AmplitudeSourceLocation_masterevent
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
   character(len = 3), parameter   :: sacfile_extension = "sac"
-  character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
-  real(kind = fp),    allocatable :: begin(:), ttime(:), sampling(:), stime(:)
+  real(kind = fp),    allocatable :: begin(:), sampling(:), stime(:), ttime(:)
   integer,            allocatable :: npts(:)
   integer                         :: time_index
   character(len = 129)            :: sacfile, sacfile_index
   character(len = 10)             :: cmpnm
 #endif
-  real(kind = fp),    allocatable :: ttime_cor(:)
+  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:)
+  character(len = 6), allocatable :: stname(:)
   logical,            allocatable :: use_flag(:)
+  character(len = 10)             :: freq_t
 
 #if defined (WIN) || defined (SAC)
   real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
@@ -101,8 +101,7 @@ program AmplitudeSourceLocation_masterevent
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector(1 : 3)
   real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp),  allocatable :: stlon(:), stlat(:), stdp(:), obsamp_master(:), obsamp_sub(:, :), &
-  &                                hypodist(:), ray_azinc(:, :), dist_min(:), &
+  real(kind = fp),  allocatable :: obsamp_master(:), obsamp_sub(:, :), hypodist(:), ray_azinc(:, :), dist_min(:), &
   &                                obsvector(:), obsvector_copy(:), &
   &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
   &                                sigma_inv_data(:, :), error_matrix(:, :), data_residual_subevent(:)
@@ -151,7 +150,7 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index) "
     write(0, '(a)', advance="no") "(component_name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
-    write(0, '(a)', advance="no") "(result_file)"
+    write(0, '(a)')               "(result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -168,20 +167,18 @@ program AmplitudeSourceLocation_masterevent
   call getarg(12, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(13, resultfile)
 #else
-  if(icount .ne. 8) then
+  if(icount .ne. 6) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
-    write(0, '(a)')               "(fl) (fh) (fs) (result_file)"
+    write(0, '(a)')               "(frequency) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
   call getarg(4, subevent_param)
-  call getarg(5, fl_t); read(fl_t, *) fl
-  call getarg(6, fh_t); read(fh_t, *) fh
-  call getarg(7, fs_t); read(fs_t, *) fs
-  call getarg(8, resultfile)
+  call getarg(5, freq_t); read(freq_t, *) freq
+  call getarg(6, resultfile)
 #endif
 
 #ifdef DAMPED
@@ -189,8 +186,10 @@ program AmplitudeSourceLocation_masterevent
   write(0, '(a, 4(f5.2, 1x), a)') "Damped matrix = [ ", (damp(i), i = 1, 4), "]"
 #endif
 
+#if defined (WIN) || defined (SAC)
   write(0, '(a, 3(f5.2, 1x))') "Bandpass filter parameter fl, fh, fs (Hz) = ", fl, fh, fs
   freq = (fl + fh) * 0.5_dp
+#endif
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -208,7 +207,7 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a)') "Number of station nsta should be larger than 4"
     error stop
   endif
-  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), ttime(nsta), ttime_cor(nsta), use_flag(nsta))
+  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta), use_flag(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i)
@@ -229,7 +228,7 @@ program AmplitudeSourceLocation_masterevent
   close(10)
 
 #if defined (WIN) || defined (SAC)
-  allocate(sampling(1 : nsta), npts(1 : nsta), begin(1 : nsta))
+  allocate(sampling(1 : nsta), npts(1 : nsta), begin(1 : nsta), ttime(1 : nsta))
 #if defined (WIN)
   allocate(st_winch(nsta), sampling_int(1 : nsta))
   !!read channel table
@@ -531,7 +530,6 @@ program AmplitudeSourceLocation_masterevent
       do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
         time_index = int((ot_tmp - begin(j) + ttime(j)) / sampling(j) + 0.5_fp) + i
         if(time_index .ge. 1 .and. time_index .le. npts(j)) then
-          if(i .eq. 1) write(0, *) k, trim(stname(j)), real(time_index, kind = fp) * sampling(j)
           obsamp_sub(j, k) = obsamp_sub(j, k) + waveform_obs(time_index, j) ** 2
           !print *, time_index, obsamp_sub(j, k), waveform_obs(time_index, j)
           icount = icount + 1
@@ -574,12 +572,13 @@ program AmplitudeSourceLocation_masterevent
     icount = 1
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
-      obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(icount, j) / obsamp_master(icount))
-      normal_vector(1 : 3) = [sin(ray_azinc(2, icount)) * cos(ray_azinc(1, icount)), &
-      &                       sin(ray_azinc(2, icount)) * sin(ray_azinc(1, icount)), &
-      &                       cos(ray_azinc(2, icount))]
+      print *, i, icount
+      obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
+      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
+      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
+      &                       cos(ray_azinc(2, i))]
       inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
-      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(icount)
+      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
       do ii = 1, 3
         inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
       enddo
