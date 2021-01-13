@@ -21,10 +21,10 @@ and LAPACK95 depends on [LAPACK](http://www.netlib.org/lapack/).
     $ make asl_pw
 
 ### Compile options
-    * -DSAC: use SAC binary files (NVHDR should be 6) as input waveform files (Default)
-    * -DWIN: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
+- -DSAC: use SAC binary files (NVHDR should be 6) as input waveform files (Default)
+- -DWIN: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
              [WIN32-formatted](https://www.hinet.bosai.go.jp/faq/?LANG=en#Q09) binary file as an input waveform files
-    * -DAMP_TXT: use text-formatted file as observed amplitude data
+- -DAMP_TXT: use text-formatted file as observed amplitude data
 
 <!--
 ## Search parameters
