@@ -42,12 +42,15 @@ Reference: Kumagai et al. (2019), Amplitude Source Location Method With Depth-De
 
 ### Executable commands
 When -DSAC is set,
+
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (prefix of sac files) (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (dirname of results) (filename of result)
 
 or when -DWIN is set,
+
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (WIN- or WIN32-formatted binary file) (filename of channel table) (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (dirname of results) (filename of result)
 
 or when -DAMP_TXT is set,
+
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (filename of amplitudes) (frequency) (dirname of results) (filename of result)
 
 ### Explanation of arguments
