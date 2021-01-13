@@ -2,8 +2,9 @@
 
 ## Description
 A fortran program package that contains the Amplitude Source Location method using depth-dependent
-1-D velocity structure and 3-D attenuation structure, relative source location method using seismic
-amplitudes, and relative source location method using arrival times of seismic waves (master event method).
+1-D velocity structure and 3-D attenuation structure (AmplitudeSourceLocation_PulseWidth.F90), relative source location method
+using seismic amplitudes (AmplitudeSourceLocation_masterevent.F90), and relative source location method using arrival times of
+seismic waves (master event method, TraveltimeSourceLocation_masterevent.F90).
 
 Language: Fortran 90
 
@@ -20,6 +21,10 @@ and LAPACK95 depends on [LAPACK](http://www.netlib.org/lapack/).
     $ make asl_pw
 
 ### Compile options
+    * -DSAC: use SAC binary files (NVHDR should be 6) as input waveform files (Default)
+    * -DWIN: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
+             [WIN32-formatted](https://www.hinet.bosai.go.jp/faq/?LANG=en#Q09) binary file as an input waveform files
+    * -DAMP_TXT: use text-formatted file as observed amplitude data
 
 <!--
 ## Search parameters
