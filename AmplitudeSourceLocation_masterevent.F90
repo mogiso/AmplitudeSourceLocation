@@ -610,19 +610,20 @@ program AmplitudeSourceLocation_masterevent
   do j = 1, nsubevent
     data_residual_subevent(j) = 0.0_fp
     do i = 1, nsta_use
-      if(dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
+      if(dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
       &  .eq. 0.0_fp) cycle
       icount = icount + 1
       data_residual = data_residual &
-      &             + (obsvector_copy(nsta * (j - 1) + i) &
-      &             - dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+      &             + (obsvector_copy(nsta_use * (j - 1) + i) &
+      &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
       !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
       !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
       data_residual_subevent(j) = data_residual_subevent(j) &
-      &             + (obsvector_copy(nsta * (j - 1) + i) &
-      &             - dot_product(inversion_matrix_copy(nsta * (j - 1) + i, 1 : 4 * nsubevent), &
+      &             + (obsvector_copy(nsta_use * (j - 1) + i) &
+      &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
       &                           obsvector(1 : 4 * nsubevent))) ** 2
     enddo
+    data_residual_subevent(j) = data_residual_subevent(j) / real(nsta_use, kind = fp)
   enddo
   data_residual = data_residual / real(icount, kind = fp)
   !!calculate variance
