@@ -49,7 +49,7 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 129)              :: sacfile, sacfile_index
 #elif defined (AMP_TXT)
   integer                           :: namp
-  character(len = 129)              :: amp_filename
+  character(len = 129)              :: amp_filename, freq_t
   character(len = 129), allocatable :: eventindex(:)
   real(kind = dp),      allocatable :: amp_txt(:, :)
 #endif
@@ -68,7 +68,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,                parameter :: nrayshoot = 2                            !!number of grid search
-  real(kind = fp),        parameter :: time_step = 0.005_fp
+  real(kind = fp),        parameter :: time_step = 0.01_fp
   real(kind = fp),        parameter :: rayshoot_dist_thr = 0.05_fp
 
   integer,                parameter :: maxlen = 4
@@ -121,8 +121,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   icount = iargc()
 #if defined (AMP_TXT)
-  if(icount .ne. 8) then
-    write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (txtfile_amplitude) (fl) (fh) (fs)"
+  if(icount .ne. 6) then
+    write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (txtfile_amplitude) (frequency)"
     write(0, '(a)')               " (result_dir) (result_file_name)"
     error stop
   endif
@@ -130,11 +130,9 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(1, dem_file)
   call getarg(2, station_param)
   call getarg(3, amp_filename)
-  call getarg(4, fl_t); read(fl_t, *) fl
-  call getarg(5, fh_t); read(fh_t, *) fh
-  call getarg(6, fs_t); read(fs_t, *) fs
-  call getarg(7, resultdir)
-  call getarg(8, resultfile)
+  call getarg(4, freq_t); read(freq_t, *) freq
+  call getarg(5, resultdir)
+  call getarg(6, resultfile)
 
 #elif defined (WIN)
   if(icount .ne. 14) then
@@ -161,7 +159,7 @@ program AmplitudeSourceLocation_PulseWidth
 
 #elif defined (SAC)
   if(icount .ne. 13) then
-    write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (sacfile_index) (compnent_name)"
+    write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (sacfile_prefix) (compnent_name)"
     write(0, '(a)', advance="no") " (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) (result_dir)"
     write(0, '(a)')               " (result_file_name)"
     error stop
@@ -185,8 +183,10 @@ program AmplitudeSourceLocation_PulseWidth
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
   write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
+#if defined (WIN) || defined (SAC)
   write(0, '(a, 3(f5.2, 1x))') "Bandpass filter parameter fl, fh, fs (Hz) = ", fl, fh, fs
   freq = (fl + fh) * 0.5_dp
+#endif
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(dem_file, lon_topo, lat_topo, topography)
@@ -211,7 +211,6 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef TESTDATA
     ttime_cor(i) = 0.0_fp
     siteamp(i)   = 1.0_dp
-    use_flag(i)  = .true.
 #endif
   enddo
   close(40)
@@ -602,16 +601,21 @@ program AmplitudeSourceLocation_PulseWidth
     lon_grid = lon_w + real(residual_minloc(1) - 1, kind = fp) * dlon
     lat_grid = lat_s + real(residual_minloc(2) - 1, kind = fp) * dlat
     depth_grid = z_min + real(residual_minloc(3) - 1, kind = fp) * dz
-    write(0, '(a, f0.1, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7))') &
-    &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
+#if defined (AMP_TXT)
+    write(0, '(2a, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7))') &
+    &                 "Index = ", trim(eventindex(time_count + 1)), " residual_minimum (lon, lat, dep) = (", &
+    &                             lon_grid, lat_grid, depth_grid, ")", &
     &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
-#if defined (AMP_TXT)
     write(10, '(a, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7))') &
     &                 trim(eventindex(time_count + 1)), lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
 #else
+    write(0, '(a, f0.1, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7))') &
+    &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
+    &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
+    &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))
     write(10, '(f0.1, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7))') &
     &                 origintime, lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
@@ -654,6 +658,8 @@ program AmplitudeSourceLocation_PulseWidth
       &          + ttime_min(i, residual_minloc(1), residual_minloc(2), residual_minloc(3)) + ttime_cor(i)) / sampling(i) &
       &          + 0.5_fp) + 1
 #endif
+
+#if defined (WIN) || defined (SAC)
       rms_amp_obs(i) = 0.0_fp
       icount = 0
       do ii = wave_index, wave_index + int(rms_tw / sampling(i) + 0.5_fp) - 1
@@ -663,10 +669,17 @@ program AmplitudeSourceLocation_PulseWidth
          endif
       enddo
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
+#elif defined (AMP_TXT)
+      rms_amp_obs(i) = amp_txt(i, time_count + 1)
+#endif
       write(20, '(e15.7, 1x)', advance = "no") rms_amp_obs(i)
     enddo
+#if defined (WIN) || defined (SAC)
     write(20, '(f0.1)') origintime
+#else
+    write(20, '(a)') trim(eventindex(time_count + 1))
 #endif
+#endif /* -DOUT_AMPLITUDE */
     
 
     time_count = time_count + 1
