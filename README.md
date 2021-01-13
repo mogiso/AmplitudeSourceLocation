@@ -57,17 +57,20 @@ or when -DAMP_TXT is set,
 - A digital elevation map file is netcdf-formatted 2-D gridded file (i.e., logitude (degree), latitude (degree), and altitude (meters)).
 - The format of station parameter file is as follows:
  
+<pre>
     5                                                #(number of stations)
     143.9775 43.3797  -0.68 V.MEAB .true. 0.0 1.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction term, and site amplification term of 1st station)
     143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.738  #(longitude, latitude, depth, station name, use_flag, traveltime correction term, and site amplification term of 2nd station)
     144.0017 43.3818  -1.27 V.PMNS .true. 0.0 2.213 
     144.0042 43.3903  -1.28 V.NSYM .true. 0.0 1.487
     144.0160 43.3695  -1.10 V.MNDK .true. 0.0 2.761
+</pre>
 
 Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will not use in the estimation of source locations.
 - When -DSAC is set, filename of each SAC file is set to be trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac". Prefix of sac files and component are given in arguments while station name is given by the station parameter file.
 - When -DAMP_TXT is set, the format of amplitude file is as follows:
 
+<pre>
     # V.MEAB V.MEAA V.PMNS V.NSYM V.MNDK
     73
     0.1621667E+00   0.5075075E-01   0.5697313E+00   0.2616340E+00   0.6868658E+00 305.0
@@ -81,7 +84,8 @@ Use_flag is either ".true." or ".false.". If use_flag equals .false., the statio
     0.1046234E+01   0.2917264E+00   0.3683274E+01   0.1501370E+01   0.3492446E+01 425.0
     0.1226578E+01   0.3338429E+00   0.4143188E+01   0.1755798E+01   0.4092168E+01 440.0
     0.1369444E+01   0.3949369E+00   0.5131268E+01   0.1944450E+01   0.4765992E+01 455.0
-    
+</pre>
+
 1st row is comment; it is required but the program read nothing. 2nd row is the number of events. Seismic amplitudes of each event should be written in the following rows. The order of amplitudes should be the same as the order of station parameter file. In the above example, the order of stations is V.MEAB-V.MEAA-V.PMNS-V.NSYM-V.MNDK in the station parameter file so that amplitudes at V.MEAB are written in 1st column, those at V.MEAA in 2nd column, those at V.PMNS in 3rd column, ...
 - When -DWIN is set, the program will find channel ids from station names given by station parameter files and component given by the argument from channel table file, then read waveforms of each channel id from the binary file.
 - fl and fh (Hz) are the lower and upper passband edge frequency, and fs (Hz) is the stopband edge frequency, respectively. Frequency for the intrinsic attenuation is the arithmetic mean of fl and fh. When -DAMP_TXT is set, the program expects that each amplitude has already been filtered so that only frequency for the intrinsic attenuation is required in the arguments.
