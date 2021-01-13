@@ -43,8 +43,8 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 4),   allocatable :: st_winch(:)
   type(winch__hdr),     allocatable :: chtbl(:)
 #elif defined (SAC)         /* use sac binary files as input waveforms */
-  real(kind = dp),        parameter :: order = 1.0_dp
-  character(len = 4),     parameter :: sacfile_extension = ".sac"
+  real(kind = dp),        parameter :: order = 1.0e+6_dp
+  character(len = 3),     parameter :: sacfile_extension = "sac"
   character(len = 10)               :: cmpnm
   character(len = 129)              :: sacfile, sacfile_index
 #elif defined (AMP_TXT)
@@ -264,14 +264,14 @@ program AmplitudeSourceLocation_PulseWidth
   npts_max = 0
   do i = 1, nsta
     sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
-    call read_sachdr(sacfile, delta=sampling(i), npts = npts(i), begin = begin(i))
+    call read_sachdr(sacfile, delta = sampling(i), npts = npts(i), begin = begin(i))
     if(npts(i) .gt. npts_max) npts_max = npts(i)
     !write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
-    !&     "station(", j, ") name = ", trim(stname(j)), " lon/lat/dep = ", lon_sta(j), lat_sta(j), z_sta(j)
+    !&     "station(", i, ") name = ", trim(stname(i)), " lon/lat/dep = ", lon_sta(i), lat_sta(i), z_sta(i)
   enddo
   allocate(waveform_obs(npts_max, nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(i)) // trim(cmpnm) // sacfile_extension
+    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo

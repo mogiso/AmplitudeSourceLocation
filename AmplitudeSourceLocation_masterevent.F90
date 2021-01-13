@@ -65,7 +65,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 #ifdef SAC
   real(kind = dp),    parameter   :: order = 1.0_dp
-  character(len = 4), parameter   :: sacfile_extension = ".sac"
+  character(len = 3), parameter   :: sacfile_extension = "sac"
   character(len = 6), allocatable :: stname(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), ttime(:), sampling(:), stime(:)
@@ -275,7 +275,7 @@ program AmplitudeSourceLocation_masterevent
   enddo
   allocate(waveform_obs(maxval(npts), nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // trim(stname(i)) // sacfile_extension
+    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
     call read_sacdata(sacfile, npts(i), waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
