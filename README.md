@@ -31,25 +31,25 @@ Reference:
     $ make asl_pw
 
 ### Compile options
-- -DDOUBLE: double precision froating point numbers are used in calculations (This option should be set)
-- -DSAC: use SAC binary files (NVHDR should be 6) as input waveform files (Default)
-- -DWIN: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
+- `-DDOUBLE`: double precision froating point numbers are used in calculations (This option should be set)
+- `-DSAC`: use SAC binary files (NVHDR should be 6) as input waveform files (Default)
+- `-DWIN`: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
              [WIN32-formatted](https://www.hinet.bosai.go.jp/faq/?LANG=en#Q09) binary file as an input waveform files
-- -DAMP_TXT: use text-formatted file as observed amplitude data, and do not apply bandpass filter
-- -DTESTDATA: do not apply band pass filter (When -DSAC or -DWIN is set, this program applys band pass filter to each waveform)
-- -DOUT_AMPLITUDE: output seismic amplitude at each station into a text-formatted file
-- -DWITHOUT_TTIME: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
+- `-DAMP_TXT`: use text-formatted file as observed amplitude data, and do not apply bandpass filter
+- `-DTESTDATA`: do not apply band pass filter (When -DSAC or -DWIN is set, this program applys band pass filter to each waveform)
+- `-DOUT_AMPLITUDE`: output seismic amplitude at each station into a text-formatted file. This file can be used in AmplitudeSourceLocation_masterevent.F90.
+- `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
 
 ### Executable commands
-When -DSAC is set,
+When `-DSAC` is set,
 
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (prefix of sac files) (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (dirname of results) (filename of result)
 
-or when -DWIN is set,
+or when `-DWIN` is set,
 
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (WIN- or WIN32-formatted binary file) (filename of channel table) (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (dirname of results) (filename of result)
 
-or when -DAMP_TXT is set,
+or when `-DAMP_TXT` is set,
 
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (filename of amplitudes) (frequency) (dirname of results) (filename of result)
 
@@ -67,9 +67,9 @@ or when -DAMP_TXT is set,
 
 The number of stations is automatically determined from station parameter file. Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will
 not use in the estimation of source locations.
-- When -DSAC is set, filename of each SAC file is set to be `trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac"`.
+- When `-DSAC` is set, filename of each SAC file is set to be `trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac"`.
 Prefix of sac files and component are given in arguments while station name is given by the station parameter file.
-- When -DAMP_TXT is set, the format of amplitude file is as follows:
+- When `-DAMP_TXT` is set, the format of amplitude file is as follows:
 
 <pre>
     # V.MEAB V.MEAA V.PMNS V.NSYM V.MNDK
@@ -92,15 +92,15 @@ V.MEAB-V.MEAA-V.PMNS-V.NSYM-V.MNDK in the station parameter file so that amplitu
 those at V.PMNS in 3rd column, ...
 - When `-DWIN` is set, the program will find channel ids from station names given by station parameter files and component given by the argument from
 channel table file, then read waveforms of each channel id from the binary file.
-- fl and fh (Hz) are the lower and upper passband edge frequency, and fs (Hz) is the stopband edge frequency, respectively. Frequency for the intrinsic
-attenuation is the arithmetic mean of fl and fh. When `-DAMP_TXT` is set, the program expects that each amplitude has already been filtered so that only
+- `fl` and `fh` (Hz) are the lower and upper passband edge frequency, and `fs` (Hz) is the stopband edge frequency, respectively. Frequency for the intrinsic
+attenuation is the arithmetic mean of `fl` and `fh`. When `-DAMP_TXT` is set, the program expects that each amplitude has already been filtered so that only
 frequency for the intrinsic attenuation is required in the arguments.
-- ot_begin and ot_end (s) determine the time range of estimating source locations. The assumed origin time begins at (ot_begin) and ends at (ot_end),
-shifting every (ot_shift) s. 
+- `ot_begin and `ot_end` (s) determine the time range of estimating source locations. The assumed origin time begins at `ot_begin` and ends at `ot_end`,
+shifting every `ot_shift` s. 
 
 ### Other settings
 - Some parameters are hard-coded. Velocity and attenuation structures are given in set_velocity_model.F90. Please modify it for different structures.
-- The variable "wavetype" in AmplitudeSourceLocation_PulseWidth.F90 indicates the type of body waves. 1 for P-waves and 2 for S-waves, respectively.
+- The variable `wavetype` in AmplitudeSourceLocation_PulseWidth.F90 indicates the type of body waves. 1 for P-waves and 2 for S-waves, respectively.
 - The variables in "Search range" section define the region of grid search while those in "structure range" define the region for ray tracing. If ray
 approached the edge of the region defined by them (or approarched to surface), ray shooting is terminated and restarted with another takeoff angle.
 
