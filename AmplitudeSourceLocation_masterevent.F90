@@ -103,8 +103,9 @@ program AmplitudeSourceLocation_masterevent
   real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
   real(kind = fp),  allocatable :: obsamp_master(:), obsamp_sub(:, :), hypodist(:), ray_azinc(:, :), dist_min(:), &
   &                                obsvector(:), obsvector_copy(:), &
-  &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), &
-  &                                sigma_inv_data(:, :), error_matrix(:, :), data_residual_subevent(:)
+  &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), inversion_matrix_sub(:, :), &
+  &                                sigma_inv_data(:, :), error_matrix(:, :), error_matrix_sub(:, :), &
+  &                                data_residual_subevent(:), data_residual_square_subevent(:)
   integer,          allocatable :: ipiv(:)
   real(kind = fp)               :: evlon_master, evlat_master, evdp_master, &
   &                                epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
@@ -115,7 +116,7 @@ program AmplitudeSourceLocation_masterevent
   &                                depth_max_tmp, depth_max
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, icount, nsta_use
+  &                                i, j, k, ii, jj, kk, icount, ncount, nsta_use, ios
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
   character(len = 20)           :: cfmt, nsta_c
 
@@ -201,12 +202,18 @@ program AmplitudeSourceLocation_masterevent
 
   !!read station parameter
   open(unit = 10, file = station_param)
-  read(10, *) nsta
+  nsta = 0
+  do
+    read(10, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nsta = nsta + 1
+  enddo
   if(nsta .lt. 4) then
     close(10)
-    write(0, '(a)') "Number of station nsta should be larger than 4"
+    write(0, '(a)') "Number of stations, nsta, should be larger than 4"
     error stop
   endif
+  rewind(10)
   allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta), use_flag(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
@@ -217,6 +224,11 @@ program AmplitudeSourceLocation_masterevent
     if(use_flag(i) .eqv. .true.) nsta_use = nsta_use + 1
   enddo
   close(10)
+  if(nsta_use .lt. 4) then
+    close(10)
+    write(0, '(a)') "Number of stations for calculation, nsta_use, should be larger than 4"
+    error stop
+  endif
 
 
   !!read masterevent parameter
@@ -308,7 +320,15 @@ program AmplitudeSourceLocation_masterevent
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
   read(10, *)
-  read(10, *) nsubevent
+  nsubevent = 0
+  do 
+    read(10, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nsubevent = nsubevent + 1
+  endif
+  write(0, '(a, i0)') "nsubevent = ", nsubevent
+  rewind(10)
+  read(10, *)
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
@@ -572,7 +592,6 @@ program AmplitudeSourceLocation_masterevent
     icount = 1
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
-      print *, i, icount
       obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
       normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
       &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
@@ -604,28 +623,76 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
   !!calculate mean data residual
-  allocate(data_residual_subevent(nsubevent))
+  allocate(data_residual_subevent(nsubevent), data_residual_square_subevent(nsubevent))
   data_residual = 0.0_fp
   icount = 0
   do j = 1, nsubevent
     data_residual_subevent(j) = 0.0_fp
+    data_residual_square_subevent(j) = 0.0_fp
+    ncount = 0
     do i = 1, nsta_use
       if(dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
       &  .eq. 0.0_fp) cycle
       icount = icount + 1
+      ncount = ncount + 1
       data_residual = data_residual &
       &             + (obsvector_copy(nsta_use * (j - 1) + i) &
-      &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+      &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
+      &                           obsvector(1 : 4 * nsubevent)))
       !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
       !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
       data_residual_subevent(j) = data_residual_subevent(j) &
       &             + (obsvector_copy(nsta_use * (j - 1) + i) &
       &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
+      &                           obsvector(1 : 4 * nsubevent)))
+      data_residual_square_subevent(j) = data_residual_square_subevent(j) &
+      &             + (obsvector_copy(nsta_use * (j - 1) + i) &
+      &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
       &                           obsvector(1 : 4 * nsubevent))) ** 2
     enddo
-    data_residual_subevent(j) = data_residual_subevent(j) / real(nsta_use, kind = fp)
+    data_residual_subevent(j) = data_residual_subevent(j) / real(ncount, kind = fp)
   enddo
-  data_residual = data_residual / real(icount, kind = fp)
+  data_residual = data_residual / real(icount)
+
+  !!estimate errors of inverted model parameters
+  allocate(error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent))
+  error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+
+#if defined (EACH_ERROR)
+  allocate(sigma_inv_data(1 : nsta_use, 1 : nsta_use), &
+  &        inversion_matrix_sub(1 : nsta_use, 1 : 4), error_matrix_sub(1 : 4, 1 : 4))
+  sigma_inv_data(1 : nsta_use, 1 : nsta_use) = 0.0_fp  
+  do j = 1, nsubevent
+    !!calculate variance
+    data_variance = 0.0_fp
+    do i = 1, nsta_use
+      data_variance = data_variance + (data_residual_subevent(j) &
+      &              - (obsvector_copy(nsta_use * (j - 1) + i) &
+      &              -  dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
+      &                           obsvector(1 : 4 * nsubevent)))) ** 2
+    enddo
+    if(nsta_use - 1 .ne. 0) data_variance = data_variance / real(nsta_use - 1, kind = fp)
+    do i = 1, nsta_use
+      sigma_inv_data(i, i) = 1.0_fp / data_variance
+      inversion_matrix_sub(i, 1 : 4) = inversion_matrix_copy(nsta_use * (j - 1) + i, 4 * (j - 1) + 1 : 4 * (j - 1) + 4)
+    enddo
+    error_matrix_sub = matmul(matmul(transpose(inversion_matrix_sub), sigma_inv_data), inversion_matrix_sub)
+    allocate(ipiv(1 : size(error_matrix_sub, 1)))
+#ifdef MKL
+    call getrf(error_matrix_sub, ipiv)
+    call getri(error_matrix_sub, ipiv)
+#else
+    call la_getrf(error_matrix_sub, ipiv)
+    call la_getri(error_matrix_sub, ipiv)
+#endif
+    error_matrix(4 * (j - 1) + 1 : 4 * (j - 1) + 4, 4 * (j - 1) + 1 : 4 * (j - 1) + 4) = error_matrix_sub(1 : 4, 1 : 4)
+    deallocate(ipiv)
+  enddo
+  deallocate(sigma_inv_data, inversion_matrix_sub, error_matrix_sub)
+
+#else
+  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
   !!calculate variance
   data_variance = 0.0_fp
   icount = 0
@@ -635,17 +702,9 @@ program AmplitudeSourceLocation_masterevent
     data_variance = data_variance + (data_residual - (obsvector_copy(i) &
     &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
-  if(nsta * nsubevent .ne. 1) then
-    data_variance = data_variance / real(icount - 1)
+  if(icount .ne. 1) then
+    data_variance = data_variance / real(icount - 1, kind = fp)
   endif
-
-  !!estimate error of inverted model parameters
-  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
-  allocate(error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
-  error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
-#ifdef WITOUT_ERROR
-#else
-  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
   do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
@@ -658,6 +717,7 @@ program AmplitudeSourceLocation_masterevent
   call la_getrf(error_matrix, ipiv)
   call la_getri(error_matrix, ipiv)
 #endif
+  deallocate(ipiv, sigma_inv_data)
 #endif
   
 
@@ -682,7 +742,7 @@ program AmplitudeSourceLocation_masterevent
     &          exp(obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
-    &          evdp_master - delta_depth, sigma_depth, data_residual_subevent(i), ot_tmp
+    &          evdp_master - delta_depth, sigma_depth, data_residual_square_subevent(i), ot_tmp
 
 
     write(0, '(a, i0, a, f8.1)')  "subevent index = ", i, " ot_tmp = ", ot_tmp
@@ -710,7 +770,7 @@ program AmplitudeSourceLocation_masterevent
     &          exp(obsvector(4 * (i - 1) + 1)), sigma_amp, &
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
-    &          evdp_master - delta_depth, sigma_depth, data_residual_subevent(i)
+    &          evdp_master - delta_depth, sigma_depth, data_residual_square_subevent(i)
 
 
     write(0, '(a, i0)')           "subevent index = ", i

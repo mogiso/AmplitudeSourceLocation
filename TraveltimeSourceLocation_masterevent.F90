@@ -35,7 +35,7 @@ program TraveltimeSourceLocation_masterevent
   real(kind = fp),      parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,              parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,              parameter :: nrayshoot = 2                            !!number of grid search
-  real(kind = fp),      parameter :: time_step = 0.005_fp
+  real(kind = fp),      parameter :: time_step = 0.001_fp
   real(kind = fp),      parameter :: rayshoot_dist_thr = 0.05_fp
 
   real(kind = fp),      parameter :: alt_to_depth = -1.0e-3_fp
@@ -48,10 +48,10 @@ program TraveltimeSourceLocation_masterevent
   &                                  normal_vector(1 : 3)
   real(kind = dp),    allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
   real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), traveltime_master(:), traveltime_sub(:, :), &
-  &                                  hypodist(:), ray_azinc(:, :), dist_min(:), &
-  &                                  obsvector(:), obsvector_copy(:), &
-  &                                  inversion_matrix(:, :), inversion_matrix_copy(:, :), &
-  &                                  sigma_inv_data(:, :), error_matrix(:, :)
+  &                                  hypodist(:), ray_azinc(:, :), dist_min(:), obsvector(:), obsvector_copy(:), &
+  &                                  inversion_matrix(:, :), inversion_matrix_copy(:, :), inversion_matrix_sub(:, :), &
+  &                                  sigma_inv_data(:, :), sigma_inv_data_sub, error_matrix(:, :), error_matrix_sub(:, :), &
+  &                                  data_residual_subevent(:)
   integer,            allocatable :: ipiv(:)
   logical,            allocatable :: use_flag(:)
   character(len = 6), allocatable :: stname(:)
@@ -61,12 +61,12 @@ program TraveltimeSourceLocation_masterevent
   &                                  lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, velocity_interpolate, &
   &                                  dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const, &
   &                                  lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
-  &                                 data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
+  &                                  data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp
  
   real(kind = dp)                 :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate
 
   integer                         :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
-  &                                 i, j, ii, jj, kk, icount, nsta_use
+  &                                 i, j, ii, jj, kk, icount, ncount, nsta_use, ios
  
   character(len = 129)            :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
 
@@ -96,19 +96,33 @@ program TraveltimeSourceLocation_masterevent
 
   !!read station parameter
   open(unit = 10, file = station_param)
-  read(10, *) nsta
+  nsta = 0
+  do
+    read(10, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nsta = nsta + 1
+  enddo
   if(nsta .lt. 4) then
     close(10)
-    write(0, '(a)') "Number of station nsta should be larger than 4"
+    write(0, '(a)') "Number of stations, nsta, should be larger than 4"
     error stop
   endif
+  rewind(10)
   allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), use_flag(nsta))
   nsta_use = 0
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i)
+    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
+    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
+    &     use_flag(i)
     if(use_flag(i) .eqv. .true.) nsta_use = nsta_use + 1
   enddo
   close(10)
+  if(nsta_use .lt. 4) then
+    close(10)
+    write(0, '(a)') "Number of stations for calculation, nsta_use, should be larger than 4"
+    error stop
+  endif
   !!read masterevent parameter
   allocate(traveltime_master(nsta))
   open(unit = 10, file = masterevent_param)
@@ -119,7 +133,14 @@ program TraveltimeSourceLocation_masterevent
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
   read(10, *)
-  read(10, *) nsubevent
+  nsubevent = 0
+  do
+    read(10, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nsubevent = nsubevent + 1
+  enddo
+  rewind(10)
+  read(10, *)
   allocate(traveltime_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (traveltime_sub(i, j), i = 1, nsta)
@@ -298,6 +319,7 @@ program TraveltimeSourceLocation_masterevent
     icount = 0
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
+      icount = icount + 1
       obsvector(nsta * (j - 1) + icount) = traveltime_master(i) - traveltime_sub(i, j)
       normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
       &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
@@ -324,11 +346,62 @@ program TraveltimeSourceLocation_masterevent
 
   !!calculate mean data residual
   data_residual = 0.0_fp
-  do i = 1, nsta_use * nsubevent
-    data_residual = data_residual &
-    &             + (obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+  allocate(data_residual_subevent(nsubevent))
+  do j = 1, nsubevent
+     data_residual_subevent(j) = 0.0_fp
+    do i = 1, nsta_use
+      data_residual = data_residual &
+      &             + (obsvector_copy(nsta_use * (j - 1) + i) &
+      &             - dot_product(inversion_matrix(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+      data_residual_subevent(j) = data_residual_subevent(j) &
+      &             + (obsvector_copy(nsta_use * (j - 1) + i) &
+      &             - dot_product(inversion_matrix(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
+    enddo
+    data_residual_subevent(j) = data_residual_subevent(j) / real(nsta_use, kind = fp)
   enddo
   data_residual = data_residual / real(nsta_use * nsubevent, kind = fp)
+
+
+  !!estimate errors of inverted model parameters
+  allocate(error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent))
+  error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
+
+#if defined (EACH_ERROR)
+  allocate(sigma_inv_data(1 : nsta_use, 1 : nsta_use), &
+  &        inversion_matrix_sub(1 : nsta_use, 1 : 4), error_matrix_sub(1 : 4, 1 : 4))
+  sigma_inv_data(1 : nsta_use, 1 : nsta_use) = 0.0_fp  
+  !!calculate variance
+  do j = 1, nsubevent
+    data_variance = 0.0_fp
+    do i = 1, nsta_use
+      data_variance = data_variance + (data_residual_subevent(j) &
+      &              - (obsvector_copy(nsta_use * (j - 1) + i) &
+      &              -  dot_product(inversion_matrix(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
+      &                           obsvector(1 : 4 * nsubevent)))) ** 2
+    enddo
+    if(nsta_use - 1 .ne. 0) data_variance = data_variance / real(nsta_use - 1, kind = fp)
+    do i = 1, nsta_use
+      sigma_inv_data(i, i) = 1.0_fp / data_variance
+      inversion_matrix_sub(i, 1 : 4) = inversion_matrix(nsta_use * (j - 1) + i, 4 * (j - 1) + 1 : 4 * (j - 1) + 4)
+    enddo
+    error_matrix_sub = matmul(matmul(transpose(inversion_matrix_sub), sigma_inv_data), inversion_matrix_sub)
+    allocate(ipiv(1 : size(error_matrix_sub, 1)))
+#ifdef MKL
+    call getrf(error_matrix_sub, ipiv)
+    call getri(error_matrix_sub, ipiv)
+#else
+    call la_getrf(error_matrix_sub, ipiv)
+    call la_getri(error_matrix_sub, ipiv)
+#endif
+    error_matrix(4 * (j - 1) + 1 : 4 * (j - 1) + 4, 4 * (j - 1) + 1 : 4 * (j - 1) + 4) = error_matrix_sub(1 : 4, 1 : 4)
+    deallocate(ipiv)
+  enddo
+  deallocate(sigma_inv_data, inversion_matrix_sub, error_matrix_sub)
+
+#else
+
+  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
+  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp  
   !!calculate variance
   data_variance = 0.0_fp
   do i = 1, nsta_use * nsubevent
@@ -337,15 +410,8 @@ program TraveltimeSourceLocation_masterevent
   enddo
   data_variance = data_variance / real(nsta_use * nsubevent - 1, kind = fp)
 
-  !!estimate error of inverted model parameters
-  allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
-  allocate(error_matrix(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
-  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
   do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
-    !sigma_inv_data(i, i) = &
-    !&  abs(obsvector_copy(i) - dot_product(inversion_matrix(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))
-    !sigma_inv_data(i, i) = 1.0_fp / sigma_inv_data(i, i)
   enddo
   error_matrix = matmul(matmul(transpose(inversion_matrix), sigma_inv_data), inversion_matrix)
   allocate(ipiv(1 : size(error_matrix, 1)))
@@ -355,6 +421,8 @@ program TraveltimeSourceLocation_masterevent
 #else
   call la_getrf(error_matrix, ipiv)
   call la_getri(error_matrix, ipiv)
+#endif
+  deallocate(sigma_inv_data, ipiv)
 #endif
   
 
