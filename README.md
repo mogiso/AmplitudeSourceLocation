@@ -132,24 +132,24 @@ the location of reference event.
 
 ### Compile options
 Some options are same as those of AmplitudeSourceLocation_PulseWidth.F90. The default format of amplitude data is text (see explanation of `-DAMP_TXT`).
-- -DDOUBLE: double precision froating point numbers are used in calculations (This option should be set)
-- -DDAMPED: Add additional constraints for model parameters (relative source amplitude and locations)
-- -DSAC: use SAC binary files (NVHDR should be 6) as input waveform files
-- -DWIN: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
+- `-DDOUBLE`: double precision froating point numbers are used in calculations (This option should be set)
+- `-DDAMPED`: Add additional constraints for model parameters (relative source amplitude and locations)
+- `-DSAC`: use SAC binary files (NVHDR should be 6) as input waveform files
+- `-DWIN`: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
              [WIN32-formatted](https://www.hinet.bosai.go.jp/faq/?LANG=en#Q09) binary file as an input waveform files
-- -DTESTDATA: do not apply band pass filter (When -DSAC or -DWIN is set, this program applys band pass filter to each waveform)
-- -DEACH_ERROR: Estimation errors of model parameter is calculated for each subevent (i.e., variance of data is calculated for each subevent). In default, variance of data
+- `-DTESTDATA`: do not apply band pass filter (When `-DSAC` or `-DWIN` is set, this program applys band pass filter to each waveform)
+- `-DEACH_ERROR`: Estimation errors of model parameter is calculated for each subevent (i.e., variance of data is calculated for each subevent). In default, variance of data
 is calculated using all subevents so that estimation errors of locations would be the same for all subevents.
-- -DWITHOUT_TTIME: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
-- -DMKL: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
+- `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
+- `-DMKL`: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
 
 ### Executable commands
-When -DSAC is set,
+When `-DSAC` is set,
 
     $ ./asl_masterevent (name of digital elevetion map file) (name of station parameter file) (filename of amplitude data of a reference event) (prefix of sac files)
     (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (filename of result)
 
-or when -DWIN is set,
+or when `-DWIN` is set,
 
     $ ./asl_masterevent (name of digital elevetion map file) (name of station parameter file) (filename of amplitude data of a reference event)
     (WIN- or WIN32-formatted binary file) (filename of channel table) (component) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (length_of_rms_time_window) (filename of result)
@@ -187,7 +187,7 @@ from each event files, then use it in this program.
  0.12159722E+01  0.61448032E-01  0.14400896E+03  0.48359011E-03  0.43377395E+02  0.55969917E-03 -0.14821482E+00  0.86498216E-01  0.24468696E-02    45.0
  0.13641865E+01  0.69949849E-01  0.14400868E+03  0.49068877E-03  0.43377529E+02  0.56791503E-03 -0.19671440E+00  0.87767929E-01  0.25192323E-02    60.0
 </pre>
-From left to right, relative source amplitude, latitude, logitude and depth with its errors. The 10th column is a comment; if -DSAC or -DWIN is set, assumed origin
+From left to right, relative source amplitude, latitude, logitude and depth with its errors. The 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
 times are given in this column. Otherwise, this column will be blank.
 
 
@@ -201,9 +201,9 @@ P-waves or S-waves.
 
 ### Compile options
 Some options are same as those of AmplitudeSourceLocation_PulseWidth.F90.
-- -DDOUBLE: double precision froating point numbers are used in calculations (This option should be set)
-- -DMKL: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
-- -DEACH_ERROR: Estimation errors of model parameter is calculated for each subevent (i.e., variance of data is calculated for each subevent). In default, variance of data
+- `-DDOUBLE`: double precision froating point numbers are used in calculations (This option should be set)
+- `-DMKL`: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
+- `-DEACH_ERROR`: Estimation errors of model parameter is calculated for each subevent (i.e., variance of data is calculated for each subevent). In default, variance of data
 is calculated using all subevents so that estimation errors of locations would be the same for all subevents.
 
 This program accepts only text-formatted files as travel time data of the reference and the other subevents.
@@ -233,6 +233,9 @@ times are given in this column. Otherwise, this column will be blank.
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978).
 
 ## References
+Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, Journal of Physics of the Earth, 22(1), 141-161,
+[doi: 10.4294/jpe1952.22.141](https://doi.org/10.4294/jpe1952.22.141).
+
 Kumagai et al. (2019), Amplitude Source Location Method With Depth-Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia,
 J. Geophys. Res., 124, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
 
