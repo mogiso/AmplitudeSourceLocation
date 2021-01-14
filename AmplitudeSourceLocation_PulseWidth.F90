@@ -32,7 +32,7 @@ program AmplitudeSourceLocation_PulseWidth
   integer,              allocatable :: npts(:)
   character(len = 6),   allocatable :: stname(:)
   real(kind = dp),      allocatable :: siteamp(:)
-  real(kind = fp),      allocatable :: ttime_cor(:)
+  real(kind = fp),      allocatable :: ttime_cor(:, :)
   logical,              allocatable :: use_flag(:)
 #if defined (WIN)    /* use win-format waveform file for input waveforms */
   character(len = 129)              :: win_filename, win_chfilename
@@ -209,13 +209,14 @@ program AmplitudeSourceLocation_PulseWidth
   enddo
   rewind(40)
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
-  &        ttime_cor(1 : nsta), siteamp(1 : nsta), use_flag(1 : nsta), &
+  &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
   do i = 1, nsta
-    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i), siteamp(i)
+    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i)
 #ifdef TESTDATA
-    ttime_cor(i) = 0.0_fp
+    ttime_cor(i, 1) = 0.0_fp
+    ttime_cor(i, 2) = 0.0_fp
     siteamp(i)   = 1.0_dp
 #endif
   enddo
@@ -565,7 +566,8 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (WITHOUT_TTIME)
             wave_index = int((origintime - begin(jj)) / sampling(jj) + 0.5_fp) + 1
 #else
-            wave_index = int((origintime - begin(jj) + ttime_min(jj, i, j, k) + ttime_cor(jj)) / sampling(jj) + 0.5_fp) + 1
+            wave_index = int((origintime - begin(jj) + ttime_min(jj, i, j, k) + ttime_cor(jj, wavetype)) &
+            &                / sampling(jj) + 0.5_fp) + 1
 #endif
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
@@ -668,8 +670,8 @@ program AmplitudeSourceLocation_PulseWidth
       wave_index = int((origintime - begin(i)) / sampling(i) + 0.5_fp) + 1
 #else
       wave_index = int((origintime - begin(i) &
-      &          + ttime_min(i, residual_minloc(1), residual_minloc(2), residual_minloc(3)) + ttime_cor(i)) / sampling(i) &
-      &          + 0.5_fp) + 1
+      &          + ttime_min(i, residual_minloc(1), residual_minloc(2), residual_minloc(3)) + ttime_cor(i, wavetype)) &
+      &          / sampling(i) + 0.5_fp) + 1
 #endif
 
 #if defined (WIN) || defined (SAC)

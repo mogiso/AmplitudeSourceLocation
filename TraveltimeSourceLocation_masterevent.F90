@@ -47,7 +47,7 @@ program TraveltimeSourceLocation_masterevent
   &                                  xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                  normal_vector(1 : 3)
   real(kind = dp),    allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), traveltime_master(:), traveltime_sub(:, :), &
+  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), traveltime_master(:), traveltime_sub(:, :), ttime_cor(:, :), &
   &                                  hypodist(:), ray_azinc(:, :), dist_min(:), obsvector(:), obsvector_copy(:), &
   &                                  inversion_matrix(:, :), inversion_matrix_copy(:, :), inversion_matrix_sub(:, :), &
   &                                  sigma_inv_data(:, :), sigma_inv_data_sub, error_matrix(:, :), error_matrix_sub(:, :), &
@@ -108,10 +108,10 @@ program TraveltimeSourceLocation_masterevent
     error stop
   endif
   rewind(10)
-  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), use_flag(nsta))
+  allocate(stlon(nsta), stlat(nsta), stdp(nsta), stname(nsta), use_flag(nsta), ttime_cor(1 : nsta, 1 : 2))
   nsta_use = 0
   do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i)
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
     &     use_flag(i)
@@ -129,6 +129,7 @@ program TraveltimeSourceLocation_masterevent
   read(10, *)
   read(10, *) evlon_master, evlat_master, evdp_master
   read(10, *) (traveltime_master(i), i = 1, nsta)
+  traveltime_master(1 : nsta) = traveltime_master(1 : nsta) + ttime_cor(1 : nsta, wavetype)
   close(10)
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
@@ -144,6 +145,7 @@ program TraveltimeSourceLocation_masterevent
   allocate(traveltime_sub(1 : nsta, 1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (traveltime_sub(i, j), i = 1, nsta)
+    traveltime_sub(1 : nsta, j) = traveltime_sub(1 : nsta, j) + ttime_cor(1 : nsta, wavetype)
   enddo
   close(10)
 

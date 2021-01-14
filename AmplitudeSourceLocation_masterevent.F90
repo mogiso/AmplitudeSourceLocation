@@ -72,7 +72,7 @@ program AmplitudeSourceLocation_masterevent
   character(len = 129)            :: sacfile, sacfile_index
   character(len = 10)             :: cmpnm
 #endif
-  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:)
+  real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:, :)
   character(len = 6), allocatable :: stname(:)
   logical,            allocatable :: use_flag(:)
   character(len = 10)             :: freq_t
@@ -214,10 +214,10 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
   rewind(10)
-  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta), use_flag(1 : nsta))
+  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), use_flag(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i)
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
     &     use_flag(i)
@@ -325,7 +325,7 @@ program AmplitudeSourceLocation_masterevent
     read(10, *, iostat = ios)
     if(ios .ne. 0) exit
     nsubevent = nsubevent + 1
-  endif
+  enddo
   write(0, '(a, i0)') "nsubevent = ", nsubevent
   rewind(10)
   read(10, *)
@@ -508,14 +508,14 @@ program AmplitudeSourceLocation_masterevent
 
 #if defined (WIN) || defined (SAC)
 #if defined (WIN)
-  ttime(1 : nsta) = ttime(1 : nsta) + ttime_cor(1 : nsta)
+  ttime(1 : nsta) = ttime(1 : nsta) + ttime_cor(1 : nsta, wavetype)
 #elif defined (SAC)
   do i = 1, nsta
     if(stime(i) .ne. -12345.0_fp) then
       write(0, '(a, i0, a, f5.2)') "station(", i, ") read traveltime from sacfile ", stime(i)
       ttime(i) = stime(i)
     else
-      ttime(i) = ttime(i) + ttime_cor(i)
+      ttime(i) = ttime(i) + ttime_cor(i, wavetype)
     endif
   enddo
 #endif

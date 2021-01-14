@@ -58,11 +58,11 @@ or when `-DAMP_TXT` is set,
 - The format of station parameter file is as follows:
  
 <pre>
-    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 1.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction term, and site amplification term of 1st station)
-    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.738  #(longitude, latitude, depth, station name, use_flag, traveltime correction term, and site amplification term of 2nd station)
-    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 2.213 
-    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 1.487
-    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 2.761
+    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 0.0 1.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, and site amplification term of 1st station)
+    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.0 0.738  #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, and site amplification term of 2nd station)
+    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 0.0 2.213 
+    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 0.0 1.487
+    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 0.0 2.761
 </pre>
 
 The number of stations is automatically determined from station parameter file. Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will
