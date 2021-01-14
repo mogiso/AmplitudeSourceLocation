@@ -230,7 +230,7 @@ From left to right, difference of origin time, latitude, logitude and depth with
 times are given in this column. Otherwise, this column will be blank.
 
 ## License
-MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978).
+MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978), and xorshift1024star.f90 written by Shun Sakuraba.
 
 ## References
 Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, Journal of Physics of the Earth, 22(1), 141-161,
