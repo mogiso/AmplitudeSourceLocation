@@ -6,8 +6,7 @@
 ## -DDOUBLE: calculate in double precision (recommended)
 ## -DV_MEA1D, -DV_CONST: velocity structure defined in set_velocity_model.F90
 
-## some options for AmplitudeSourceLocation_PulseWidth.F90
-## -DWIN: using win format waveform file as an input for AmplitudeSourcelocation_PulseWidth.F90 and
+## -DWIN: using win format waveform file as an input for AmplitudeSourceLocation_PulseWidth.F90 and
 ##        AmplitudeSourceLocation_masterevent.F90
 ## -DSAC: use sac-formatted waveform file as an input waveform for AmplitudeSourceLocation_PulseWidth.F90 (default)
 ##        and AmplitudeSourceLocation_masterevent.F90
@@ -18,14 +17,14 @@
 ## -DWITHOUT_TTIME: neglect travel time from assumed source location (or reference source location) to each station
 ##                  when extract the amplitude from waveform array for AmpliutudeSourceLocation_PulseWidth.F90
 ##                  (or AmplitudeSourceLocation_masterevent.F90)
-
-## option for AmplitudeSourceLocation_masterevent.F90
-## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90
-## -DDAMPED: Damped least squares solution (check damp() array)
+## -DDAMPED: Damped least squares solution (check damp() array) for AmplitudeSourceLocation_masterevent.F90
+## -DMKL: use MKL; otherwise use lapack95 in AmplitudeSourceLocation_masterevent.F90 and TraveltimeSourceLocation_masterevent.F90
+## -DEACH_ERROR: estimate location errors separately in AmplitudeSourceLocation_masterevent.F90 and
+##               TraveltimeSourceLocation_masterevent.F90
 
 FC = ifort
 FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DWIN -DV_MEA1D -DOUT_AMPLITUDE
+DEFS = -DDOUBLE -DMKL -DV_MEA1D -DOUT_AMPLITUDE -DWITHOUT_TTIME
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
