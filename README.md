@@ -67,6 +67,7 @@ or when `-DAMP_TXT` is set,
 
 The number of stations is automatically determined from station parameter file. Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will
 not use in the estimation of source locations.
+- If a travel time correction term is positive, it is added to a theoretical (calculated) travel time.
 - When `-DSAC` is set, filename of each SAC file is set to be `trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac"`.
 Prefix of sac files and component are given in arguments while station name is given by the station parameter file.
 - When `-DAMP_TXT` is set, the format of amplitude file is as follows:
@@ -226,8 +227,7 @@ This program accepts only text-formatted files as travel time data of the refere
 -0.1033108E-01  0.1572529E-01  0.1440109E+03  0.3736693E-03  0.4338275E+02  0.3813735E-03 -0.2985357E+00  0.6331922E-01
 -0.5672537E-02  0.2319235E-01  0.1440123E+03  0.5511038E-03  0.4338324E+02  0.5624663E-03 -0.2943046E+00  0.9338595E-01
 </pre>
-From left to right, difference of origin time, latitude, logitude and depth with its errors. The 10th column is a comment; if -DSAC or -DWIN is set, assumed origin
-times are given in this column. Otherwise, this column will be blank.
+From left to right, difference of origin time, latitude, logitude and depth with its errors.
 
 ## License
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978), and xorshift1024star.f90 written by Shun Sakuraba.
