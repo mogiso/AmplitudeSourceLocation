@@ -104,7 +104,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dlon_topo, dlat_topo, freq
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                    npts_max, nlon_topo, nlat_topo, nsta_use
+  &                                    npts_max, nlon_topo, nlat_topo, nsta_use, ios
   character(len = 129)              :: station_param, dem_file, ot_begin_t, ot_end_t, &
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
@@ -201,7 +201,13 @@ program AmplitudeSourceLocation_PulseWidth
 
   write(0, '(2a)') "read station paramters from ", trim(station_param)
   open(unit = 40, file = station_param)
-  read(40, *) nsta
+  nsta = 0
+  do
+    read(40, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nsta = nsta + 1
+  enddo
+  rewind(40)
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta), siteamp(1 : nsta), use_flag(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
@@ -218,7 +224,14 @@ program AmplitudeSourceLocation_PulseWidth
 #ifdef AMP_TXT
   open(unit = 40, file = amp_filename)
   read(40, *)
-  read(40, *) namp
+  namp = 0
+  do
+    read(40, *, iostat = ios)
+    if(ios .ne. 0) exit
+    namp = namp + 1
+  enddo
+  rewind(40)
+  read(40, *)
   allocate(amp_txt(1 : nsta, 1 : namp), eventindex(1 : namp))
   do j = 1, namp
     read(40, *) (amp_txt(i, j), i = 1, nsta), eventindex(j)
