@@ -54,7 +54,7 @@ or when `-DAMP_TXT` is set,
     $ ./asl_pw (name of digital elevetion map file) (name of station parameter file) (filename of amplitudes) (frequency) (dirname of results) (filename of result)
 
 ### Explanation of arguments
-- A digital elevation map file is netcdf-formatted 2-D gridded file (i.e., logitude (degree), latitude (degree), and altitude (meters)).
+- A digital elevation map file is netcdf-formatted 2-D gridded file (i.e., longitude (degree), latitude (degree), and altitude (meters)).
 - The format of station parameter file is as follows:
  
 <pre>
