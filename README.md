@@ -134,7 +134,7 @@ the location of reference event.
 ### Compile options
 Some options are same as those of AmplitudeSourceLocation_PulseWidth.F90. The default format of amplitude data is text (see explanation of `-DAMP_TXT`).
 - `-DDOUBLE`: double precision froating point numbers are used in calculations (This option should be set)
-- `-DDAMPED`: Add additional constraints for model parameters (relative source amplitude and locations)
+- `-DDAMPED`: Add additional constraints for model parameters (relative source amplitude and locations). Only diagonal components of the additional matrix are considered, and linear combination of model parameters cannot be involved.
 - `-DSAC`: use SAC binary files (NVHDR should be 6) as input waveform files
 - `-DWIN`: use [WIN-formatted](http://wwweic.eri.u-tokyo.ac.jp/WIN/man.en/winformat.html) binary file or
              [WIN32-formatted](https://www.hinet.bosai.go.jp/faq/?LANG=en#Q09) binary file as an input waveform files
@@ -181,15 +181,17 @@ from each event files, then use it in this program.
 ### Result files
 - Text-formatted file which filename is given in arguments. The format is:
 <pre>
-   # amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum ot_tmp
- 0.14033281E+01  0.94988695E-01  0.14401078E+03  0.64774758E-03  0.43377751E+02  0.74969229E-03  0.14679086E+00  0.11586054E+00  0.43900310E-02     0.0
- 0.14646312E+01  0.13915351E+00  0.14401010E+03  0.90919905E-03  0.43378310E+02  0.10522919E-02  0.30514866E-01  0.16262552E+00  0.86491601E-02    15.0
- 0.12826188E+01  0.13706276E+00  0.14401027E+03  0.10226216E-02  0.43378508E+02  0.11835652E-02 -0.11308208E-01  0.18291305E+00  0.10941728E-01    30.0
- 0.12159722E+01  0.61448032E-01  0.14400896E+03  0.48359011E-03  0.43377395E+02  0.55969917E-03 -0.14821482E+00  0.86498216E-01  0.24468696E-02    45.0
- 0.13641865E+01  0.69949849E-01  0.14400868E+03  0.49068877E-03  0.43377529E+02  0.56791503E-03 -0.19671440E+00  0.87767929E-01  0.25192323E-02    60.0
+# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum
+ 0.14087411E+01  0.43662547E-01  0.14401075E+03  0.83566489E-03  0.43377721E+02  0.96718466E-03  0.14375865E+00  0.14947270E+00  0.27885532E-02
+ 0.14702810E+01  0.43662547E-01  0.14401007E+03  0.83566489E-03  0.43378280E+02  0.96718466E-03  0.27482757E-01  0.14947270E+00  0.63282553E-02
+ 0.12875660E+01  0.43662547E-01  0.14401024E+03  0.83566489E-03  0.43378478E+02  0.96718466E-03 -0.14340617E-01  0.14947270E+00  0.83086985E-02
+ 0.12206627E+01  0.43662547E-01  0.14400893E+03  0.83566489E-03  0.43377365E+02  0.96718466E-03 -0.15124702E+00  0.14947270E+00  0.12971002E-02
+ 0.13694487E+01  0.43662547E-01  0.14400865E+03  0.83566489E-03  0.43377499E+02  0.96718466E-03 -0.19974685E+00  0.14947270E+00  0.13499187E-02
+ 0.13912410E+01  0.43662547E-01  0.14400986E+03  0.83566489E-03  0.43378075E+02  0.96718466E-03 -0.21122230E-01  0.14947270E+00  0.27494096E-02
 </pre>
-From left to right, relative source amplitude, latitude, logitude and depth with its errors. The 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
+From left to right, relative source amplitude, latitude, logitude and depth with its errors. 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
 times are given in this column. Otherwise, this column will be blank.
+- 1st column (amp_ratio) is the ratio of source amplitudes ($$A_{k} / A_{j}).
 
 
 ## TraveltimeSourceLocation_masterevent.F90
