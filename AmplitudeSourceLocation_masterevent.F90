@@ -730,9 +730,7 @@ program AmplitudeSourceLocation_masterevent
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
     delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
     delta_depth = obsvector(4 * (i - 1) + 4)
-    !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
-    !sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
-    sigma_amp = abs(exp(obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
+    sigma_amp = sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1))
     sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
@@ -760,7 +758,7 @@ program AmplitudeSourceLocation_masterevent
     delta_depth = obsvector(4 * (i - 1) + 4)
     !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
     !sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
-    sigma_amp = abs(exp(obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
+    sigma_amp = sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1))
     sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
