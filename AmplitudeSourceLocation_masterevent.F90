@@ -639,8 +639,6 @@ program AmplitudeSourceLocation_masterevent
       &             + (obsvector_copy(nsta_use * (j - 1) + i) &
       &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
       &                           obsvector(1 : 4 * nsubevent)))
-      !write(0, '(a, 3(e15.7, 1x))') "data residual = ", data_residual, obsvector_copy(i), &
-      !&            dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent))
       data_residual_subevent(j) = data_residual_subevent(j) &
       &             + (obsvector_copy(nsta_use * (j - 1) + i) &
       &             - dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
@@ -652,7 +650,7 @@ program AmplitudeSourceLocation_masterevent
     enddo
     data_residual_subevent(j) = data_residual_subevent(j) / real(ncount, kind = fp)
   enddo
-  data_residual = data_residual / real(icount)
+  data_residual = data_residual / real(icount, kind = fp)
 
   !!estimate errors of inverted model parameters
   allocate(error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent))
@@ -730,7 +728,8 @@ program AmplitudeSourceLocation_masterevent
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
     delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
     delta_depth = obsvector(4 * (i - 1) + 4)
-    sigma_amp = sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1))
+
+    sigma_amp = exp(obsvector(4 * (i - 1) + 1)) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
     sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
@@ -756,9 +755,8 @@ program AmplitudeSourceLocation_masterevent
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
     delta_lon = (obsvector(4 * (i - 1) + 3) / ((r_earth - evdp_master) * sin(pi / 2.0_fp - evlat_master * deg2rad))) * rad2deg
     delta_depth = obsvector(4 * (i - 1) + 4)
-    !print *, obsvector(4 * (i - 1) + 1), delta_lon, delta_lat, delta_depth
-    !sigma_amp = abs(exp(-obsvector(4 * (i - 1) + 1))) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
-    sigma_amp = sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1))
+
+    sigma_amp = exp(obsvector(4 * (i - 1) + 1)) * sqrt(error_matrix(4 * (i - 1) + 1, 4 * (i - 1) + 1)) * 2.0_fp
     sigma_lat = sqrt(error_matrix(4 * (i - 1) + 2, 4 * (i - 1) + 2)) * rad2deg / (r_earth - evdp_master) * 2.0_fp
     sigma_lon = sqrt(error_matrix(4 * (i - 1) + 3, 4 * (i - 1) + 3)) &
     &         * sin(pi / 2.0_fp - evlat_master * deg2rad) * rad2deg / (r_earth - evdp_master) * 2.0_fp
@@ -769,7 +767,6 @@ program AmplitudeSourceLocation_masterevent
     &          evlon_master - delta_lon, sigma_lon, &
     &          evlat_master - delta_lat, sigma_lat, &
     &          evdp_master - delta_depth, sigma_depth, data_residual_square_subevent(i)
-
 
     write(0, '(a, i0)')           "subevent index = ", i
     write(0, '(a, 2(e14.7, 1x))') "amp_ratio and sigma_amp = ", exp(obsvector(4 * (i - 1) + 1)), sigma_amp
