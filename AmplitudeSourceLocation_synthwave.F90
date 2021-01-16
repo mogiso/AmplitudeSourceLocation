@@ -83,7 +83,7 @@ program AmplitudeSourceLocation_synthwave
 
   icount = iargc()
   if(icount .le. 1) then
-    write(0, '(a)') "usage: ./a.out dem_grdfile_name sacfile1 sacfile2 ..."
+    write(0, '(a)') "usage: ./asl_synthwave dem_grdfile_name sacfile1 sacfile2 ..."
     error stop
   endif
   nsta = icount - 1
