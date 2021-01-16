@@ -211,7 +211,7 @@ is calculated using all subevents so that estimation errors of locations would b
 
 This program accepts only text-formatted files as travel time data of the reference and the other subevents.
 
-### Executable commands
+### Executable command
 
     $ ./ttime_masterevent (name of digital elevetion map file) (name of station parameter file) (filename of travel time data of a reference event)
     (filename of travel time data of subevents) (filename of result)
@@ -230,6 +230,37 @@ This program accepts only text-formatted files as travel time data of the refere
 -0.5672537E-02  0.2319235E-01  0.1440123E+03  0.5511038E-03  0.4338324E+02  0.5624663E-03 -0.2943046E+00  0.9338595E-01
 </pre>
 From left to right, difference of origin time, latitude, logitude and depth with its errors.
+
+## AmplitudeSourceLocation_synthwave.F90
+### Description
+This program reads sac-formatted waveform files, propagates ricker wavelet(s) from assumed source location(s) to each station,
+then overwrites the waveform files.
+
+###Compile
+    $ make asl_synthwave
+
+###Executable command
+    $ ./asl_synthwave (name of digital elevation map file) (sac-formatted file 1) (sac-formatted file 2) ...
+
+###Settings
+The region of ray tracing, assumed source locations, amplitude of wavelets, etc., are hard-coded. Station locations are 
+derived from headers of sac-formatted waveforms. NVHDR of sac-formatted files should be 6.
+
+## calc_env_amplitude.F90
+###Description
+This program calculates root-mean-square amplitudes from sac-formatted waveforms. Output files can be used for AmplitudeSourceLocation_PulseWidth.F90 and AmplitudeSourceLocation_masterevent.F90. This program is used to make amplitude data from event (triggered) files.
+
+###Compile
+    $ make calc_env_amplitude
+
+###Executable command
+    $ ./calc_env_amplitude (name of station parameter file) (component) (fl) (fh) (fs) (length of RMS time window) (filename of output 1) (filename of output 2) (prefix of sac file 1) (prefix of sac file 2) ...
+
+- Format of station parameter file is the same as explained above.
+- Filenames of sac files are made inside the program as `trim(prefix of sac file) // "." // trim(station name) // "." // trim(component) // ".sac".
+- fl, fh, and fs are the parameters of band-pass filter.
+- This program reads the headers "A" as arrival time of P-waves and "T0" as that of S-waves, then applies band-pass filter and calculates RMS amplitude of the time window which length is given in arguments.
+The time window starts from arrival times of P- and S-waves. RMS amplitudes measured from P-wave arrival times are presented in (outputfile 1) while S-wave arrival times are in (outputfile 2).
 
 ## License
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978), and xorshift1024star.f90 written by Shun Sakuraba.
