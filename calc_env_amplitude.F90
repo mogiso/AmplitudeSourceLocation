@@ -17,7 +17,7 @@ program calc_env_amplitude
   real(kind = fp), allocatable :: wavedata(:), mean_amp_p(:), mean_amp_s(:)
   real(kind = sp) :: buf, ptime, begin, end, stime
   real(kind = fp) :: amp_p, amp_timewindow
-  character(len = 128) :: stationlist, infile_sac, outfile, outfile_s, outfile_s
+  character(len = 128) :: stationlist, infile_sac, outfile_p, outfile_s
   character(len = 128), allocatable :: infile(:) 
   character(len = 6),   allocatable :: stname(:)
   character(len = 4) :: header(158), nsta_c
@@ -32,8 +32,8 @@ program calc_env_amplitude
   
   iarg = iargc()
   if(iarg .lt. 9) then
-    write(0, '(a)', advance = "no") "usage: ./calc_env_amplitude (station_param_file) (component_name) (fl) (fh) (fs)"
-    write(0, '(a)')                 " (rms_time_window_length) (output_txt_P) (output_txt_S) (sacfile_index1) (sacfile_index2) ..."
+    write(0, '(a)', advance = "no") "usage: ./calc_env_amplitude (station_param_file) (component_name) (fl) (fh) (fs) "
+    write(0, '(a)')              "(rms_time_window_length) (outfile_txt_P) (outfile_txt_S) (sacfile_index1) (sacfile_index2) ..."
     error stop
   endif
   call getarg(1, stationlist)
@@ -67,8 +67,8 @@ program calc_env_amplitude
   write(nsta_c, '(i0)') nsta
   cfmt = "(a, " // trim(nsta_c) // "(a, 1x))"
 
-  open(30, file = outfile_P)
-  open(31, file = outfile_S)
+  open(30, file = outfile_p)
+  open(31, file = outfile_s)
   write(30, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
   write(31, trim(cfmt)) "# ", (trim(stname(i)), i = 1, nsta)
 
