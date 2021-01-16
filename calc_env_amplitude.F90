@@ -33,7 +33,7 @@ program calc_env_amplitude
   iarg = iargc()
   if(iarg .lt. 9) then
     write(0, '(a)', advance = "no") "usage: ./calc_env_amplitude (station_param_file) (component_name) (fl) (fh) (fs)"
-    write(0, '(a)')                 " (rms_time_windo_length) (output_txt_P) (output_txt_S) (sacfile_index1) (sacfile_index2) ..."
+    write(0, '(a)')                 " (rms_time_window_length) (output_txt_P) (output_txt_S) (sacfile_index1) (sacfile_index2) ..."
     error stop
   endif
   call getarg(1, stationlist)
