@@ -261,6 +261,7 @@ This program calculates root-mean-square amplitudes from sac-formatted waveforms
 - fl, fh, and fs are the parameters of band-pass filter.
 - This program reads the headers "A" as arrival time of P-waves and "T0" as that of S-waves, then applies band-pass filter and calculates RMS amplitude of the time window which length is given in arguments.
 The time window starts from arrival times of P- and S-waves. RMS amplitudes measured from P-wave arrival times are presented in (outputfile 1) while S-wave arrival times are in (outputfile 2).
+- This program calculates RMS amplitudes of single-component. If RMS amplitudes of plural components are needed, please modify the source code.
 
 ## License
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978), and xorshift1024star.f90 written by Shun Sakuraba.
