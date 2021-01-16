@@ -46,7 +46,7 @@ SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_mastereve
                   wavelet.f90 xorshift1024star.f90 nrtype.F90 linear_interpolation.F90 \
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
 		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 \
-                  calc_3comp_env_amplitude.F90 \
+                  calc_env_amplitude.F90 \
 		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90
 OBJS		= $(patsubst %.F90,%.o,$(patsubst %.f90,%.o,$(SRCS)))
 MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
@@ -75,7 +75,7 @@ ttime_masterevent: TraveltimeSourceLocation_masterevent.o nrtype.o constants.o r
 		linear_interpolation.o greatcircle.o grdfile_io.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
-calc_3comp_env_amplitude: calc_3comp_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
+calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sacfile.o greatcircle.o \
@@ -95,7 +95,7 @@ TraveltimeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_v
 rayshooting.o: greatcircle.o
 m_win.o: m_util.o
 m_winch.o: m_win.o
-calc_3comp_env_amplitude.o: nrtype.o constants.o calc_bpf_coef.o calc_bpf_order.o tandem.o
+calc_env_amplitude.o: nrtype.o constants.o calc_bpf_coef.o calc_bpf_order.o tandem.o
 
 
 
