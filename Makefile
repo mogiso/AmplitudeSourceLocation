@@ -40,14 +40,14 @@ OPTS = -O3 -xHOST -qopenmp
 #OPTS = -O3
 #OPTS = -O3 -fopenmp
 
-TARGET		= asl_pw asl_masterevent asl_synthwave ttime_masterevent
+TARGET		= asl_pw asl_masterevent asl_synthwave ttime_masterevent asl_masterevent_shmdump
 SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_masterevent.F90 \
                   AmplitudeSourceLocation_synthwave.F90 TraveltimeSourceLocation_masterevent.F90 \
+                  AmplitudeSourceLocation_masterevent_shmdump.F90 \
                   wavelet.f90 xorshift1024star.f90 nrtype.F90 linear_interpolation.F90 \
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
-		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 \
-                  calc_env_amplitude.F90 \
-		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90
+		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 calc_env_amplitude.F90 \
+		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90 read_shmdump.F90
 OBJS		= $(patsubst %.F90,%.o,$(patsubst %.f90,%.o,$(SRCS)))
 MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
 
@@ -64,7 +64,8 @@ asl_pw: AmplitudeSourceLocation_PulseWidth.o nrtype.o constants.o rayshooting.o 
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
-	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \ read_sacfile.o
+	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
+	read_sacfile.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
@@ -76,6 +77,11 @@ ttime_masterevent: TraveltimeSourceLocation_masterevent.o nrtype.o constants.o r
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+
+asl_masterevent_shmdump: AmplitudeSourceLocation_masterevent_shmdump.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
+	linear_interpolation.o greatcircle.o grdfile_io.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
+	read_shmdump.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sacfile.o greatcircle.o \
@@ -91,6 +97,10 @@ AmplitudeSourceLocation_synthwave.o: nrtype.o constants.o rayshooting.o read_sac
 
 TraveltimeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o
+
+AmplitudeSourceLocation_masterevent_shmdump.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
+					linear_interpolation.o greatcircle.o grdfile_io.o m_winch.o m_util.o \
+					calc_bpf_order.o calc_bpf_coef.o tandem.o read_shmdump.o
 
 rayshooting.o: greatcircle.o
 m_win.o: m_util.o
