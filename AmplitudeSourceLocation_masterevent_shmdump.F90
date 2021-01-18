@@ -13,8 +13,8 @@ program AmplitudeSourceLocation_masterevent
   &                                block_interpolation_3d
   use greatcircle,          only : greatcircle_dist
   use grdfile_io,           only : read_grdfile_2d
+  use read_shmdump,         only : read_shmdump_win
   use m_winch
-  use read_shmdump
 #ifdef MKL
   use lapack95
 #else
@@ -24,6 +24,8 @@ program AmplitudeSourceLocation_masterevent
   implicit none
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
+  integer,            parameter :: nsec_buf = 20
+  integer,            parameter :: nsample_max = 200;
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -41,12 +43,12 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
   real(kind = dp),    parameter   :: order = 1.0e+6_dp
-  real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:)
+  real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:), conv(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
-  integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
+  integer,            allocatable :: ikey(:), npts_win(:, :), npts(:)
   character(len = 4), allocatable :: st_winch(:)
   type(winch__hdr),   allocatable :: chtbl(:)
-  integer                         :: nsec, tim, time_index
+  integer                         :: nsec, time_index
   character(len = 129)            :: win_chfilename
   character(len = 10)             :: cmpnm
 
@@ -98,8 +100,6 @@ program AmplitudeSourceLocation_masterevent
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
   character(len = 20)           :: cfmt, nsta_c
 
-  !!OpenMP variable
-  !$ integer                    :: omp_thread
 
   icount = iargc()
   if(icount .ne. 9) then
@@ -117,7 +117,6 @@ program AmplitudeSourceLocation_masterevent
   call getarg(7, fs_t); read(fs_t, *) fs
   call getarg(8, ot_shift_t); read(ot_shift_t, *) ot_shift
   call getarg(9, rms_tw_t); read(rms_tw_t, *) rms_tw
-#endif
 
 #ifdef DAMPED
   write(0, '(a)') "-DDAMPED set"
@@ -176,7 +175,7 @@ program AmplitudeSourceLocation_masterevent
 
 
   !!read win channel table
-  allocate(st_winch(nsta), sampling_int(1 : nsta), conv(1 : nsta))
+  allocate(st_winch(nsta), conv(1 : nsta))
   call winch__read_tbl(trim(win_chfilename), chtbl)
   !!find chid from given stname(nsta) and cmpnm
   allocate(ikey(nsta))
@@ -204,6 +203,8 @@ program AmplitudeSourceLocation_masterevent
     print *, st_winch(i), st_chid_order(i)
   enddo
 
+  stop
+
 
   !!bandpass filter
   write(0, '(a)') "Applying bandpass filter"
@@ -215,26 +216,6 @@ program AmplitudeSourceLocation_masterevent
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) * gn
     deallocate(h)
   enddo
-#endif
-#else
-  !!read subevent paramter
-  open(unit = 10, file = subevent_param)
-  read(10, *)
-  nsubevent = 0
-  do 
-    read(10, *, iostat = ios)
-    if(ios .ne. 0) exit
-    nsubevent = nsubevent + 1
-  enddo
-  write(0, '(a, i0)') "nsubevent = ", nsubevent
-  rewind(10)
-  read(10, *)
-  allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
-  do j = 1, nsubevent
-    read(10, *) (obsamp_sub(i, j), i = 1, nsta)
-  enddo
-  close(10)
-#endif
 
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
@@ -256,23 +237,7 @@ program AmplitudeSourceLocation_masterevent
 
   allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta))
   
-  !$omp parallel default(none), &
-  !$omp&         shared(nsta, evlon_master, evlat_master, evdp_master, stlon, stlat, stdp, hypodist, ray_azinc, &
-  !$omp&                dist_min, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, &
-#if defined (WIN) || defined (SAC)
-  !$omp&                ttime, &
-#endif
-  !$omp&                velocity, qinv), &
-  !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
-  !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
-  !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, ttime_tmp, &
-  !$omp&                 dist_tmp, lon_min, lat_min, depth_min, depth_max, depth_max_tmp, velocity_interpolate, dvdz, &
-  !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, ii, kk, omp_thread)
-
-  !$ omp_thread = omp_get_thread_num()
-
   !!calculate traveltime to station        
-  !$omp do
   station_loop: do jj = 1, nsta
     !!calculate azimuth and hypocentral distance
     call greatcircle_dist(evlat_master, evlon_master, stlat(jj), stlon(jj), &
@@ -403,8 +368,6 @@ program AmplitudeSourceLocation_masterevent
 #endif
 #endif
   enddo station_loop
-  !$omp end do
-  !$omp end parallel
 
 #if defined (WIN) || defined (SAC)
 #if defined (WIN)

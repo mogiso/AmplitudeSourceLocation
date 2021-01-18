@@ -20,21 +20,22 @@ module read_shmdump
    
     integer,                parameter :: nsample_int_max = 205
     character(len = 4)                :: chid_tmp
-    integer                           :: waveform_int(nsample_int_max), sample_int, nsta 
+    integer                           :: i, j, waveform_int(nsample_int_max), sample_int, nsta, nbuf_sec, ndata_tmp, &
+    &                                    yr_tmp, mo_tmp, dy_tmp, hh_tmp, mm_tmp, ss_tmp, nch
 
     nsta = ubound(chid_order, 1)
-    nbufsec = ubound(ndata_sec, 1)
+    nbuf_sec = ubound(ndata_sec, 1)
 
     read(6, *) yr_tmp, mo_tmp, dy_tmp, hh_tmp, mm_tmp, ss_tmp, nch
-    yr(1 : nbufsec - 1) = yr(2 : nbufsec); yr(nbufsec) = yr_tmp
-    mo(1 : nbufsec - 1) = mo(2 : nbufsec); yr(nbufsec) = yr_tmp
-    dy(1 : nbufsec - 1) = dy(2 : nbufsec); yr(nbufsec) = yr_tmp
-    hh(1 : nbufsec - 1) = hh(2 : nbufsec); yr(nbufsec) = yr_tmp
-    mm(1 : nbufsec - 1) = mm(2 : nbufsec); yr(nbufsec) = yr_tmp
-    ss(1 : nbufsec - 1) = ss(2 : nbufsec); yr(nbufsec) = yr_tmp
+    yr(1 : nbuf_sec - 1) = yr(2 : nbuf_sec); yr(nbuf_sec) = yr_tmp
+    mo(1 : nbuf_sec - 1) = mo(2 : nbuf_sec); yr(nbuf_sec) = mo_tmp
+    dy(1 : nbuf_sec - 1) = dy(2 : nbuf_sec); yr(nbuf_sec) = dy_tmp
+    hh(1 : nbuf_sec - 1) = hh(2 : nbuf_sec); yr(nbuf_sec) = hh_tmp
+    mm(1 : nbuf_sec - 1) = mm(2 : nbuf_sec); yr(nbuf_sec) = mm_tmp
+    ss(1 : nbuf_sec - 1) = ss(2 : nbuf_sec); yr(nbuf_sec) = ss_tmp
   
     do j = 1, nch
-      read(6, *, advance = "no") chid_tmp, sample_int
+      read(6, '(a, 1x, i0)', advance="no") chid_tmp, sample_int
       read(6, *) (waveform_int(i), i = 1, sample_int)
       ndata_tmp = sum(ndata_sec(1 : nbuf_sec, chid_order(j)))
       waveform(1 : ndata_tmp - sample_int, chid_order(j)) = waveform(1 + sample_int : ndata_tmp, chid_order(j))
