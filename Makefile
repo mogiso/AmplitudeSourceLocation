@@ -80,8 +80,8 @@ calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o c
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 asl_masterevent_shmdump: AmplitudeSourceLocation_masterevent_shmdump.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
-	linear_interpolation.o greatcircle.o grdfile_io.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
-	read_shmdump.o
+	read_shmdump.o greatcircle.o linear_interpolation.o grdfile_io.o m_win.o m_util.o m_winch.o \
+        calc_bpf_order.o calc_bpf_coef.o tandem.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sacfile.o greatcircle.o \
