@@ -26,7 +26,7 @@ program AmplitudeSourceLocation_masterevent
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   integer,            parameter :: nsec_wavebuf = 20
   integer,            parameter :: nsample_max = 200;
-  integer,            parameter :: nsec_read = 2
+  integer,            parameter :: nsec_read = 1 
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -46,7 +46,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = dp),    parameter   :: order = 1.0e+6_dp
   real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:), conv(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
-  integer,            allocatable :: ndata_sec(:, :), st_winch_int(:), chid_order(:), yr(:), mo(:), dy(:), hh(:), mm(:), ss(:)
+  integer,            allocatable :: ndata_sec(:, :), yr(:), mo(:), dy(:), hh(:), mm(:), ss(:)
   character(len = 4), allocatable :: st_winch(:)
   type(winch__hdr),   allocatable :: chtbl(:)
   character(len = 129)            :: win_chfilename
@@ -98,7 +98,6 @@ program AmplitudeSourceLocation_masterevent
   &                                i, j, k, ii, jj, kk, icount, nsta_use, ios, index_tmp(1), ikey
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
   character(len = 20)           :: cfmt, nsta_c
-  character(len = 4)            :: chid_reset = 'ffff'
 
 
   icount = iargc()
@@ -149,7 +148,9 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
   rewind(10)
+  !!allocation related to station parameters
   allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), use_flag(1 : nsta))
+  
   nsta_use = 0
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
@@ -175,8 +176,9 @@ program AmplitudeSourceLocation_masterevent
   close(10)
 
 
+  !!allocation related to channel table
+  allocate(st_winch(nsta), conv(nsta))
   !!read win channel table
-  allocate(st_winch(nsta), st_winch_int(nsta), chid_order(nsta), conv(nsta))
   call winch__read_tbl(trim(win_chfilename), chtbl)
   !!find chid from given stname(nsta) and cmpnm
   do i = 1, nsta
@@ -188,20 +190,6 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(6a)') "station name = ", trim(stname(i)), " comp = ", trim(cmpnm), " chid = ", st_winch(i)
     conv(i) = chtbl(ikey)%conv
   enddo
-  do i = 1, nsta
-    read(st_winch(i), '(z4)') st_winch_int(i)
-  enddo
-  do i = 1, nsta
-    index_tmp = minloc(st_winch_int)
-    chid_order(index_tmp(1)) = i
-    read(chid_reset, '(z4)') st_winch_int(index_tmp(1))
-  enddo
-
-  do i = 1, nsta
-    print *, st_winch(i), chid_order(i)
-  enddo
-
-
 
   !!bandpass filter
   !write(0, '(a)') "Applying bandpass filter"
@@ -232,7 +220,8 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
 
-  allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta))
+  !!allocation related to ray tracing
+  allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta), ttime(1 : nsta))
   
   !!calculate traveltime to station        
   station_loop: do jj = 1, nsta
@@ -397,8 +386,12 @@ program AmplitudeSourceLocation_masterevent
   ndata_sec(1 : nsec_wavebuf, 1 : nsta) = 0
   do 
     !!read waveform from stdin
-    do j = 1, nsec_read
-      call read_shmdump_win(chid_order, conv, yr, mo, dy, hh, mm, ss, waveform_obs, ndata_sec)
+    do i = 1, nsec_read
+      call read_shmdump_win(st_winch, conv, yr, mo, dy, hh, mm, ss, waveform_obs, ndata_sec)
+    enddo
+    j = sum(ndata_sec(1 : nsec_wavebuf, 1))
+    do i = 1, j
+      print *, waveform_obs(i, 1)
     enddo
 
 !    icount = 1
