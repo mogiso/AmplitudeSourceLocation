@@ -109,6 +109,10 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
 
+#if defined (AMP_RATIO)
+  real(kind = dp)                   :: amp_ratio_obs, amp_ratio_cal
+#endif
+
   !!filter variables
   real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
   real(kind = dp),      allocatable :: h(:), waveform_tmp(:)
@@ -541,7 +545,11 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                amp_txt, time_count, &
 #endif
     !$omp&                rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual), &
-    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, nsta_use)
+    !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
+#if defined (AMP_RATIO)
+    !$omp&                 amp_ratio_obs, amp_ratio_cal, &
+#endif
+    !$omp&                 nsta_use)
 
     !$ omp_thread = omp_get_thread_num()
 
@@ -593,6 +601,24 @@ program AmplitudeSourceLocation_PulseWidth
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
           source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
+#ifdef AMP_RATIO
+          !!calculate amplitude ration and residual
+          residual(i, j, k) = 0.0_dp
+          nsta_use = 0
+          do jj = 1, nsta - 1
+            if(use_flag(jj) .neqv. .true.) cycle
+            do ii = jj + 1, nsta
+              if(use_flag(jj) .neqv. .true.) cycle
+              nsta_use = nsta_use + 1
+              amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
+              amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
+              &  * (real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp) / real(hypodist(ii, i, j, k), kind = dp)) &
+              &  / (real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp) / real(hypodist(jj, i, j, k), kind = dp))
+              residual(i, j, k) = residual(i, j, k) + ((amp_ratio_obs - amp_ratio_cal) / amp_ratio_cal) ** 2
+            enddo
+          enddo
+          residual(i, j, k) = sqrt(2.0_dp / real(nsta_use, kind = dp) * residual(i, j, k))
+#else
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp
           do ii = 1, nsta
@@ -604,7 +630,7 @@ program AmplitudeSourceLocation_PulseWidth
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
           enddo
           residual(i, j, k) = residual(i, j, k) / residual_normalize
-  
+#endif
         enddo lon_loop2
       enddo lat_loop2
     enddo z_loop2
