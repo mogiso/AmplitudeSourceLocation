@@ -12,6 +12,8 @@
 ##        and AmplitudeSourceLocation_masterevent.F90
 ## -DAMP_TXT: using amplitude and station parameters written in textfiles instead of win- or sac-formatted waveforms for
 ##            AmplitudeSourceLocation_PulseWidth.F90
+## -DAMP_RATIO: using ampliude ratio instead of amplitude itself (Taisne et al., 2011; Ichihara and Matsumoto, 2017) in
+##              AmplitudeSourceLocation_PulseWidth.F90
 ## -DTESTDATA: do not apply bandpass filter and site correction to input waveforms (to be used for synthetic data) 
 ## -DOUT_AMPLITUDE: output text file of observed amplitude (without site correction) for asl_masterevent
 ## -DWITHOUT_TTIME: neglect travel time from assumed source location (or reference source location) to each station
