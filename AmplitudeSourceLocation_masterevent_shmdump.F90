@@ -62,11 +62,12 @@ program AmplitudeSourceLocation_masterevent
 
   !!bandpass filter
   real(kind = dp),    parameter   :: ap = 0.5_dp, as = 5.0_dp
-  real(kind = dp),    allocatable :: h(:, :), uv(:, :)
+  real(kind = dp),    allocatable :: h(:, :), uv(:, :), gn(:)
+  integer,            allocatable :: m(:)
+  logical,            allocatable :: filtered(:, :)
   character(len = 6)              :: fl_t, fh_t, fs_t
-  real(kind = dp)                 :: fl, fh, fs, gn, c
-  integer                         :: m, n
-  logical                         :: filter_param_calc = .false.
+  real(kind = dp)                 :: fl, fh, fs, c, sampling_tmp
+  integer                         :: n
 
 #ifdef DAMPED
   real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 1.0_fp]  !![amp, dx, dy, dz]
@@ -382,17 +383,42 @@ program AmplitudeSourceLocation_masterevent
 
   allocate(yr(nsec_wavebuf), mo(nsec_wavebuf), dy(nsec_wavebuf), hh(nsec_wavebuf), mm(nsec_wavebuf), ss(nsec_wavebuf))
   allocate(waveform_obs(nsec_wavebuf * nsample_max, nsta), ndata_sec(nsec_wavebuf, nsta))
+  allocate(m(nsta), filtered(nsec_wavebuf, nsta))
+  filtered(1 : nsec_wavebuf, 1 : nsta) = .true.
   waveform_obs(1 : nsec_wavebuf * nsample_max, 1 : nsta) = 0.0_dp
   ndata_sec(1 : nsec_wavebuf, 1 : nsta) = 0
   do 
     !!read waveform from stdin
     do i = 1, nsec_read
-      call read_shmdump_win(st_winch, conv, yr, mo, dy, hh, mm, ss, waveform_obs, ndata_sec)
+      !call read_shmdump_win(st_winch, conv, yr, mo, dy, hh, mm, ss, waveform_obs, ndata_sec)
     enddo
     j = sum(ndata_sec(1 : nsec_wavebuf, 1))
     do i = 1, j
       print *, waveform_obs(i, 1)
     enddo
+    if(allocated(h) .eqv. .false.) then
+      do i = 1, nsta
+        sampling_tmp = 1.0_dp / real(ndata_sec(1, i), kind = dp)
+        call calc_bpf_order(fl, fh, fs, ap, as, sampling_tmp, m(i), n, c)
+      enddo
+      allocate(h(1 : 4 * maxval(m), 1 : nsta), uv(1 : 4 * maxval(m), 1 : nsta), gn(1 : nsta))
+      h(1 : 4 * maxval(m), 1 : nsta) = 0.0_dp
+      uv(1 : 4 * maxval(m), 1 : nsta) = 0.0_dp
+      gn(1 : nsta) = 0.0_dp
+      do i = 1, nsta
+        sampling_tmp = 1.0_dp / real(ndata_sec(1, i))
+        call calc_bpf_coef(fl, fh, sampling_tmp, m(i), n, h(1 : 4 * m(i), i), c, gn(i))
+      enddo
+    endif
+    
+    !do j = 1, nsta
+    !  ndata_tmp = 0
+    !  sec_loop: do i = 1, nsec_read
+    !    if(filtered(i, j) .eqv. .true.) cycle
+    !    call tandem2(waveform_obs
+
+        
+
 
 !    icount = 1
 !    do i = 1, nsta

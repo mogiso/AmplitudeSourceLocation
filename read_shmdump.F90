@@ -9,7 +9,7 @@ module read_shmdump
 
   contains
 
-  subroutine read_shmdump_win(chid, conv, yr, mo, dy, hh, mm, ss, waveform, ndata_sec)
+  subroutine read_shmdump_win(chid, conv, yr, mo, dy, hh, mm, ss, waveform, ndata_sec, filtered)
     use nrtype, only : fp
     implicit none
 
@@ -17,6 +17,7 @@ module read_shmdump
     real(kind = fp),    intent(in)    :: conv(:)
     integer,            intent(inout) :: yr(:), mo(:), dy(:), hh(:), mm(:), ss(:), ndata_sec(:, :)
     real(kind = fp),    intent(inout) :: waveform(:, :)
+    logical,            intent(inout) :: filtered(:, :)
    
     integer,                parameter :: nsample_int_max = 205
     character(len = 4)                :: chid_tmp
@@ -49,6 +50,7 @@ module read_shmdump
             if(ndata_sec(i, j) .eq. 0) then
               waveform(ndata_buf + 1 : ndata_buf + sample_int, j) = real(waveform_int(1 : sample_int), kind = fp) * conv(j)
               ndata_sec(i, j) = sample_int
+              filtered(i, j) = .false.
               cycle station_loop
             endif
             ndata_buf = ndata_buf + ndata_sec(i, j)
@@ -57,6 +59,7 @@ module read_shmdump
             waveform(1 : ndata_buf - sample_int, j) = waveform(1 + sample_int : ndata_buf, j)
             waveform(ndata_buf - sample_int + 1 : ndata_buf, j) = real(waveform_int(1 : sample_int), kind = fp) * conv(j)
             ndata_sec(1 : nsec_buf - 1, j) = ndata_sec(2 : nsec_buf, j); ndata_sec(nsec_buf, j) = sample_int
+            filtered(nsec_buf, j) = .false.
           endif
         endif
       enddo station_loop
