@@ -67,7 +67,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
 #if defined (SAC) /* use sac-format wavefome files (NVHDR=6) */
-  real(kind = dp),    parameter   :: order = 1.0_dp
+  real(kind = dp),    parameter   :: order = 1.0e+6_dp
   character(len = 3), parameter   :: sacfile_extension = "sac"
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), sampling(:), stime(:), ttime(:)
@@ -99,7 +99,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = dp),    parameter :: huge = 1.0e+5_dp
+  real(kind = dp),    parameter :: huge = 1.0e+6_dp
 
   real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
