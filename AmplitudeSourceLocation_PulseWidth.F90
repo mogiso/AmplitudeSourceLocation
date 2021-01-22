@@ -124,6 +124,7 @@ program AmplitudeSourceLocation_PulseWidth
   !$ integer                        :: omp_thread
 
   icount = iargc()
+
 #if defined (AMP_TXT)
   if(icount .ne. 6) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (txtfile_amplitude) (frequency)"
@@ -137,7 +138,6 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(4, freq_t); read(freq_t, *) freq
   call getarg(5, resultdir)
   call getarg(6, resultfile)
-
 #elif defined (WIN)
   if(icount .ne. 14) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (winfile) (win_chfile) (component_name)"
@@ -160,7 +160,6 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(12, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(13, resultdir)
   call getarg(14, resultfile)
-
 #elif defined (SAC)
   if(icount .ne. 13) then
     write(0, '(a)', advance="no") "usage: ./asl_pw (topography_grd) (station_param_file) (sacfile_prefix) (compnent_name)"
@@ -182,11 +181,11 @@ program AmplitudeSourceLocation_PulseWidth
   call getarg(11, rms_tw_t)  ; read(rms_tw_t, *) rms_tw
   call getarg(12, resultdir)
   call getarg(13, resultfile)
-
 #endif
 
   write(0, '(a, 3(1x, f8.3))') "lon_w, lat_s, z_min =", lon_w, lat_s, z_min
   write(0, '(a, 3(1x, i0))') "nlon, nlat, nz =", nlon, nlat, nz
+
 #if defined (WIN) || defined (SAC)
   write(0, '(a, 3(f5.2, 1x))') "Bandpass filter parameter fl, fh, fs (Hz) = ", fl, fh, fs
   freq = (fl + fh) * 0.5_dp
@@ -218,15 +217,17 @@ program AmplitudeSourceLocation_PulseWidth
   &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
   do i = 1, nsta
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i)
-#ifdef TESTDATA
+
+#if defined (TESTDATA)
     ttime_cor(i, 1) = 0.0_fp
     ttime_cor(i, 2) = 0.0_fp
     siteamp(i)   = 1.0_dp
 #endif
+
   enddo
   close(40)
 
-#ifdef AMP_TXT
+#if defined (AMP_TXT)
   open(unit = 40, file = amp_filename)
   read(40, *)
   namp = 0
@@ -244,7 +245,7 @@ program AmplitudeSourceLocation_PulseWidth
   close(40)
   write(0, '(3a, i0)') "read amplitude data from ", trim(amp_filename), " namp = ", namp
 #else 
-#ifdef WIN
+#if defined (WIN)
   allocate(st_winch(1 : nsta), sampling_int(1 : nsta), ikey(1 : nsta), &
   &        sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta))
   !!read channel_table
@@ -274,7 +275,6 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
   enddo
   deallocate(sampling_int, chtbl, waveform_obs_int, ikey, st_winch)
-  
 #elif defined (SAC)
   !!read sac file
   allocate(sampling(1 : nsta), begin(1 : nsta), npts(1 : nsta))
@@ -292,7 +292,7 @@ program AmplitudeSourceLocation_PulseWidth
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
-#endif   /* -DWIN || -DSAC */
+#endif   /* -DWIN or -DSAC */
 
   !!remove offset
   write(0, '(a)') "Removing offset"
@@ -309,7 +309,7 @@ program AmplitudeSourceLocation_PulseWidth
     enddo
   enddo
 
-#ifdef TESTDATA
+#if defined (TESTDATA)
 #else
   !!bandpass filter
   write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
@@ -381,7 +381,7 @@ program AmplitudeSourceLocation_PulseWidth
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
 
-#ifdef V_CONST
+#if defined (V_CONST)
           !!homogeneous structure: using velocity/qinv at the grid
           lon_index = int((lon_grid - lon_str_w) / dlon_str) + 1
           lat_index = int((lat_grid - lat_str_s) / dlat_str) + 1
@@ -503,6 +503,7 @@ program AmplitudeSourceLocation_PulseWidth
             width_min(jj, i, j, k) = 0.0_fp
           endif
 #endif
+
         enddo station_loop
       enddo lon_loop
     enddo lat_loop
@@ -601,7 +602,8 @@ program AmplitudeSourceLocation_PulseWidth
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
           source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
-#ifdef AMP_RATIO
+
+#if defined (AMP_RATIO)
           !!calculate amplitude ration and residual
           residual(i, j, k) = 0.0_dp
           nsta_use = 0
@@ -631,6 +633,7 @@ program AmplitudeSourceLocation_PulseWidth
           enddo
           residual(i, j, k) = residual(i, j, k) / residual_normalize
 #endif
+
         enddo lon_loop2
       enddo lat_loop2
     enddo z_loop2
@@ -642,6 +645,7 @@ program AmplitudeSourceLocation_PulseWidth
     lon_grid = lon_w + real(residual_minloc(1) - 1, kind = fp) * dlon
     lat_grid = lat_s + real(residual_minloc(2) - 1, kind = fp) * dlat
     depth_grid = z_min + real(residual_minloc(3) - 1, kind = fp) * dz
+
 #if defined (AMP_TXT)
     write(0, '(2a, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7))') &
     &                 "Index = ", trim(eventindex(time_count + 1)), " residual_minimum (lon, lat, dep) = (", &
@@ -713,19 +717,23 @@ program AmplitudeSourceLocation_PulseWidth
 #elif defined (AMP_TXT)
       rms_amp_obs(i) = amp_txt(i, time_count + 1)
 #endif
+
       write(20, '(e15.7, 1x)', advance = "no") rms_amp_obs(i)
     enddo
+
 #if defined (WIN) || defined (SAC)
     write(20, '(f0.1)') origintime
 #else
     write(20, '(a)') trim(eventindex(time_count + 1))
 #endif
+
 #endif /* -DOUT_AMPLITUDE */
     
 
     time_count = time_count + 1
   enddo time_loop
   close(10)
+
 #if defined (OUT_AMPLITUDE)
   close(20)
 #endif
