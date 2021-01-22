@@ -271,10 +271,14 @@ MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, c
 Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, Journal of Physics of the Earth, 22(1), 141-161,
 [doi: 10.4294/jpe1952.22.141](https://doi.org/10.4294/jpe1952.22.141).
 
+Ichihara and Matsumoto (2017), Relative Source Locations of Continuous Tremor Before and After the Subplinian Events at Shinmoe‐dake, in 2011, Geophys. Res. Lett., 44, 10,871-10,877, [doi: 10.1002/2017GL075293](https://doi.org/10.1002/2017GL075293).
+
 Kumagai et al. (2019), Amplitude Source Location Method With Depth-Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia,
 J. Geophys. Res., 124, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
 
 Saito (1978), An automatic design algorithm for band selective recursive digital filters, Geophysical Prospecting (Butsuri Tanko), 31(4), 240-263. (In Japanese)
+
+Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, Geophys. Res. Lett., 38, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.10299/2010GL046068).
 
 ## Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
