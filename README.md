@@ -39,6 +39,7 @@ Reference:
 - `-DTESTDATA`: do not apply band pass filter (When -DSAC or -DWIN is set, this program applys band pass filter to each waveform)
 - `-DOUT_AMPLITUDE`: output seismic amplitude at each station into a text-formatted file. This file can be used in AmplitudeSourceLocation_masterevent.F90.
 - `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
+- `-DAMP_RATIO`: conduct grid search with seismic amplitude ratios (Taisne et al., 2011; Ichihara and Matsumoto, 2017) instead of original ASL method
 
 ### Executable commands
 When `-DSAC` is set,
