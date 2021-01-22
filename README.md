@@ -278,7 +278,7 @@ J. Geophys. Res., 124, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019J
 
 Saito (1978), An automatic design algorithm for band selective recursive digital filters, Geophysical Prospecting (Butsuri Tanko), 31(4), 240-263. (In Japanese)
 
-Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, Geophys. Res. Lett., 38, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.10299/2010GL046068).
+Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, Geophys. Res. Lett., 38, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.1029/2010GL046068).
 
 ## Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
