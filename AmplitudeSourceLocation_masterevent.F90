@@ -19,14 +19,17 @@ program AmplitudeSourceLocation_masterevent
   use greatcircle,          only : greatcircle_dist
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
-#ifdef WIN
+
+#if defined (WIN)
   use m_win
   use m_winch
 #endif
-#ifdef SAC
+
+#if defined (SAC)
   use read_sacfile,         only : read_sachdr, read_sacdata
 #endif
-#ifdef MKL
+
+#if defined (MKL)
   use lapack95
 #else
   use f95_lapack
@@ -51,7 +54,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: time_step = 0.005_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
-#ifdef WIN /* use win-format waveform file for input waveforms */
+#if defined (WIN) /* use win-format waveform file for input waveforms */
   real(kind = dp),    parameter   :: order = 1.0e+6_dp
   real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
@@ -62,7 +65,8 @@ program AmplitudeSourceLocation_masterevent
   character(len = 129)            :: win_filename, win_chfilename
   character(len = 10)             :: cmpnm
 #endif
-#ifdef SAC
+
+#if defined (SAC) /* use sac-format wavefome files (NVHDR=6) */
   real(kind = dp),    parameter   :: order = 1.0_dp
   character(len = 3), parameter   :: sacfile_extension = "sac"
   real(kind = dp),    allocatable :: waveform_obs(:, :)
@@ -72,6 +76,7 @@ program AmplitudeSourceLocation_masterevent
   character(len = 129)            :: sacfile, sacfile_index
   character(len = 10)             :: cmpnm
 #endif
+
   real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:, :)
   character(len = 6), allocatable :: stname(:)
   logical,            allocatable :: use_flag(:)
@@ -81,6 +86,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp)                 :: ot_begin, ot_end, ot_shift, ot_tmp, rms_tw, amp_avg
   character(len = 10)             :: ot_begin_t, ot_end_t, ot_shift_t, rms_tw_t
 #endif
+
   !!bandpass filter
   real(kind = dp),    parameter   :: ap = 0.5_dp, as = 5.0_dp
   real(kind = dp),    allocatable :: h(:)
@@ -88,12 +94,12 @@ program AmplitudeSourceLocation_masterevent
   real(kind = dp)                 :: fl, fh, fs, gn, c
   integer                         :: m, n
 
-#ifdef DAMPED
+#if defined (DAMPED) /* constraints */
   real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 1.0_fp]  !![amp, dx, dy, dz]
 #endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = dp),    parameter :: huge = 1.0e+10_dp
+  real(kind = dp),    parameter :: huge = 1.0e+5_dp
 
   real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
@@ -124,7 +130,8 @@ program AmplitudeSourceLocation_masterevent
   !$ integer                    :: omp_thread
 
   icount = iargc()
-#ifdef WIN
+
+#if defined (WIN)
   if(icount .ne. 14) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile) "
@@ -182,7 +189,7 @@ program AmplitudeSourceLocation_masterevent
   call getarg(6, resultfile)
 #endif
 
-#ifdef DAMPED
+#if defined (DAMPED)
   write(0, '(a)') "-DDAMPED set"
   write(0, '(a, 4(f5.2, 1x), a)') "Damped matrix = [ ", (damp(i), i = 1, 4), "]"
 #endif
@@ -241,6 +248,7 @@ program AmplitudeSourceLocation_masterevent
 
 #if defined (WIN) || defined (SAC)
   allocate(sampling(1 : nsta), npts(1 : nsta), begin(1 : nsta), ttime(1 : nsta))
+
 #if defined (WIN)
   allocate(st_winch(nsta), sampling_int(1 : nsta))
   !!read channel table
@@ -276,7 +284,6 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = amp_avg / real(icount, kind = dp)
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
-
 #elif defined (SAC)
   !!read waveform data from sac
   allocate(stime(1 : nsta))
@@ -301,9 +308,9 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = amp_avg / real(icount, kind = dp)
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
-#endif  /* -DWIN || -DSAC */
+#endif
 
-#ifdef TESTDATA
+#if defined (TESTDATA)
 #else
   !!bandpass filter
   write(0, '(a)') "Applying bandpass filter"
@@ -316,7 +323,8 @@ program AmplitudeSourceLocation_masterevent
     deallocate(h)
   enddo
 #endif
-#else
+
+#else /* -DWIN || -DSAC */
   !!read subevent paramter
   open(unit = 10, file = subevent_param)
   read(10, *)
@@ -334,7 +342,7 @@ program AmplitudeSourceLocation_masterevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
   close(10)
-#endif
+#endif /* -DWIN || -DSAC */
 
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
@@ -386,12 +394,10 @@ program AmplitudeSourceLocation_masterevent
     &            - 2.0_fp * (r_earth - evdp_master) * (r_earth - stdp(jj)) * cos(epdelta))
     ray_azinc(1, jj) = az_ini
 
-#ifdef V_CONST
+#if defined (V_CONST)
     !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
     ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
-
 #else
-          
     !!do ray shooting
     dist_min(jj) = real(huge, kind = fp)
     incangle_loop2: do kk = 1, nrayshoot
@@ -467,6 +473,7 @@ program AmplitudeSourceLocation_masterevent
             inc_angle_ini_min(kk) = inc_angle_ini
             ray_azinc(2, jj) = inc_angle_ini
             depth_max = depth_max_tmp
+
 #if defined (WIN) || defined (SAC)
             ttime(jj) = ttime_tmp
 #endif
@@ -501,7 +508,9 @@ program AmplitudeSourceLocation_masterevent
 #if defined (WIN) || defined (SAC)
     write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
-#endif
+
+#endif /* -DV_CONST */
+
   enddo station_loop
   !$omp end do
   !$omp end parallel
@@ -519,10 +528,12 @@ program AmplitudeSourceLocation_masterevent
     endif
   enddo
 #endif
-#ifdef WITHOUT_TTIME
+
+#if defined (WITHOUT_TTIME)
   ttime(1 : nsta) = 0.0_fp
 #endif
-#endif
+
+#endif /* -DWIN || -DSAC */
 
   !!make amplitude data from win- or sac-formatted waveform data
 #if defined (WIN) || defined (SAC)
@@ -575,19 +586,16 @@ program AmplitudeSourceLocation_masterevent
   call block_interpolation_3d(evlon_master, evlat_master, evdp_master, xgrid, ygrid, zgrid, val_3d, qinv_interpolate)
 
   !!Set up the observation vector and inversion matrix
-#ifdef DAMPED
+#if defined (DAMPED)
   allocate(inversion_matrix(1 : nsta_use * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent), &
   &        obsvector(1 : nsta_use * nsubevent + 4 * nsubevent))
-  inversion_matrix(1 : nsta_use * nsubevent + 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
-  obsvector(1 : nsta_use * nsubevent + 4 * nsubevent) = 0.0_fp
 #else
-  allocate(inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), &
-  &        obsvector(1 : nsta_use * nsubevent))
-  inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
-  obsvector(1 : nsta_use * nsubevent) = 0.0_fp
+  allocate(inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), obsvector(1 : nsta_use * nsubevent))
 #endif
-  allocate(inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent), &
-  &        obsvector_copy(1 : nsta_use * nsubevent))
+
+  inversion_matrix(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) = 0.0_fp
+  obsvector(1 : ubound(obsvector, 1)) = 0.0_fp
+
   do j = 1, nsubevent
     icount = 1
     do i = 1, nsta
@@ -603,20 +611,24 @@ program AmplitudeSourceLocation_masterevent
       enddo
       icount = icount + 1
     enddo
-#ifdef DAMPED
+
+#if defined (DAMPED)
     do i = 1, 4
       inversion_matrix(nsta_use * nsubevent + 4 * (j - 1) + i, 4 * (j - 1) + i) = damp(i)
     enddo
 #endif
+
   enddo
 
   !!copy observation vector and inversion matrix
-  obsvector_copy(1 : nsta_use * nsubevent) = obsvector(1 : nsta_use * nsubevent)
-  inversion_matrix_copy(1 : nsta_use * nsubevent, 1 : 4 * nsubevent) &
-  &  = inversion_matrix(1 : nsta_use * nsubevent, 1 : 4 * nsubevent)
+  allocate(inversion_matrix_copy(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)), &
+  &        obsvector_copy(1 : ubound(obsvector, 1)))
+  obsvector_copy(1 : ubound(obsvector, 1)) = obsvector(1 : ubound(obsvector, 1))
+  inversion_matrix_copy(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) &
+  &  = inversion_matrix(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2))
 
   !!calculate least-squares solution
-#ifdef MKL
+#if defined (MKL)
   call gels(inversion_matrix, obsvector)
 #else
   call la_gels(inversion_matrix, obsvector)
@@ -657,9 +669,15 @@ program AmplitudeSourceLocation_masterevent
   error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
 
 #if defined (EACH_ERROR)
+#if defined (DAMPED)
+  allocate(sigma_inv_data(1 : nsta_use + 4, 1 : nsta_use + 4), &
+  &        inversion_matrix_sub(1 : nsta_use + 4, 1 : 4), error_matrix_sub(1 : 4, 1 : 4))
+#else
   allocate(sigma_inv_data(1 : nsta_use, 1 : nsta_use), &
   &        inversion_matrix_sub(1 : nsta_use, 1 : 4), error_matrix_sub(1 : 4, 1 : 4))
-  sigma_inv_data(1 : nsta_use, 1 : nsta_use) = 0.0_fp  
+#endif
+
+  sigma_inv_data(1 : ubound(sigma_inv_data, 1), 1 : ubound(sigma_inv_data, 2)) = 0.0_fp  
   do j = 1, nsubevent
     !!calculate variance
     data_variance = 0.0_fp
@@ -674,23 +692,38 @@ program AmplitudeSourceLocation_masterevent
       sigma_inv_data(i, i) = 1.0_fp / data_variance
       inversion_matrix_sub(i, 1 : 4) = inversion_matrix_copy(nsta_use * (j - 1) + i, 4 * (j - 1) + 1 : 4 * (j - 1) + 4)
     enddo
+
+#if defined (DAMPED)
+    inversion_matrix_sub(nsta_use + 1 : nsta_use + 4, 1 : 4) = 0.0_fp
+    do i = 1, 4
+      sigma_inv_data(nsta_use + i, nsta_use + i) = huge
+      inversion_matrix_sub(nsta_use + i, i) = damp(i)
+    enddo
+#endif
+
     error_matrix_sub = matmul(matmul(transpose(inversion_matrix_sub), sigma_inv_data), inversion_matrix_sub)
     allocate(ipiv(1 : size(error_matrix_sub, 1)))
-#ifdef MKL
+
+#if defined (MKL)
     call getrf(error_matrix_sub, ipiv)
     call getri(error_matrix_sub, ipiv)
 #else
     call la_getrf(error_matrix_sub, ipiv)
     call la_getri(error_matrix_sub, ipiv)
 #endif
+
     error_matrix(4 * (j - 1) + 1 : 4 * (j - 1) + 4, 4 * (j - 1) + 1 : 4 * (j - 1) + 4) = error_matrix_sub(1 : 4, 1 : 4)
     deallocate(ipiv)
   enddo
   deallocate(sigma_inv_data, inversion_matrix_sub, error_matrix_sub)
-
+#else /* -DEACH_ERROR */
+#if defined (DAMPED)
+  allocate(sigma_inv_data(1 : (nsta_use + 4) * nsubevent, 1 : (nsta_use + 4) * nsubevent))
 #else
   allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
-  sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent) = 0.0_fp
+#endif
+
+  sigma_inv_data(1 : ubound(sigma_inv_data, 1), 1 : ubound(sigma_inv_data, 2)) = 0.0_fp
   !!calculate variance
   data_variance = 0.0_fp
   icount = 0
@@ -706,21 +739,31 @@ program AmplitudeSourceLocation_masterevent
   do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
+
+#if defined (DAMPED)
+  do i = 1, 4 * nsubevent
+    sigma_inv_data(nsta_use * nsubevent + i, nsta_use * nsubevent + i) = huge
+  enddo
+#endif
+
   error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
   allocate(ipiv(1 : size(error_matrix, 1)))
-#ifdef MKL
+
+#if defined (MKL)
   call getrf(error_matrix, ipiv)
   call getri(error_matrix, ipiv)
 #else
   call la_getrf(error_matrix, ipiv)
   call la_getri(error_matrix, ipiv)
 #endif
+
   deallocate(ipiv, sigma_inv_data)
-#endif
+#endif /* -DEACH_ERROR */
   
 
   !!output result
   open(unit = 10, file = trim(resultfile))
+
 #if defined (WIN) || defined (SAC)
   write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum ot_tmp"
   do i = 1, nsubevent
