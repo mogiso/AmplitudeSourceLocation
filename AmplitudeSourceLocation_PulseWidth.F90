@@ -106,7 +106,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dlon_topo, dlat_topo, freq, rms_amp_cal
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                    npts_max, nlon_topo, nlat_topo, nsta_use, ios
+  &                                    npts_max, nlon_topo, nlat_topo, ios
   character(len = 129)              :: station_param, dem_file, ot_begin_t, ot_end_t, &
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
@@ -334,7 +334,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!calculate noise level
   allocate(rms_amp_obs_noise(1 : nsta))
 #if defined (AMP_TXT)
-  rms_amp_obs_noise(1 : nsta) = 0.0_dp
+  rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
 #else
   do j = 1, nsta
     icount = 0
@@ -557,8 +557,6 @@ program AmplitudeSourceLocation_PulseWidth
     !write(0, '(a, f6.1)') "origin time = ", origintime
 #endif
 
-    source_amp(1 : nlon, 1 : nlat, 1 : nz) = 0.0_dp
-    residual(1 : nlon, 1 : nlat, 1 : nz) = huge
     !$omp parallel default(none), &
     !$omp&         shared(nsta, freq, ttime_min, origintime, sampling, npts, waveform_obs, source_amp, begin, nsta_use_grid, &
 #if defined (AMP_TXT)
@@ -569,7 +567,7 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
 #endif
-    !$omp&                 nsta_use, use_flag_tmp, rms_amp_cal)
+    !$omp&                 use_flag_tmp, rms_amp_cal)
 
     !$ omp_thread = omp_get_thread_num()
 
@@ -581,8 +579,10 @@ program AmplitudeSourceLocation_PulseWidth
       lat_loop2: do j = 1, nlat
         lon_loop2: do i = 1, nlon
 
+          source_amp(i, j, k) = 0.0_dp
+          residual(i, j, k) = huge
           !!caluculate site-corrected amplitude
-          nsta_use = 0
+          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             use_flag_tmp(jj) = use_flag(jj)
 
@@ -616,47 +616,47 @@ program AmplitudeSourceLocation_PulseWidth
 #endif /* -DAMP_TXT */
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
-            if(use_flag_tmp(jj) .neqv. .true.) cycle
+            if(use_flag_tmp(jj) .eqv. .false.) cycle
             if(rms_amp_obs(jj) / rms_amp_obs_noise(jj) .gt. snratio_accept) then
-              nsta_use = nsta_use + 1
+              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               source_amp(i, j, k) = source_amp(i, j, k) &
               &            + rms_amp_obs(jj) / siteamp(jj) &
               &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
             endif
-            !!calculate source amplitude and residual
-            !if(use_flag(jj) .neqv. .true.) cycle
-            !nsta_use = nsta_use + 1
-            !source_amp(i, j, k) = source_amp(i, j, k) &
-            !&            + rms_amp_obs(jj) / siteamp(jj) &
-            !&            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
+          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
 
           !!check whether expected amplitude is large or not
+          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
             &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
             if(use_flag(jj) .eqv. .false.) then
-              use_flag_tmp(jj) = use_flag(jj)
+              use_flag_tmp(jj) = .false.
             else
-              if(rms_amp_cal / rms_amp_obs_noise(jj) .gt. snratio_accept) then
+              if(rms_amp_cal / rms_amp_obs_noise(jj) .gt. snratio_accept .or. &
+              &  rms_amp_obs(jj) / rms_amp_obs_noise(jj) .gt. snratio_accept) then
                 use_flag_tmp(jj) = .true.
+                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
                 use_flag_tmp(jj) = .false.
               endif
             endif
           enddo
+          !!if all stations have bad s/n ratio, use all stations
+          if(nsta_use_grid(i, j, k) .lt. 3) use_flag_tmp(1 : nsta) = use_flag(1 : nsta)
+
           !!calculate source amplitude again
           source_amp(i, j, k) = 0.0_dp
-          nsta_use = 0
+          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            if(use_flag_tmp(jj) .neqv. .true.) cycle
-            nsta_use = nsta_use + 1
+            if(use_flag_tmp(jj) .eqv. .false.) cycle
+            nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use, kind = dp)
+          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
            
 
 #if defined (AMP_RATIO)
@@ -664,9 +664,9 @@ program AmplitudeSourceLocation_PulseWidth
           residual(i, j, k) = 0.0_dp
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta - 1
-            if(use_flag_tmp(jj) .neqv. .true.) cycle
+            if(use_flag_tmp(jj) .eqv. .false.) cycle
             do ii = jj + 1, nsta
-              if(use_flag_tmp(jj) .neqv. .true.) cycle
+              if(use_flag_tmp(jj) .eqv. .false.) cycle
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
@@ -681,7 +681,7 @@ program AmplitudeSourceLocation_PulseWidth
           residual_normalize = 0.0_dp
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
-            if(use_flag_tmp(ii) .neqv. .true.) cycle
+            if(use_flag_tmp(ii) .eqv. .false.) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
