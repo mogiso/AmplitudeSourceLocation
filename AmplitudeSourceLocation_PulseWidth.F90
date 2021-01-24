@@ -617,7 +617,7 @@ program AmplitudeSourceLocation_PulseWidth
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(rms_amp_obs(jj) / rms_amp_obs_noise(jj) .gt. snratio_accept) then
+            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               source_amp(i, j, k) = source_amp(i, j, k) &
               &            + rms_amp_obs(jj) / siteamp(jj) &
@@ -629,13 +629,22 @@ program AmplitudeSourceLocation_PulseWidth
           !!check whether expected amplitude is large or not
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
-            &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
+            !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            !if(use_flag(jj) .eqv. .false.) then
+            !  use_flag_tmp(jj) = .false.
+            !else
+            !  if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
+            !  &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            !    use_flag_tmp(jj) = .true.
+            !    nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            !  else
+            !    use_flag_tmp(jj) = .false.
+            !  endif
             if(use_flag(jj) .eqv. .false.) then
               use_flag_tmp(jj) = .false.
             else
-              if(rms_amp_cal / rms_amp_obs_noise(jj) .gt. snratio_accept .or. &
-              &  rms_amp_obs(jj) / rms_amp_obs_noise(jj) .gt. snratio_accept) then
+              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
                 use_flag_tmp(jj) = .true.
                 nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
