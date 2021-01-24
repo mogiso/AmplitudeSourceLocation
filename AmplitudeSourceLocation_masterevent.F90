@@ -38,6 +38,7 @@ program AmplitudeSourceLocation_masterevent
   implicit none
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
+  real(kind = fp),    parameter :: snratio_accept = 0.1_fp
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -79,7 +80,7 @@ program AmplitudeSourceLocation_masterevent
 
   real(kind = fp),    allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:, :)
   character(len = 6), allocatable :: stname(:)
-  logical,            allocatable :: use_flag(:)
+  logical,            allocatable :: use_flag(:), use_flag_tmp(:)
   character(len = 10)             :: freq_t
 
 #if defined (WIN) || defined (SAC)
@@ -107,8 +108,8 @@ program AmplitudeSourceLocation_masterevent
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector(1 : 3)
   real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp),  allocatable :: obsamp_master(:), obsamp_sub(:, :), hypodist(:), ray_azinc(:, :), dist_min(:), &
-  &                                obsvector(:), obsvector_copy(:), &
+  real(kind = fp),  allocatable :: obsamp_master(:), obsamp_sub(:, :), obsamp_noise(:), hypodist(:), ray_azinc(:, :), &
+  &                                dist_min(:), obsvector(:), obsvector_copy(:), &
   &                                inversion_matrix(:, :), inversion_matrix_copy(:, :), inversion_matrix_sub(:, :), &
   &                                sigma_inv_data(:, :), error_matrix(:, :), error_matrix_sub(:, :), &
   &                                data_residual_subevent(:), data_residual_square_subevent(:)
@@ -221,7 +222,8 @@ program AmplitudeSourceLocation_masterevent
     error stop
   endif
   rewind(10)
-  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), use_flag(1 : nsta))
+  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
+  &        use_flag(1 : nsta), use_flag_tmp(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
     read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
@@ -322,6 +324,15 @@ program AmplitudeSourceLocation_masterevent
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) * gn
     deallocate(h)
   enddo
+  allocate(obsamp_noise(1 : nsta))
+  do j = 1, nsta
+    obsamp_noise(j) = 0.0_fp
+    icount = 0
+    do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
+      obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
+    enddo
+    obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
+  enddo
 #endif
 
 #else /* -DWIN || -DSAC */
@@ -342,6 +353,8 @@ program AmplitudeSourceLocation_masterevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
   close(10)
+  allocate(obsamp_noise(1 : nsta))
+  obsamp_noise(1 : nsta) = 0.0_fp
 #endif /* -DWIN || -DSAC */
 
   !!set velocity/attenuation structure
@@ -597,18 +610,44 @@ program AmplitudeSourceLocation_masterevent
   obsvector(1 : ubound(obsvector, 1)) = 0.0_fp
 
   do j = 1, nsubevent
+    !!check sn ratio
+    use_flag_tmp(1 : nsta) = .false.
+    icount = 0
+    do i = 1, nsta
+      if(use_flag(i) .eqv. .false.) then
+        use_flag_tmp(i) = .false.
+        cycle
+      else
+        if(obsamp_sub(i, j) .gt. snratio_accept * obsamp_noise(i)) then
+          use_flag_tmp(i) = .true.
+          icount = icount + 1
+        else
+          use_flag_tmp(i) = .false.
+        endif
+      endif
+    enddo
+    if(icount .lt. 4) use_flag_tmp(1 : nsta) = use_flag(1 : nsta)
+
     icount = 1
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
-      obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
-      normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
-      &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
-      &                       cos(ray_azinc(2, i))]
-      inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
-      matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
-      do ii = 1, 3
-        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
-      enddo
+      if(use_flag_tmp(i) .eqv. .true.) then
+        obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
+        normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
+        &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
+        &                       cos(ray_azinc(2, i))]
+        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
+        matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
+        do ii = 1, 3
+          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
+        enddo
+      else
+        obsvector(nsta_use * (j - 1) + icount) = 0.0_fp
+        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 0.0_fp
+        do ii = 1, 3
+          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = 0.0_fp
+        enddo
+      endif
       icount = icount + 1
     enddo
 
