@@ -125,9 +125,14 @@ Each slice contain the estimated source location.
 ## AmplitudeSourceLocation_masterevent.F90
 ### Description
 This program estimates relative source locations of seismic events as well as relative amplitude of source radiation from seimic amplitudes. The formulation is given by
-Ogiso and Yomogida (2021, submitted to Earth, Planets and Space). Although this
+Ogiso and Yomogida (2021, Earth, Planets and Space). Although this
 program links set_velocity_model.F90, i.e., 1-D velocity and 3-D attenuation strucutures are used, the formulation requires only velocity and attenuation factors at
 the location of reference event. 
+
+**Note** I would be happy if you refer to Ogiso and Yomogida (2021) when you publish results derived with this program.
+
+Ogiso, M. and K. Yomogida (2021), Estimation of Relative source locations from seismic amplitude: application to earthquakes
+and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and Space*, **73**, [doi: 10.1186/s40623-021-01366-8](https://doi.org/10.1186/s40623-021-01366-8).
 
 ### Compile
     $ make asl_masterevent
