@@ -633,6 +633,8 @@ program AmplitudeSourceLocation_masterevent
     icount = 1
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) cycle
+      if(obsamp_sub(i, j) .eq. 0.0_fp) use_flag_tmp(i) = .false.
+
       if(use_flag_tmp(i) .eqv. .true.) then
         nsta_use_tmp(j) = nsta_use_tmp(j) + 1
         obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
