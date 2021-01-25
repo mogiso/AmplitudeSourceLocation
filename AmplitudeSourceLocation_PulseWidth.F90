@@ -27,7 +27,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  real(kind = dp),        parameter :: snratio_accept = 2.5_dp
+  real(kind = dp),        parameter :: snratio_accept = 0.5_dp
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -626,9 +626,10 @@ program AmplitudeSourceLocation_PulseWidth
           enddo
           source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
 
-          !!check whether expected amplitude is large or not
+          !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
+            !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
             !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
             !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
             !if(use_flag(jj) .eqv. .false.) then
@@ -641,6 +642,9 @@ program AmplitudeSourceLocation_PulseWidth
             !  else
             !    use_flag_tmp(jj) = .false.
             !  endif
+            !endif
+
+            !!just compare amplitude  of signal and noise
             if(use_flag(jj) .eqv. .false.) then
               use_flag_tmp(jj) = .false.
             else
@@ -698,7 +702,7 @@ program AmplitudeSourceLocation_PulseWidth
             &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)) ** 2
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
           enddo
-          residual(i, j, k) = residual(i, j, k) / residual_normalize / real(nsta_use_grid(i, j, k), kind = dp)
+          residual(i, j, k) = residual(i, j, k) / residual_normalize
 #endif
 
         enddo lon_loop2
