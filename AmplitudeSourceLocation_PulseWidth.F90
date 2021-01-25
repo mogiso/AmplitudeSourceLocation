@@ -790,6 +790,7 @@ program AmplitudeSourceLocation_PulseWidth
          endif
       enddo
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
+      if(rms_amp_obs(i) .le. snratio_accept + rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
 #elif defined (AMP_TXT)
       rms_amp_obs(i) = amp_txt(i, time_count + 1)
 #endif
