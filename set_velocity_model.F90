@@ -64,6 +64,29 @@ module set_velocity_model
       qinv(1 : nlon, 1 : nlat, i, 2) = 1.0_fp / 50.0_fp
       qinv(1 : nlon, 1 : nlat, i, 1) = qinv(1 : nlon, 1 : nlat, i, 2) / (9.0_fp / 4.0_fp)
 
+#elif defined (V_OFFKII)
+      !!velocity structure read visually from Nakanishi et al., 2002, JGR, doi: 10.1029/2001JB000424
+      if(i .eq. 1) write(0, '(a)') "velocity = off Kii peninsula"
+      if(depth .le. 7.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = 2.0_fp
+      elseif(depth .gt. 7.0_fp .and. depth .le. 9.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (5.6_fp - 2.0_fp) / (9.0_fp - 7.0_fp) * (depth - 7.0_fp) + 2.0_fp
+      elseif(depth .gt. 9.0_fp .and. depth .le. 13.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (6.8_fp - 5.6_fp) / (13.0_fp - 9.0_fp) * (depth - 9.0_fp) + 5.6_fp
+      elseif(depth .gt. 13.0_fp .and. depth .le. 14.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (8.0_fp - 6.8_fp) / (14.0_fp - 13.0_fp) * (depth - 13.0_fp) + 6.8_fp
+      elseif(depth .gt. 14.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (8.2_fp - 8.0_fp) / (33.0_fp - 14.0_fp) * (depth - 14.0_fp) + 8.0_fp
+      endif
+      !!Vp to Vs
+      velocity(1 : nlon, 1 : nlat, i, 2) = velocity(1 : nlon, 1 : nlat, i, 1) / VpVs
+
+      !!freq = 5.0 (Hz, 2-8 Hz BPF), velocity = 3.5 km/s, C = 0.02 (1/km) from
+      !!Yabe et al., 2020, Techtonophysics, doi: 10.1016/j.tecto.2020.228714
+      qinv(1 : nlon, 1 : nlat, i, 2) = (0.02_fp * 3.5_fp) / (3.1415_fp * 5.0_fp)
+      qinv(1 : nlon, 1 : nlat, i, 1) = qinv(1 : nlon, 1 : nlat, i, 2) / (9.0_fp / 4.0_fp)
+   
+
 #elif defined (JMA2001)
       if(i .eq. 1) write(0, '(a)') "velocity = (approx.) JMA2001"
       if(depth .le. 4.5_fp) then
