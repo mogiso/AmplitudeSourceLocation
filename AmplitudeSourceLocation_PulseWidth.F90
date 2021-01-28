@@ -354,6 +354,31 @@ program AmplitudeSourceLocation_PulseWidth
     &     "station(", i, ") lon(deg) = ", lon_sta(i), " lat(deg) = ", lat_sta(i), " depth(km) = ", z_sta(i), use_flag(i)
   enddo
 
+#if defined (READ_TTIMETABLE)
+  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", recl = fp, iostat = ios)
+  if(ios .ne. 0) then
+    close(10)
+    write(0, '(a)') "error: cannot read ttime_pulsewidth_table.dat"
+    error stop
+  else
+    icount = 1
+    do k = 1, nz - 1
+      do j = 1, nlat
+        do i = 1, nlon
+          do ii = 1, nsta
+            read(10, rec = icount) ttime_min(ii, i, j, k)
+            icount = icount + 1
+            read(10, rec = icount) width_min(ii, i, j, k)
+            icount = icount + 1
+          enddo
+        enddo
+      enddo
+    enddo
+    close(10)
+  endif
+
+#else /* -DREAD_TTIMETABLE */
+
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
@@ -529,6 +554,30 @@ program AmplitudeSourceLocation_PulseWidth
   enddo z_loop
   !$omp end do
   !$omp end parallel
+
+#if defined (OUT_TTIMETABLE)
+  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", status = "new", recl = fp, iostat = ios)
+  if(ios .ne. 0) then
+    close(10)
+  else
+    icount = 1
+    do k = 1, nz - 1
+      do j = 1, nlat
+        do i = 1, nlon
+          do ii = 1, nsta
+            write(10, rec = icount) ttime_min(ii, i, j, k)
+            icount = icount + 1
+            write(10, rec = icount) width_min(ii, i, j, k)
+            icount = icount + 1
+          enddo
+        enddo
+      enddo
+    enddo
+    close(10)
+  endif
+#endif
+
+#endif /* -DREAD_TTIMETABLE */
 
   !!find minimum residual grid for seismic source 
   resultfile = trim(resultdir) // "/" // trim(resultfile)
