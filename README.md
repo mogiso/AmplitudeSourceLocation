@@ -193,9 +193,8 @@ from each event files, then use it in this program.
  0.13694487E+01  0.43662547E-01  0.14400865E+03  0.83566489E-03  0.43377499E+02  0.96718466E-03 -0.19974685E+00  0.14947270E+00  0.13499187E-02
  0.13912410E+01  0.43662547E-01  0.14400986E+03  0.83566489E-03  0.43378075E+02  0.96718466E-03 -0.21122230E-01  0.14947270E+00  0.27494096E-02
 </pre>
-From left to right, relative source amplitude, latitude, logitude and depth with its errors. 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
+From left to right, relative source amplitude (ratio of source amplitude), latitude, logitude and depth with its errors. 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
 times are given in this column. Otherwise, this column will be blank.
-- 1st column (amp_ratio) is the ratio of source amplitudes ($$A_{k} / A_{j}).
 
 
 ## TraveltimeSourceLocation_masterevent.F90
