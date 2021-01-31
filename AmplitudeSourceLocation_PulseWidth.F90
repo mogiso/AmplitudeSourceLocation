@@ -28,6 +28,7 @@ program AmplitudeSourceLocation_PulseWidth
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
   real(kind = dp),        parameter :: snratio_accept = 0.5_dp
+  real(kind = fp),        parameter :: rayshooting_threshold = 300.0_fp !!distance threshold for ray shooting
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -59,7 +60,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
   real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.005_fp, dlat = 0.005_fp, dz = 1.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
@@ -265,6 +266,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!read waveform_obs_int from winfile
   call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
   npts_max = ubound(waveform_obs_int, 1)
+  print *, nsec, sampling_int(1)
   nch_chtbl = ubound(chtbl, 1)
   begin(1 : nsta) = 0.0_fp
   allocate(waveform_obs(1 : npts_max, 1 : nsta))
@@ -362,7 +364,7 @@ program AmplitudeSourceLocation_PulseWidth
     error stop
   else
     icount = 1
-    do k = 1, nz - 1
+    do k = 1, nz
       do j = 1, nlat
         do i = 1, nlon
           do ii = 1, nsta
@@ -382,7 +384,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
-  !$omp&         shared(topography, nsta, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
+  !$omp&         shared(topography, nsta, stname, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
   !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo), &
   !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
@@ -394,15 +396,15 @@ program AmplitudeSourceLocation_PulseWidth
   !$ omp_thread = omp_get_thread_num()
 
   !$omp do schedule(guided)
-  z_loop: do k = 1, nz - 1
+  z_loop: do k = 1, nz
     depth_grid = z_min + dz * real(k - 1, kind = fp)
-    !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
+    !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
     lat_loop: do j = 1, nlat
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
       lon_loop: do i = 1, nlon
         lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
-        ttime_min(1 : nsta, i, j, k) = huge
+        ttime_min(1 : nsta, i, j, k) = real(huge, kind = fp)
 
         !!check the grid is lower than the topo
         lon_index = int((lon_grid - lon_topo(1)) / dlon_topo) + 1
@@ -434,6 +436,13 @@ program AmplitudeSourceLocation_PulseWidth
           width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(lon_index, lat_index, z_index, wavetype)
 
 #else
+
+          !!do not rayshooting if hypodist is longer than threshold
+          if(hypodist(jj, i, j, k) .gt. rayshooting_threshold) then
+            width_min(jj, i, j, k) = 0.0_fp
+            ttime_min(jj, i, j, k) = real(huge, kind = fp)
+            cycle station_loop
+          endif
           
           !!do ray shooting
           dist_min = huge
@@ -538,30 +547,36 @@ program AmplitudeSourceLocation_PulseWidth
             enddo incangle_loop
           enddo incangle_loop2
           !print '(a, 4(f8.4, 1x))', "grid lon, lat, depth, az_ini = ", lon_grid, lat_grid, depth_grid, az_ini * rad2deg
-          !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
+          !print '(a, i0, 3a, 3(f8.4, 1x))', "jj = ", jj, " station ", &
+          !&                                  trim(stname(jj)), " lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
           !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
           !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
           !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+          !print *, ""
           if(dist_min .gt. rayshoot_dist_thr) then
-            ttime_min(jj, i, j, k) = huge
+            ttime_min(jj, i, j, k) = real(huge, kind = fp)
             width_min(jj, i, j, k) = 0.0_fp
           endif
 #endif
 
         enddo station_loop
       enddo lon_loop
+      !!$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " lat index j = ", j, " depth index k = ", k, " end"
     enddo lat_loop
   enddo z_loop
   !$omp end do
   !$omp end parallel
 
 #if defined (OUT_TTIMETABLE)
-  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", status = "new", recl = fp, iostat = ios)
+  open(unit = 10, file = "ttime_pulsewidth_table.dat", access = "direct", form = "unformatted", &
+  &    status = "new", recl = fp, iostat = ios)
   if(ios .ne. 0) then
     close(10)
+    write(0, '(a)') "Travel time table (ttime_pulsewidth_table.dat) has already existed."
+    error stop
   else
     icount = 1
-    do k = 1, nz - 1
+    do k = 1, nz
       do j = 1, nlat
         do i = 1, nlon
           do ii = 1, nsta
@@ -622,7 +637,7 @@ program AmplitudeSourceLocation_PulseWidth
 
 
     !$omp do schedule(guided)
-    z_loop2: do k = 1, nz - 1
+    z_loop2: do k = 1, nz
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
       lat_loop2: do j = 1, nlat
@@ -650,6 +665,7 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
             if(wave_index .gt. npts(jj)) then
               write(0, '(a)') "wave_index is larger than npts"
+              write(0, *) jj, wave_index, npts(jj)
               close(10)
               error stop
             endif

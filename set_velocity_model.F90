@@ -61,7 +61,7 @@ module set_velocity_model
       velocity(1 : nlon, 1 : nlat, i, 1) = 2.5_fp
       !!Vp to Vs
       velocity(1 : nlon, 1 : nlat, i, 2) = velocity(1 : nlon, 1 : nlat, i, 1) / VpVs
-      qinv(1 : nlon, 1 : nlat, i, 2) = 1.0_fp / 50.0_fp
+      qinv(1 : nlon, 1 : nlat, i, 2) = 1.0_fp / 500.0_fp
       qinv(1 : nlon, 1 : nlat, i, 1) = qinv(1 : nlon, 1 : nlat, i, 2) / (9.0_fp / 4.0_fp)
 
 #elif defined (V_OFFKII)
