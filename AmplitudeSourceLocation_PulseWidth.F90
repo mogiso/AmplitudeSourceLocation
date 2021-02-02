@@ -363,7 +363,7 @@ program AmplitudeSourceLocation_PulseWidth
   enddo
 
 #if defined (READ_TTIMETABLE)
-  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", recl = fp, iostat = ios)
+  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", access = "direct", recl = fp, iostat = ios)
   if(ios .ne. 0) then
     close(10)
     write(0, '(a)') "error: cannot read ttime_pulsewidth_table.dat"
@@ -377,6 +377,8 @@ program AmplitudeSourceLocation_PulseWidth
             read(10, rec = icount) ttime_min(ii, i, j, k)
             icount = icount + 1
             read(10, rec = icount) width_min(ii, i, j, k)
+            icount = icount + 1
+            read(10, rec = icount) hypodist(ii, i, j, k)
             icount = icount + 1
           enddo
         enddo
@@ -585,6 +587,8 @@ program AmplitudeSourceLocation_PulseWidth
             icount = icount + 1
             write(10, rec = icount) width_min(ii, i, j, k)
             icount = icount + 1
+            write(10, rec = icount) hypodist(ii, i, j, k)
+            icount = icount + 1
           enddo
         enddo
       enddo
@@ -665,7 +669,7 @@ program AmplitudeSourceLocation_PulseWidth
           do jj = 1, nsta
             rms_amp_obs(jj) = 0.0_fp
 
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle lon_loop2
             if(use_flag(jj) .eqv. .false.) cycle
 
 #if defined (AMP_TXT)
@@ -717,16 +721,12 @@ program AmplitudeSourceLocation_PulseWidth
             if(use_flag(jj) .eqv. .false.) then
               use_flag_tmp(jj) = .false.
             else
-              if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
-                use_flag_tmp(jj) = .false.
+              !!just compare amplitude  of signal and noise
+              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+                use_flag_tmp(jj) = .true.
+                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
-                !!just compare amplitude  of signal and noise
-                if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                  use_flag_tmp(jj) = .true.
-                  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-                else
-                  use_flag_tmp(jj) = .false.
-                endif
+                use_flag_tmp(jj) = .false.
               endif
             endif
           enddo
@@ -738,7 +738,6 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
 
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
@@ -754,10 +753,8 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta - 1
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             do ii = jj + 1, nsta
               if(use_flag_tmp(ii) .eqv. .false.) cycle
-              if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
@@ -777,7 +774,6 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
             if(use_flag_tmp(ii) .eqv. .false.) cycle
-            if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
