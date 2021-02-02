@@ -25,8 +25,6 @@ seismic amplitudes from text file. This program makes travel time and pulse widt
 a grid search in a given region to find suitable seismic source locations sequentially. A parallelization using OpenMP is available. I recommend to use OpenMP because
 making travel time and pulse width tables is time-consuming work.
 
-Reference:
-
 ### Compile
     $ make asl_pw
 
@@ -126,13 +124,13 @@ Each slice contain the estimated source location.
 ### Description
 This program estimates relative source locations of seismic events as well as relative amplitude of source radiation from seimic amplitudes. The formulation is given by
 Ogiso and Yomogida (2021, Earth, Planets and Space). Although this
-program links set_velocity_model.F90, i.e., 1-D velocity and 3-D attenuation strucutures are used, the formulation requires only velocity and attenuation factors at
+program links set_velocity_model.F90, i.e., 1-D velocity and 3-D attenuation strucutures are used, the formulation requires an attenuation factor at
 the location of reference event. 
 
 **Note** I would be happy if you refer to Ogiso and Yomogida (2021) when you publish results derived with this program.
 
 Ogiso, M. and K. Yomogida (2021), Estimation of Relative source locations from seismic amplitude: application to earthquakes
-and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and Space*, **73**, [doi: 10.1186/s40623-021-01366-8](https://doi.org/10.1186/s40623-021-01366-8).
+and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and Space*, **73**:29, [doi: 10.1186/s40623-021-01366-8](https://doi.org/10.1186/s40623-021-01366-8).
 
 ### Compile
     $ make asl_masterevent
@@ -195,9 +193,8 @@ from each event files, then use it in this program.
  0.13694487E+01  0.43662547E-01  0.14400865E+03  0.83566489E-03  0.43377499E+02  0.96718466E-03 -0.19974685E+00  0.14947270E+00  0.13499187E-02
  0.13912410E+01  0.43662547E-01  0.14400986E+03  0.83566489E-03  0.43378075E+02  0.96718466E-03 -0.21122230E-01  0.14947270E+00  0.27494096E-02
 </pre>
-From left to right, relative source amplitude, latitude, logitude and depth with its errors. 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
+From left to right, relative source amplitude (ratio of source amplitude), latitude, logitude and depth with its errors. 10th column is a comment; if `-DSAC` or `-DWIN` is set, assumed origin
 times are given in this column. Otherwise, this column will be blank.
-- 1st column (amp_ratio) is the ratio of source amplitudes ($$A_{k} / A_{j}).
 
 
 ## TraveltimeSourceLocation_masterevent.F90
@@ -273,17 +270,20 @@ The time window starts from arrival times of P- and S-waves. RMS amplitudes meas
 MIT License except m_util.f90, m_win.f90, m_winch.f90 written by Takuto Maeda, calc_bpf_order.f90, calc_bpf_coef.f90, tandem1.f90 taken from Saito (1978), and xorshift1024star.f90 written by Shun Sakuraba.
 
 ## References
-Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, Journal of Physics of the Earth, 22(1), 141-161,
+Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, *Journal of Physics of the Earth*, **22**(1), 141-161,
 [doi: 10.4294/jpe1952.22.141](https://doi.org/10.4294/jpe1952.22.141).
 
-Ichihara and Matsumoto (2017), Relative Source Locations of Continuous Tremor Before and After the Subplinian Events at Shinmoe-dake, in 2011, Geophys. Res. Lett., 44, 10,871-10,877, [doi: 10.1002/2017GL075293](https://doi.org/10.1002/2017GL075293).
+Ichihara and Matsumoto (2017), Relative Source Locations of Continuous Tremor Before and After the Subplinian Events at Shinmoe-dake, in 2011, *Geophys. Res. Lett.*, **44**, 10,871-10,877, [doi: 10.1002/2017GL075293](https://doi.org/10.1002/2017GL075293).
 
 Kumagai et al. (2019), Amplitude Source Location Method With Depth-Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia,
-J. Geophys. Res., 124, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
+*J. Geophys. Res.*, **124**, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
 
-Saito (1978), An automatic design algorithm for band selective recursive digital filters, Geophysical Prospecting (Butsuri Tanko), 31(4), 240-263. (In Japanese)
+Ogiso, M. and K. Yomogida (2021), Estimation of Relative source locations from seismic amplitude: application to earthquakes
+and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and Space*, **73**:29, [doi: 10.1186/s40623-021-01366-8](https://doi.org/10.1186/s40623-021-01366-8).
 
-Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, Geophys. Res. Lett., 38, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.1029/2010GL046068).
+Saito (1978), An automatic design algorithm for band selective recursive digital filters, *Geophysical Prospecting (Butsuri Tanko)*, **31**(4), 240-263. (In Japanese)
+
+Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, *Geophys. Res. Lett.*, **38**, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.1029/2010GL046068).
 
 ## Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
