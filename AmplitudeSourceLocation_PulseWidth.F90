@@ -695,7 +695,7 @@ program AmplitudeSourceLocation_PulseWidth
               &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
             endif
           enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
+          if(nsta_use_grid(i, j, k) .ne. 0) source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
 
           !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
@@ -745,7 +745,7 @@ program AmplitudeSourceLocation_PulseWidth
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
           enddo
-          source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
+          if(nsta_use_grid(i, j, k) .ne. 0) source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
            
 
 #if defined (AMP_RATIO)
@@ -754,8 +754,10 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta - 1
             if(use_flag_tmp(jj) .eqv. .false.) cycle
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             do ii = jj + 1, nsta
-              if(use_flag_tmp(jj) .eqv. .false.) cycle
+              if(use_flag_tmp(ii) .eqv. .false.) cycle
+              if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
@@ -764,13 +766,18 @@ program AmplitudeSourceLocation_PulseWidth
               residual(i, j, k) = residual(i, j, k) + ((amp_ratio_obs - amp_ratio_cal) / amp_ratio_cal) ** 2
             enddo
           enddo
-          residual(i, j, k) = sqrt(2.0_dp / real(nsta_use_grid(i, j, k), kind = dp) * residual(i, j, k))
+          if(nsta_use_grid(i, j, k) .ne. 0) then 
+            residual(i, j, k) = sqrt(2.0_dp / real(nsta_use_grid(i, j, k), kind = dp) * residual(i, j, k))
+          else
+            residual(i, j, k) = huge
+          endif
 #else
           residual(i, j, k) = 0.0_dp
           residual_normalize = 0.0_dp
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
             if(use_flag_tmp(ii) .eqv. .false.) cycle
+            if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
