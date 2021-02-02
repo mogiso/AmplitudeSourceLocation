@@ -26,9 +26,10 @@ program AmplitudeSourceLocation_PulseWidth
   !$ use omp_lib
 
   implicit none
-  integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
+  integer,                parameter :: wavetype = 2                        !!1 for P-wave, 2 for S-wave
   real(kind = dp),        parameter :: snratio_accept = 0.5_dp
-  real(kind = fp),        parameter :: rayshooting_threshold = 300.0_fp !!distance threshold for ray shooting
+  real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp !!distance threshold for ray shooting
+  real(kind = fp),        parameter :: conv_rayshoot_dist_thr = 0.1_fp     !!convergence threshold for ray shooting
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -60,7 +61,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
   real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 2.0_fp
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
@@ -71,7 +72,6 @@ program AmplitudeSourceLocation_PulseWidth
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
   integer,                parameter :: nrayshoot = 2                            !!number of grid search
   real(kind = fp),        parameter :: time_step = 0.01_fp
-  real(kind = fp),        parameter :: rayshoot_dist_thr = 0.05_fp
 
   integer,                parameter :: maxlen = 4
   real(kind = fp),        parameter :: alt_to_depth = -1.0e-3_fp
@@ -266,7 +266,6 @@ program AmplitudeSourceLocation_PulseWidth
   !!read waveform_obs_int from winfile
   call win__read_file(trim(win_filename), st_winch, sampling_int, nsec, tim, waveform_obs_int, npts_win)
   npts_max = ubound(waveform_obs_int, 1)
-  print *, nsec, sampling_int(1)
   nch_chtbl = ubound(chtbl, 1)
   begin(1 : nsta) = 0.0_fp
   allocate(waveform_obs(1 : npts_max, 1 : nsta))
@@ -274,9 +273,13 @@ program AmplitudeSourceLocation_PulseWidth
   do j = 1, nsta
     npts(j) = nsec * sampling_int(j)
     sampling(j) = 1.0_fp / real(sampling_int(j), kind = fp)
-    do i = 1, npts(j)
-      waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(ikey(j))%conv * order
-    enddo
+    if(npts(j) .eq. 0) then
+      use_flag(j) = .false.
+    else
+      do i = 1, npts(j)
+        waveform_obs(i, j) = waveform_obs_int(i, j) * chtbl(ikey(j))%conv * order
+      enddo
+    endif
   enddo
   deallocate(sampling_int, chtbl, waveform_obs_int, ikey, st_winch)
 #elif defined (SAC)
@@ -301,6 +304,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!remove offset
   write(0, '(a)') "Removing offset"
   do j = 1, nsta
+    if(use_flag(j) .eqv. .false.) cycle
     amp_avg = 0.0_dp
     icount = 0
     do i = 1, int(rms_tw / sampling(j))
@@ -318,6 +322,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!bandpass filter
   write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
   do j = 1, nsta
+    if(use_flag(j) .eqv. .false.) cycle
     !!design
     call calc_bpf_order(fl, fh, fs, ap, as, sampling(j), m, n, c)
     allocate(h(4 * m), waveform_tmp(npts(j)))
@@ -341,6 +346,7 @@ program AmplitudeSourceLocation_PulseWidth
   do j = 1, nsta
     icount = 0
     rms_amp_obs_noise(j) = 0.0_dp
+    if(use_flag(j) .eqv. .false.) cycle
     do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
       rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
       icount = icount + 1
@@ -385,7 +391,7 @@ program AmplitudeSourceLocation_PulseWidth
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
   !$omp&         shared(topography, nsta, stname, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
-  !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo), &
+  !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo, use_flag), &
   !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
@@ -397,14 +403,18 @@ program AmplitudeSourceLocation_PulseWidth
 
   !$omp do schedule(guided)
   z_loop: do k = 1, nz
+  !z_loop: do k = nz / 2, nz / 2
     depth_grid = z_min + dz * real(k - 1, kind = fp)
-    !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
+    !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
     lat_loop: do j = 1, nlat
+    !lat_loop: do j = nlat / 2, nlat / 2
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
       lon_loop: do i = 1, nlon
+      !lon_loop: do i = nlon / 2, nlon / 2
         lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
         ttime_min(1 : nsta, i, j, k) = real(huge, kind = fp)
+        width_min(1 : nsta, i, j, k) = 0.0_fp
 
         !!check the grid is lower than the topo
         lon_index = int((lon_grid - lon_topo(1)) / dlon_topo) + 1
@@ -420,12 +430,10 @@ program AmplitudeSourceLocation_PulseWidth
         station_loop: do jj = 1, nsta
           !!calculate azimuth and hypocentral distance
           call greatcircle_dist(lat_grid, lon_grid, lat_sta(jj), lon_sta(jj), azimuth = az_ini, delta_out = epdelta)
-          !lon_index = int((lon_sta(jj) - lon_w) / dlon) + 1
-          !lat_index = int((lat_sta(jj) - lat_s) / dlat) + 1
-          !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
-          !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
+
+          if(use_flag(jj) .eqv. .false.) cycle
 
 #if defined (V_CONST)
           !!homogeneous structure: using velocity/qinv at the grid
@@ -438,16 +446,9 @@ program AmplitudeSourceLocation_PulseWidth
 #else
 
           !!do not rayshooting if hypodist is longer than threshold
-          if(hypodist(jj, i, j, k) .gt. rayshooting_threshold) then
-            width_min(jj, i, j, k) = 0.0_fp
-            ttime_min(jj, i, j, k) = real(huge, kind = fp)
-            cycle station_loop
-          endif
-          
+          if(hypodist(jj, i, j, k) .gt. do_rayshooting_threshold) cycle station_loop
           !!do ray shooting
           dist_min = huge
-          ttime_min(jj, i, j, k) = real(huge, kind = fp)
-          width_min(jj, i, j, k) = 0.0_fp
           incangle_loop2: do kk = 1, nrayshoot
             if(kk .eq. 1) then
               dinc_angle_org = pi / 2.0_fp
@@ -553,7 +554,7 @@ program AmplitudeSourceLocation_PulseWidth
           !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
           !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
           !print *, ""
-          if(dist_min .gt. rayshoot_dist_thr) then
+          if(dist_min .gt. conv_rayshoot_dist_thr) then
             ttime_min(jj, i, j, k) = real(huge, kind = fp)
             width_min(jj, i, j, k) = 0.0_fp
           endif
@@ -561,7 +562,7 @@ program AmplitudeSourceLocation_PulseWidth
 
         enddo station_loop
       enddo lon_loop
-      !!$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " lat index j = ", j, " depth index k = ", k, " end"
+      !$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " lat index j = ", j, " depth index k = ", k, " end"
     enddo lat_loop
   enddo z_loop
   !$omp end do
@@ -626,11 +627,13 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (AMP_TXT)
     !$omp&                amp_txt, time_count, &
 #endif
-    !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual), &
+    !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
+    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
 #endif
+    !$omp&                 lon_grid, lat_grid, lon_index, lat_index, xgrid, ygrid, val_2d, topography_interpolate, &
     !$omp&                 use_flag_tmp, rms_amp_cal)
 
     !$ omp_thread = omp_get_thread_num()
@@ -641,18 +644,29 @@ program AmplitudeSourceLocation_PulseWidth
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
       lat_loop2: do j = 1, nlat
+        lat_grid = lat_s + dlat * real(j - 1, kind = fp)
         lon_loop2: do i = 1, nlon
+          lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
           source_amp(i, j, k) = 0.0_dp
           residual(i, j, k) = huge
+
+          !!check the grid is lower than the topo
+          lon_index = int((lon_grid - lon_topo(1)) / dlon_topo) + 1
+          lat_index = int((lat_grid - lat_topo(1)) / dlat_topo) + 1
+          xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
+          ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
+          val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
+          call linear_interpolation_2d(lon_grid, lat_grid, xgrid, ygrid, val_2d, topography_interpolate)
+          if(depth_grid .lt. topography_interpolate) cycle lon_loop2
+
           !!caluculate site-corrected amplitude
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            use_flag_tmp(jj) = use_flag(jj)
+            rms_amp_obs(jj) = 0.0_fp
 
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
-              cycle lon_loop2
-            endif
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
+            if(use_flag(jj) .eqv. .false.) cycle
 
 #if defined (AMP_TXT)
             rms_amp_obs(jj) = amp_txt(jj, time_count + 1)
@@ -663,13 +677,6 @@ program AmplitudeSourceLocation_PulseWidth
             wave_index = int((origintime - begin(jj) + ttime_min(jj, i, j, k) + ttime_cor(jj, wavetype)) &
             &                / sampling(jj) + 0.5_fp) + 1
 #endif
-            if(wave_index .gt. npts(jj)) then
-              write(0, '(a)') "wave_index is larger than npts"
-              write(0, *) jj, wave_index, npts(jj)
-              close(10)
-              error stop
-            endif
-            rms_amp_obs(jj) = 0.0_fp
             icount = 0
             do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
               if(ii .lt. npts(jj)) then
@@ -677,11 +684,10 @@ program AmplitudeSourceLocation_PulseWidth
                 icount = icount + 1
               endif
             enddo
-            rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
+            if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
 #endif /* -DAMP_TXT */
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
-            if(use_flag_tmp(jj) .eqv. .false.) cycle
             if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               source_amp(i, j, k) = source_amp(i, j, k) &
@@ -708,16 +714,19 @@ program AmplitudeSourceLocation_PulseWidth
             !    use_flag_tmp(jj) = .false.
             !  endif
             !endif
-
-            !!just compare amplitude  of signal and noise
             if(use_flag(jj) .eqv. .false.) then
               use_flag_tmp(jj) = .false.
             else
-              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                use_flag_tmp(jj) = .true.
-                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-              else
+              if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
                 use_flag_tmp(jj) = .false.
+              else
+                !!just compare amplitude  of signal and noise
+                if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+                  use_flag_tmp(jj) = .true.
+                  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+                else
+                  use_flag_tmp(jj) = .false.
+                endif
               endif
             endif
           enddo
@@ -729,6 +738,8 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
+
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
