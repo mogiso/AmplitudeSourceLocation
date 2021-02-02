@@ -69,14 +69,18 @@ module set_velocity_model
       if(i .eq. 1) write(0, '(a)') "velocity = off Kii peninsula"
       if(depth .le. 7.0_fp) then
         velocity(1 : nlon, 1 : nlat, i, 1) = 2.0_fp
-      elseif(depth .gt. 7.0_fp .and. depth .le. 9.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = (5.6_fp - 2.0_fp) / (9.0_fp - 7.0_fp) * (depth - 7.0_fp) + 2.0_fp
-      elseif(depth .gt. 9.0_fp .and. depth .le. 13.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = (6.8_fp - 5.6_fp) / (13.0_fp - 9.0_fp) * (depth - 9.0_fp) + 5.6_fp
-      elseif(depth .gt. 13.0_fp .and. depth .le. 14.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = (8.0_fp - 6.8_fp) / (14.0_fp - 13.0_fp) * (depth - 13.0_fp) + 6.8_fp
-      elseif(depth .gt. 14.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = (8.2_fp - 8.0_fp) / (33.0_fp - 14.0_fp) * (depth - 14.0_fp) + 8.0_fp
+      !elseif(depth .gt. 7.0_fp .and. depth .le. 9.0_fp) then
+      !  velocity(1 : nlon, 1 : nlat, i, 1) = (5.6_fp - 2.0_fp) / (9.0_fp - 7.0_fp) * (depth - 7.0_fp) + 2.0_fp
+      !elseif(depth .gt. 9.0_fp .and. depth .le. 13.0_fp) then
+      !  velocity(1 : nlon, 1 : nlat, i, 1) = (6.8_fp - 5.6_fp) / (13.0_fp - 9.0_fp) * (depth - 9.0_fp) + 5.6_fp
+      !elseif(depth .gt. 13.0_fp .and. depth .le. 14.0_fp) then
+      !  velocity(1 : nlon, 1 : nlat, i, 1) = (8.0_fp - 6.8_fp) / (14.0_fp - 13.0_fp) * (depth - 13.0_fp) + 6.8_fp
+      !elseif(depth .gt. 14.0_fp) then
+      !  velocity(1 : nlon, 1 : nlat, i, 1) = (8.2_fp - 8.0_fp) / (33.0_fp - 14.0_fp) * (depth - 14.0_fp) + 8.0_fp
+      elseif(depth .gt. 7.0_fp .and. depth .le. 11.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (8.0_fp - 2.0_fp) / (11.0_fp - 7.0_fp) * (depth - 7.0_fp) + 2.0_fp
+      elseif(depth .gt. 11.0_fp) then
+        velocity(1 : nlon, 1 : nlat, i, 1) = (8.2_fp - 8.0_fp) / (45.0_fp - 11.0_fp) * (depth - 11.0_fp) + 8.0_fp
       endif
       !!Vp to Vs
       velocity(1 : nlon, 1 : nlat, i, 2) = velocity(1 : nlon, 1 : nlat, i, 1) / VpVs
