@@ -27,10 +27,10 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 5
+  integer,                parameter :: nsta_use_minimum = 8
   real(kind = dp),        parameter :: snratio_accept = 0.0_dp
-  real(kind = fp),        parameter :: do_rayshooting_threshhold = 300.0_fp
-  real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.05_fp
+  real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
+  real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
