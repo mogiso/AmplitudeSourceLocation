@@ -27,7 +27,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  real(kind = dp),        parameter :: snratio_accept = 0.5_dp
+  integer,                parameter :: nsta_use_minimum = 5
+  real(kind = dp),        parameter :: snratio_accept = 0.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshhold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.05_fp
   !!Use station
@@ -363,7 +364,7 @@ program AmplitudeSourceLocation_PulseWidth
   enddo
 
 #if defined (READ_TTIMETABLE)
-  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", recl = fp, iostat = ios)
+  open(unit = 10, file = "ttime_pulsewidth_table.dat", form = "unformatted", access = "direct", recl = fp, iostat = ios)
   if(ios .ne. 0) then
     close(10)
     write(0, '(a)') "error: cannot read ttime_pulsewidth_table.dat"
@@ -377,6 +378,8 @@ program AmplitudeSourceLocation_PulseWidth
             read(10, rec = icount) ttime_min(ii, i, j, k)
             icount = icount + 1
             read(10, rec = icount) width_min(ii, i, j, k)
+            icount = icount + 1
+            read(10, rec = icount) hypodist(ii, i, j, k)
             icount = icount + 1
           enddo
         enddo
@@ -577,6 +580,8 @@ program AmplitudeSourceLocation_PulseWidth
             icount = icount + 1
             write(10, rec = icount) width_min(ii, i, j, k)
             icount = icount + 1
+            write(10, rec = icount) hypodist(ii, i, j, k)
+            icount = icount + 1
           enddo
         enddo
       enddo
@@ -642,6 +647,7 @@ program AmplitudeSourceLocation_PulseWidth
 
           source_amp(i, j, k) = 0.0_dp
           residual(i, j, k) = huge
+          nsta_use_grid(i, j, k) = 0
 
           !!check the grid is lower than the topo
           lon_index = int((lon_grid - lon_topo(1)) / dlon_topo) + 1
@@ -653,7 +659,6 @@ program AmplitudeSourceLocation_PulseWidth
           if(depth_grid .lt. topography_interpolate) cycle lon_loop2
 
           !!caluculate site-corrected amplitude
-          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             rms_amp_obs(jj) = 0.0_fp
 
@@ -685,6 +690,7 @@ program AmplitudeSourceLocation_PulseWidth
               source_amp(i, j, k) = source_amp(i, j, k) &
               &            + rms_amp_obs(jj) / siteamp(jj) &
               &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
+              !print *, source_amp(i, j, k)
             endif
           enddo
           if(nsta_use_grid(i, j, k) .ne. 0) source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
@@ -692,6 +698,7 @@ program AmplitudeSourceLocation_PulseWidth
           !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
             !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
             !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
@@ -709,21 +716,16 @@ program AmplitudeSourceLocation_PulseWidth
             if(use_flag(jj) .eqv. .false.) then
               use_flag_tmp(jj) = .false.
             else
-              if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
-                use_flag_tmp(jj) = .false.
+              !!just compare amplitude  of signal and noise
+              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+                use_flag_tmp(jj) = .true.
+                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
-                !!just compare amplitude  of signal and noise
-                if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                  use_flag_tmp(jj) = .true.
-                  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-                else
-                  use_flag_tmp(jj) = .false.
-                endif
+                use_flag_tmp(jj) = .false.
               endif
             endif
           enddo
-          !!if all stations have bad s/n ratio, use all stations
-          if(nsta_use_grid(i, j, k) .lt. 3) use_flag_tmp(1 : nsta) = use_flag(1 : nsta)
+          if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
           !!calculate source amplitude again
           source_amp(i, j, k) = 0.0_dp
@@ -731,7 +733,6 @@ program AmplitudeSourceLocation_PulseWidth
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
             if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
-
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
@@ -769,15 +770,20 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
             if(use_flag_tmp(ii) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
+            if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
             &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)) ** 2
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
+            !residual_normalize = source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
+            !&                    * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)
+            !residual(i, j, k) = residual(i, j, k) &
+            !&                 + ((rms_amp_obs(ii) / siteamp(ii) - residual_normalize) / residual_normalize) ** 2
           enddo
           residual(i, j, k) = residual(i, j, k) / residual_normalize
+          !residual(i, j, k) = residual(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
 #endif
 
         enddo lon_loop2
@@ -865,7 +871,7 @@ program AmplitudeSourceLocation_PulseWidth
          endif
       enddo
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
-      if(rms_amp_obs(i) .le. snratio_accept + rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
+      if(rms_amp_obs(i) .le. snratio_accept * rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
 #elif defined (AMP_TXT)
       rms_amp_obs(i) = amp_txt(i, time_count + 1)
 #endif
