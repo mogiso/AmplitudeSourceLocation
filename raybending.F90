@@ -1,12 +1,37 @@
 module raybending
   implicit none
   private
+  public :: pseudobending3D
 
 contains
 
+  subroutine pseudobending3D(source, receiver, velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep)
+    use def_gridpoint
+    use nrtype, only : fp
+    use constants, only : r_earth, deg2rad, rad2deg
+
+    type(gridpoint), intent(inout) :: source, receiver
+    real(kind = fp), intent(in) :: velocity(:, :, :)
+    real(kind = fp), intent(in) :: lon_w, lat_s, dep_min, dlon, dlat, ddep
+
+    integer :: nlon, nlat, ndep
+
+
+    nlon = ubound(velocity, 1)
+    nlat = ubound(velocity, 2)
+    ndep = ubound(velocity, 3)
+
+    source%r = r_earth - source%dep
+    call latgtoc(source%lat, source%theta); source%theta = pi * 0.5_fp - source%theta
+    source%phi = source%lon * deg2rad
+    receiver%r = 
+
+
+
+
   subroutine move_node(node1, node2, node3, velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
-    !!move node2 based on Koketsu and Sekine (1998) eq. 19
-    !!node1 and node3 are fixed
+    !!three-point perturbation scheme of raypath based on Koketsu and Sekine (1998) eq. 19
+    !!node1 and node3 are fixed, move node2
     use def_gridpoint
     use nrtype,               only : fp
     use constants,            only : r_earth, pi, rad2deg, deg2rad
@@ -15,7 +40,7 @@ contains
     implicit none
     type(gridpoint), intent(in)    :: node1, node3
     type(gridpoint), intent(inout) :: node2
-    real(kind = fp), intent(in)    :: velocity(:, :, :)       !!either velocity of  P- or S-waves
+    real(kind = fp), intent(in)    :: velocity(:, :, :)       !!either velocity of P- or S-waves
     real(kind = fp), intent(in)    :: lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor
 
     real(kind = fp) :: dist_l, normal_vector_mid, slowness_mid, const, dist_move
@@ -32,7 +57,7 @@ contains
     node_mid%lon = node_mid%phi * rad2deg
     call latctog(pi * 0.5_fp - node_mid%theta, node_mid%lat)
 
-    !!calculate distance between node1 and node3, divide by 2
+    !!calculate distance between node1 and node3, then divide by 2
     call hypodist(node1%lat, node1%lon, node1%dep, node3%lat, node3%lon, node3%dep, dist_l)
     dist_l = dist_l * 0.5_fp
 
@@ -45,9 +70,9 @@ contains
     lon_index = int((node_mid%lon - lon_w) / dlon) + 1
     lat_index = int((node_mid%lat - lat_s) / dlat) + 1
     z_index   = int((node_mid%dep - dep_min) / ddep) + 1
-    lon_grid(1 : 2) = lon_w + dlon * real(lon_index - 1, kind = fp)
-    lat_grid(1 : 2) = lat_s + dlat * real(lat_index - 1, kind = fp)
-    z_grid(1 : 2) = dep_min + ddep * real(z_index - 1, kind = fp)
+    lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
+    lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
+    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
 
     call linear_interpolation_3d(node_mid%lon, node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, v_mid)
@@ -71,19 +96,21 @@ contains
     lon_index = int((node1%lon - lon_w) / dlon) + 1
     lat_index = int((node1%lat - lat_s) / dlat) + 1
     z_index   = int((node1%dep - dep_min) / ddep) + 1
-    lon_grid(1 : 2) = lon_w + dlon * real(lon_index - 1, kind = fp)
-    lat_grid(1 : 2) = lat_s + dlat * real(lat_index - 1, kind = fp)
-    z_grid(1 : 2) = dep_min + ddep * real(z_index - 1, kind = fp)
+    lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
+    lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
+    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
     call linear_interpolation_3d(node1%lon, node1%lat, node1%dep, lon_grid, lat_grid, z_grid, val_3d, v1)
+
     lon_index = int((node2%lon - lon_w) / dlon) + 1
     lat_index = int((node2%lat - lat_s) / dlat) + 1
     z_index   = int((node2%dep - dep_min) / ddep) + 1
-    lon_grid(1 : 2) = lon_w + dlon * real(lon_index - 1, kind = fp)
-    lat_grid(1 : 2) = lat_s + dlat * real(lat_index - 1, kind = fp)
-    z_grid(1 : 2) = dep_min + ddep * real(z_index - 1, kind = fp)
+    lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
+    lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
+    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
     call linear_interpolation_3d(node2%lon, node2%lat, node2%dep, lon_grid, lat_grid, z_grid, val_3d, v2)
+
     slowness_mid = (1.0_fp / v1 + 1.0_fp / v2) * 0.5_fp
     const = (slowness_mid * v_mid + 1.0_fp) / (4.0_fp * slowness_mid * dot_product(normal_vector_mid, grad_v_mid))
     dist_move = -const + sqrt(const * const + dist_l ** 2 * 0.5_fp / (slowness_mid * v_mid))
