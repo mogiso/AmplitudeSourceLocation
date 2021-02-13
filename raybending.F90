@@ -19,10 +19,11 @@ contains
     integer,         intent(in) :: ndiv_raypath
 
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
-    real(kind = fp),  parameter :: enhance_factor = 1.5_fp
+    real(kind = fp),  parameter :: enhance_factor = 1.3_fp
 
-    type(gridpoint)             :: raynode(1 + 2 ** ndiv_raypath)
-    real(kind = fp)             :: traveltime_ini, traveltime_new, traveltime_tmp
+    type(gridpoint)             :: raynode(2 + 2 ** ndiv_raypath - 1)
+    real(kind = fp)             :: traveltime_ini, traveltime_new, traveltime_tmp, traveltime_raybend_new, traveltime_raybend_old
+    real(kind = fp)             :: cos_psi, dist_tmp
     integer                     :: i, j, nlon, nlat, ndep, nraynode, raynode_index_mid
 
     nlon = ubound(velocity, 1)
@@ -51,54 +52,74 @@ contains
     raypath_divide: do j = 1, ndiv_raypath   !!do loop for dividing raypath
       !!change array indices of exsisting nodes
       do i = nraynode, 2, -1
-       raynode(i + 2 ** ((j - 1) + (i - nraynode)) + (j - 1)) = raynode(i)
-       print *, "move raynode from ", i, " to ", i + 2 ** ((j - 1) + (i - nraynode)) + j - 1
+       raynode(i + 2 ** (j - 1) - (nraynode - i)) = raynode(i)
       enddo
 
       !!add new raynodes
       !!each new raynode locates at the midpoint of existing nodes
       nraynode = nraynode + 2 ** (j - 1)
       do i = 2, nraynode - 1, 2
-        print *, "new raynode at ", i
-        raynode(i)%r = (raynode(i + 1)%r + raynode(i - 1)%r) * 0.5_fp
+        !raynode(i)%r = (raynode(i + 1)%r + raynode(i - 1)%r) * 0.5_fp
+        call hypodist(raynode(i + 1)%lat, raynode(i + 1)%lon, raynode(i + 1)%dep, &
+        &             raynode(i - 1)%lat, raynode(i - 1)%lon, raynode(i - 1)%dep, dist_tmp)
+        cos_psi = (dist_tmp ** 2 + raynode(i - 1)%r ** 2 - raynode(i + 1)%r ** 2) / (2.0_fp * dist_tmp * raynode(i - 1)%r)
+        raynode(i)%r = sqrt(raynode(i - 1)%r ** 2 + dist_tmp ** 2 * 0.25_fp - raynode(i - 1)%r * dist_tmp * cos_psi)
         raynode(i)%theta = (raynode(i + 1)%theta + raynode(i - 1)%theta) * 0.5_fp
         raynode(i)%phi = (raynode(i + 1)%phi + raynode(i - 1)%phi) * 0.5_fp
         raynode(i)%dep = r_earth - raynode(i)%r
         raynode(i)%lon = raynode(i)%phi * rad2deg
         raynode(i)%lat = pi * 0.5_fp - raynode(i)%theta; call latctog(raynode(i)%lat, raynode(i)%lat)
       enddo
+      do i = 1, nraynode
+         print '(a, i0, a, 3(e15.7, 1x))', "raynode(", i, ") lon, lat, dep = ", raynode(i)%lon, raynode(i)%lat, raynode(i)%dep
+      enddo
+
+      print *, "ndiv_raypath_count, j = ", j, "nraynode (aft. added) = ", nraynode
 
       !!calculate travel time
-      traveltime_tmp = 0.0_fp
+      traveltime_new = 0.0_fp
       do i = 1, nraynode - 1
         call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
         &                            traveltime_tmp)
         traveltime_new = traveltime_new + traveltime_tmp
       enddo
-      !if(traveltime_ini - traveltime_new .le. traveltime_diff_threshold) then
-      !  traveltime_ini = traveltime_new
-      !  exit raypath_divide
-      !endif
+      print *, "traveltime_new = ", traveltime_new
+      traveltime_ini = traveltime_new
  
-      !raybend_loop: do
-      !  raynode_index_mid = nraynode / 2 + 1
-      !  do i = 2, raynode_index_mid - 1
-      !    call move_node(raynode(i - 1), raynode(i), raynode(i + 1), &
-      !    &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
-      !  enddo
+      traveltime_raybend_old = traveltime_ini
+      raybend_loop: do
+        raynode_index_mid = nraynode / 2 + 1
+        if(raynode_index_mid .gt. 2) then
+          do i = 2, raynode_index_mid - 1
+            print *, "raybend node = ", i, nraynode - i + 1
+            call move_node(raynode(i - 1), raynode(i), raynode(i + 1), &
+            &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
+            call move_node(raynode(nraynode - i), raynode(nraynode - i + 1), raynode(nraynode - i + 2), &
+            &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
+          enddo
+        endif
+        !print *, raynode(raynode_index_mid)%lon, raynode(raynode_index_mid)%lat, raynode(raynode_index_mid)%dep
+        print *, raynode(raynode_index_mid)%r, raynode(raynode_index_mid)%theta * rad2deg, &
+        &        raynode(raynode_index_mid)%phi * rad2deg, "old"
+        call move_node(raynode(raynode_index_mid - 1), raynode(raynode_index_mid), raynode(raynode_index_mid + 1), &
+        &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
+        !print *, raynode(raynode_index_mid)%lon, raynode(raynode_index_mid)%lat, raynode(raynode_index_mid)%dep
+        print *, raynode(raynode_index_mid)%r, raynode(raynode_index_mid)%theta * rad2deg, &
+        &        raynode(raynode_index_mid)%phi * rad2deg, "new"
 
-      !  traveltime_new = 0.0_fp
-      !  do i = 1, nraynode - 1
-      !    call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
-      !    &                            traveltime_tmp)
-      !    traveltime_new = traveltime_new + traveltime_tmp
-      !  enddo
+        traveltime_raybend_new = 0.0_fp
+        do i = 1, nraynode - 1
+          call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
+          &                            traveltime_tmp)
+          traveltime_raybend_new = traveltime_raybend_new + traveltime_tmp
+        enddo
+        print *, "traveltime_raybend_new = ", traveltime_raybend_new
 
-      !  if(traveltime_ini - traveltime_tmp .le. traveltime_diff_threshold) then
-      !    traveltime_tmp = traveltime_ini
-      !    exit raybend_loop
-      !  endif
-      !enddo raybend_loop
+        if(abs(traveltime_raybend_old - traveltime_raybend_new) .lt. traveltime_diff_threshold) then
+          exit raybend_loop
+        endif
+        traveltime_raybend_old = traveltime_raybend_new
+      enddo raybend_loop
     enddo raypath_divide
 
     return
@@ -118,23 +139,25 @@ contains
     real(kind = fp), intent(in)    :: velocity(:, :, :)       !!either velocity of P- or S-waves
     real(kind = fp), intent(in)    :: lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor
 
-    real(kind = fp) :: dist_l, slowness_mid, const, dist_move, v1, v2, vmid
+    real(kind = fp) :: dist_l, slowness_mid, const, dist_move, v1, v2, vmid, cos_psi, vector_len
     real(kind = fp) :: tangentvector_mid(3), normalvector_mid(3), grad_vmid(3), &
     &                  lon_grid(2), lat_grid(2), z_grid(2), val_3d(2, 2, 2)
-    integer :: lon_index, lat_index, z_index
+    integer :: lon_index, lat_index, z_index, i
     type(gridpoint) :: node_mid, node_tmp
-
-    !!calculate location of midpoint between node1 and node3
-    node_mid%r = 0.5_fp * (node1%r + node3%r)
-    node_mid%theta = 0.5_fp * (node1%theta + node3%theta)
-    node_mid%phi = 0.5_fp * (node1%phi + node3%phi)
-    node_mid%dep = r_earth - node_mid%r
-    node_mid%lon = node_mid%phi * rad2deg
-    call latctog(pi * 0.5_fp - node_mid%theta, node_mid%lat)
 
     !!calculate distance between node1 and node3, then divide by 2
     call hypodist(node1%lat, node1%lon, node1%dep, node3%lat, node3%lon, node3%dep, dist_l)
     dist_l = dist_l * 0.5_fp
+
+    !!calculate location of midpoint between node1 and node3
+    node_mid%theta = 0.5_fp * (node1%theta + node3%theta)
+    node_mid%phi = 0.5_fp * (node1%phi + node3%phi)
+    !!psi is the angle between dist_l and node1%r
+    cos_psi = (4.0_fp * dist_l ** 2 + node1%r ** 2 - node3%r ** 2) / (4.0_fp * dist_l * node1%r)
+    node_mid%r = sqrt(node1%r ** 2 + dist_l ** 2 - 2.0_fp * node1%r * dist_l * cos_psi)
+    node_mid%dep = r_earth - node_mid%r
+    node_mid%lon = node_mid%phi * rad2deg
+    call latctog(pi * 0.5_fp - node_mid%theta, node_mid%lat)
 
     !!calculate tangent vector at node_mid
     tangentvector_mid(1) = 0.5_fp / dist_l * (node3%r - node1%r)
@@ -153,20 +176,38 @@ contains
     call linear_interpolation_3d(node_mid%lon, node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
 
     !!calculate velocity gradient at node_mid
-    call linear_interpolation_3d(node_mid%lon, node_mid%lat, z_grid(1), lon_grid, lat_grid, z_grid, val_3d, v1)
-    call linear_interpolation_3d(node_mid%lon, node_mid%lat, z_grid(2), lon_grid, lat_grid, z_grid, val_3d, v2)
-    grad_vmid(1) = (v2 - v1) / ddep
-    call linear_interpolation_3d(node_mid%lon, lat_grid(1), node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
-    call linear_interpolation_3d(node_mid%lon, lat_grid(2), node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
-    grad_vmid(2) = -(v2 - v1) / (dlat * node_mid%r)
-    call linear_interpolation_3d(lon_grid(1), node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
-    call linear_interpolation_3d(lon_grid(2), node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
-    grad_vmid(3) = (v2 - v1) / (dlon * node_mid%r * sin(node_mid%theta))
+    grad_vmid(1) = (velocity(lon_index, lat_index, z_index + 1) - velocity(lon_index, lat_index, z_index)) &
+    &            + (velocity(lon_index + 1, lat_index, z_index + 1) - velocity(lon_index + 1, lat_index, z_index)) &
+    &            + (velocity(lon_index, lat_index + 1, z_index + 1) - velocity(lon_index, lat_index + 1, z_index)) &
+    &            + (velocity(lon_index + 1, lat_index + 1, z_index + 1) - velocity(lon_index + 1, lat_index + 1, z_index))
+    grad_vmid(1) = grad_vmid(1) * (-0.25_fp) / ddep
+
+    grad_vmid(2) = (velocity(lon_index, lat_index + 1, z_index) - velocity(lon_index, lat_index, z_index)) &
+    &            + (velocity(lon_index + 1, lat_index + 1, z_index) - velocity(lon_index + 1, lat_index, z_index)) &
+    &            + (velocity(lon_index, lat_index + 1, z_index + 1) - velocity(lon_index, lat_index, z_index + 1)) &
+    &            + (velocity(lon_index + 1, lat_index + 1, z_index + 1) - velocity(lon_index + 1, lat_index, z_index + 1))
+    grad_vmid(2) = grad_vmid(2) * (-0.25_fp) / (dlat * node_mid%r)
+
+    grad_vmid(3) = (velocity(lon_index + 1, lat_index, z_index) - velocity(lon_index, lat_index, z_index)) &
+    &            + (velocity(lon_index + 1, lat_index + 1, z_index) - velocity(lon_index, lat_index + 1, z_index)) &
+    &            + (velocity(lon_index + 1, lat_index, z_index + 1) - velocity(lon_index, lat_index, z_index + 1)) &
+    &            + (velocity(lon_index + 1, lat_index + 1, z_index + 1) - velocity(lon_index, lat_index + 1, z_index + 1))
+    grad_vmid(3) = grad_vmid(3) * 0.25_fp / (dlon * node_mid%r * sin(node_mid%theta))
+
+    !print *, "dot_product(grad_vmid, tangentvector) = ", dot_product(grad_vmid, tangentvector_mid)
 
     !!calculate normal vector of ray at node_mid
     normalvector_mid(1 : 3) = -1.0_fp / vmid &
     &                        * (grad_vmid(1 : 3) - dot_product(grad_vmid, tangentvector_mid) * tangentvector_mid(1 : 3))
-    normalvector_mid(1 : 3) = -normalvector_mid(1 : 3) / abs(normalvector_mid)
+    vector_len = sqrt(normalvector_mid(1) ** 2 + normalvector_mid(2) ** 2 + normalvector_mid(3) ** 2)
+    normalvector_mid(1 : 3) = normalvector_mid(1 : 3) / vector_len
+
+    print *, "tangentvector", (tangentvector_mid(i), i = 1, 3)
+    print *, "normalvector", (normalvector_mid(i), i = 1, 3)
+    print *, "grad_vmid", (grad_vmid(i), i = 1, 3)
+
+    !check
+    print *, dot_product(tangentvector_mid, normalvector_mid)
 
     !!calculate distance to move node2
     lon_index = int((node1%lon - lon_w) / dlon) + 1
@@ -191,6 +232,8 @@ contains
     const = (slowness_mid * vmid + 1.0_fp) / (4.0_fp * slowness_mid * dot_product(normalvector_mid, grad_vmid))
     dist_move = -const + sqrt(const * const + dist_l ** 2 * 0.5_fp / (slowness_mid * vmid))
 
+    print *, "dist_move = ", dist_move
+  
     !!calculate new location of node
     normalvector_mid = -normalvector_mid
     node_tmp%r = node_mid%r + dist_move * normalvector_mid(1)
