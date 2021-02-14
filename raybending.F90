@@ -19,7 +19,7 @@ contains
     integer,         intent(in) :: ndiv_raypath
 
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
-    real(kind = fp),  parameter :: enhance_factor = 1.3_fp
+    real(kind = fp),  parameter :: enhance_factor = 1.0_fp
 
     type(gridpoint)             :: raynode(2 + 2 ** ndiv_raypath - 1)
     real(kind = fp)             :: traveltime_ini, traveltime_new, traveltime_tmp, traveltime_raybend_new, traveltime_raybend_old
@@ -60,8 +60,8 @@ contains
       nraynode = nraynode + 2 ** (j - 1)
       do i = 2, nraynode - 1, 2
         !raynode(i)%r = (raynode(i + 1)%r + raynode(i - 1)%r) * 0.5_fp
-        call hypodist(raynode(i + 1)%lat, raynode(i + 1)%lon, raynode(i + 1)%dep, &
-        &             raynode(i - 1)%lat, raynode(i - 1)%lon, raynode(i - 1)%dep, dist_tmp)
+        call hypodist(raynode(i + 1)%lon, raynode(i + 1)%lat, raynode(i + 1)%dep, &
+        &             raynode(i - 1)%lon, raynode(i - 1)%lat, raynode(i - 1)%dep, dist_tmp)
         cos_psi = (dist_tmp ** 2 + raynode(i - 1)%r ** 2 - raynode(i + 1)%r ** 2) / (2.0_fp * dist_tmp * raynode(i - 1)%r)
         raynode(i)%r = sqrt(raynode(i - 1)%r ** 2 + dist_tmp ** 2 * 0.25_fp - raynode(i - 1)%r * dist_tmp * cos_psi)
         raynode(i)%theta = (raynode(i + 1)%theta + raynode(i - 1)%theta) * 0.5_fp
@@ -146,7 +146,7 @@ contains
     type(gridpoint) :: node_mid, node_tmp
 
     !!calculate distance between node1 and node3, then divide by 2
-    call hypodist(node1%lat, node1%lon, node1%dep, node3%lat, node3%lon, node3%dep, dist_l)
+    call hypodist(node1%lon, node1%lat, node1%dep, node3%lon, node3%lat, node3%dep, dist_l)
     dist_l = dist_l * 0.5_fp
 
     !!calculate location of midpoint between node1 and node3
@@ -170,7 +170,7 @@ contains
     z_index   = int((node_mid%dep - dep_min) / ddep) + 1
     lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
     lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
-    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
+    z_grid(1)   = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2)   = z_grid(1)   + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
 
     call linear_interpolation_3d(node_mid%lon, node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
@@ -203,6 +203,7 @@ contains
     normalvector_mid(1 : 3) = normalvector_mid(1 : 3) / vector_len
 
     print *, "tangentvector", (tangentvector_mid(i), i = 1, 3)
+    print *, "length of tangentvector", sqrt(tangentvector_mid(1) ** 2 + tangentvector_mid(2) ** 2 + tangentvector_mid(3) ** 2)
     print *, "normalvector", (normalvector_mid(i), i = 1, 3)
     print *, "grad_vmid", (grad_vmid(i), i = 1, 3)
 
@@ -213,20 +214,21 @@ contains
     lon_index = int((node1%lon - lon_w) / dlon) + 1
     lat_index = int((node1%lat - lat_s) / dlat) + 1
     z_index   = int((node1%dep - dep_min) / ddep) + 1
+    print *, node1%lon, lon_index
     lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
     lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
-    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
+    z_grid(1)   = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2)   = z_grid(1)   + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
     call linear_interpolation_3d(node1%lon, node1%lat, node1%dep, lon_grid, lat_grid, z_grid, val_3d, v1)
 
-    lon_index = int((node2%lon - lon_w) / dlon) + 1
-    lat_index = int((node2%lat - lat_s) / dlat) + 1
-    z_index   = int((node2%dep - dep_min) / ddep) + 1
+    lon_index = int((node3%lon - lon_w) / dlon) + 1
+    lat_index = int((node3%lat - lat_s) / dlat) + 1
+    z_index   = int((node3%dep - dep_min) / ddep) + 1
     lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
     lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
-    z_grid(1) = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + ddep
+    z_grid(1)   = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2)   = z_grid(1)   + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
-    call linear_interpolation_3d(node2%lon, node2%lat, node2%dep, lon_grid, lat_grid, z_grid, val_3d, v2)
+    call linear_interpolation_3d(node3%lon, node3%lat, node3%dep, lon_grid, lat_grid, z_grid, val_3d, v2)
 
     slowness_mid = (1.0_fp / v1 + 1.0_fp / v2) * 0.5_fp
     const = (slowness_mid * vmid + 1.0_fp) / (4.0_fp * slowness_mid * dot_product(normalvector_mid, grad_vmid))
