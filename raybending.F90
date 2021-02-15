@@ -35,7 +35,7 @@ contains
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
     real(kind = fp),  parameter :: enhance_factor = 1.5_fp
 
-    type(gridpoint)             :: raynode(2 + 2 ** ndiv_raypath - 1), raynode_old(2 + 2 ** ndiv_raypath - 1)
+    type(gridpoint)             :: raynode(size(raypath_lon)), raynode_old(size(raypath_lon))
     real(kind = fp)             :: traveltime_ini, traveltime_double, traveltime_tmp, &
     &                              traveltime_raybend_new, traveltime_raybend_old, pulsewidth_tmp
     real(kind = fp)             :: cos_psi, dist_tmp
