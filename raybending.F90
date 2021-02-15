@@ -157,7 +157,8 @@ contains
       call greatcircle_dist(raynode(1)%lat, raynode(1)%lon, raynode(2)%lat, raynode(2)%lon, azimuth=ray_az)
     endif
     if(present(ray_incangle)) then
-      call greatcircle_dist(raynode(1)%lat, raynode(1)%lon, raynode(2)%lat, raynode(2)%lon, distance=ray_incangle)
+      call greatcircle_dist(raynode(1)%lat, raynode(1)%lon, raynode(2)%lat, raynode(2)%lon, delta_out=ray_incangle)
+      ray_incangle = raynode(1)%r * ray_incangle
       ray_incangle = atan2(ray_incangle, raynode(2)%dep - raynode(1)%dep)
     endif
 
