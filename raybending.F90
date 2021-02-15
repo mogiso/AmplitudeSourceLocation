@@ -11,8 +11,7 @@ module raybending
 
 contains
 
-  subroutine pseudobending3D(lon_source, lat_source, dep_source, &
-  &                          lon_receiver, lat_receiver, dep_receiver, &
+  subroutine pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, &
   &                          velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, ndiv_raypath, &
   &                          traveltime, ray_az, ray_incangle, &
   &                          qinv, lon_w_qinv, lat_s_qinv, dep_min_qinv, dlon_qinv, dlat_qinv, ddep_qinv, &
@@ -22,7 +21,8 @@ contains
     use constants, only : r_earth, deg2rad, rad2deg, pi
     use greatcircle, only : latgtoc, latctog, greatcircle_dist
 
-    real(kind = fp), intent(in)  :: lon_source, lat_source, dep_source, lon_receiver, lat_receiver, dep_receiver
+    real(kind = fp), intent(inout)  :: raypath_lon(:), raypath_lat(:), raypath_dep(:)
+    integer,         intent(inout)  :: nraypath
     real(kind = fp), intent(in)  :: velocity(:, :, :)                       !!either velocity of P- or S-waves
     real(kind = fp), intent(in)  :: lon_w, lat_s, dep_min, dlon, dlat, ddep
     integer,         intent(in)  :: ndiv_raypath
@@ -39,26 +39,25 @@ contains
     real(kind = fp)             :: traveltime_ini, traveltime_double, traveltime_tmp, &
     &                              traveltime_raybend_new, traveltime_raybend_old, pulsewidth_tmp
     real(kind = fp)             :: cos_psi, dist_tmp
-    integer                     :: i, j, nraynode, raynode_index_mid
+    integer                     :: i, j, raynode_index_mid
 
 
-    raynode(1)%lon = lon_source
-    raynode(1)%lat = lat_source
-    raynode(1)%dep = dep_source
-    raynode(1)%r = r_earth - raynode(1)%dep
-    raynode(1)%phi = raynode(1)%lon * deg2rad
-    call latgtoc(raynode(1)%lat, raynode(1)%theta); raynode(1)%theta = pi * 0.5_fp - raynode(1)%theta
-
-    raynode(2)%lon = lon_receiver
-    raynode(2)%lat = lat_receiver
-    raynode(2)%dep = dep_receiver
-    raynode(2)%r = r_earth - raynode(2)%dep
-    raynode(2)%phi = raynode(2)%lon * deg2rad
-    call latgtoc(raynode(2)%lat, raynode(2)%theta); raynode(2)%theta = pi * 0.5_fp - raynode(2)%theta
+    do i = 1, nraypath
+      raynode(i)%lon = raypath_lon(i)
+      raynode(i)%lat = raypath_lat(i)
+      raynode(i)%dep = raypath_dep(i)
+      raynode(i)%r = r_earth - raynode(i)%dep
+      raynode(i)%phi = raynode(i)%lon * deg2rad
+      call latgtoc(raynode(i)%lat, raynode(i)%theta)
+      raynode(i)%theta = pi * 0.5_fp - raynode(i)%theta
+    enddo
 
     !!calculate traveltime of initial raypath
-    nraynode = 2 
-    call calc_traveltime_element(raynode(1), raynode(2), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, traveltime_ini)
+    traveltime_ini = 0.0_fp
+    do i = 1, nraypath - 1
+      call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, traveltime_tmp)
+      traveltime_ini = traveltime_ini + traveltime_tmp
+    enddo
     write(0, '(a, e15.7)') "traveltime of initial raypath = ", traveltime_ini
     
     !!do psuedobending
@@ -67,13 +66,15 @@ contains
 
       !!add new raynodes
       !!change array indices of existing nodes
-      do i = nraynode, 2, -1
-       raynode(i + 2 ** (j - 1) - (nraynode - i)) = raynode(i)
+      do i = nraypath, 2, -1
+       raynode(2 * i - 1) = raynode(i)
+       !write(0, *) "move ", i, " to ", 2 * i - 1
       enddo
 
       !!each new raynode is located at the midpoint of existing nodes
-      nraynode = nraynode + 2 ** (j - 1)
-      do i = 2, nraynode - 1, 2
+      nraypath = nraypath * 2 - 1
+      !print *, "new nraypath = ", nraypath
+      do i = 2, nraypath - 1, 2
         call hypodist(raynode(i + 1)%lon, raynode(i + 1)%lat, raynode(i + 1)%dep, &
         &             raynode(i - 1)%lon, raynode(i - 1)%lat, raynode(i - 1)%dep, dist_tmp)
         cos_psi = (dist_tmp ** 2 + raynode(i - 1)%r ** 2 - raynode(i + 1)%r ** 2) / (2.0_fp * dist_tmp * raynode(i - 1)%r)
@@ -87,7 +88,7 @@ contains
 
       !!calculate travel time
       traveltime_double = 0.0_fp
-      do i = 1, nraynode - 1
+      do i = 1, nraypath - 1
         call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
         &                            traveltime_tmp)
         traveltime_double = traveltime_double + traveltime_tmp
@@ -102,23 +103,25 @@ contains
 
       !!perturb raynode
       traveltime_raybend_old = traveltime_double
+      raynode_old(1 : nraypath) = raynode(1 : nraypath)
       raybend_loop: do
-        raynode_old(1 : nraynode) = raynode(1 : nraynode)
-        raynode_index_mid = nraynode / 2 + 1
+        raynode_index_mid = nraypath / 2 + 1
         if(raynode_index_mid .gt. 2) then
           do i = 2, raynode_index_mid - 1
-            !write(0, '(a, 2(i0, 1x))') "raybend node = ", i, nraynode - i + 1
+            !write(0, '(a, 2(i0, 1x))') "raybend node = ", i, nraypath - i + 1
             call move_node(raynode(i - 1), raynode(i), raynode(i + 1), &
             &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
-            call move_node(raynode(nraynode - i), raynode(nraynode - i + 1), raynode(nraynode - i + 2), &
+            call move_node(raynode(nraypath - i), raynode(nraypath - i + 1), raynode(nraypath - i + 2), &
             &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
           enddo
         endif
-        call move_node(raynode(raynode_index_mid - 1), raynode(raynode_index_mid), raynode(raynode_index_mid + 1), &
-        &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
+        if(mod(nraypath, 2) .ne. 0) then
+          call move_node(raynode(raynode_index_mid - 1), raynode(raynode_index_mid), raynode(raynode_index_mid + 1), &
+          &              velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor)
+        endif
 
         traveltime_raybend_new = 0.0_fp
-        do i = 1, nraynode - 1
+        do i = 1, nraypath - 1
           call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
           &                            traveltime_tmp)
           traveltime_raybend_new = traveltime_raybend_new + traveltime_tmp
@@ -127,21 +130,28 @@ contains
         !write(0, '(a, e15.7)') "traveltime_raybend_new = ", traveltime_raybend_new
         !write(0, *) ""
 
-        if(traveltime_raybend_old - traveltime_raybend_new  .lt. 0.0_fp) then
-          traveltime_ini = traveltime_raybend_old
-          raynode(1 : nraynode) = raynode_old(1 : nraynode)
-          exit raybend_loop
-        endif
-
         if(traveltime_raybend_old - traveltime_raybend_new .lt. traveltime_diff_threshold .and. &
         &  traveltime_raybend_old - traveltime_raybend_new .gt. 0.0_fp) then
           traveltime_ini = traveltime_raybend_new
           exit raybend_loop
         endif
 
+        if(traveltime_raybend_old - traveltime_raybend_new  .lt. 0.0_fp) then
+          traveltime_ini = traveltime_raybend_old
+          raynode(1 : nraypath) = raynode_old(1 : nraypath)
+          exit raybend_loop
+        endif
+
+
         traveltime_raybend_old = traveltime_raybend_new
       enddo raybend_loop
     enddo raypath_divide
+
+    do i = 1, nraypath
+      raypath_lon(i) = raynode(i)%lon
+      raypath_lat(i) = raynode(i)%lat
+      raypath_dep(i) = raynode(i)%dep
+    enddo
 
     if(present(ray_az)) then
       call greatcircle_dist(raynode(1)%lat, raynode(1)%lon, raynode(2)%lat, raynode(2)%lon, azimuth=ray_az)
@@ -153,7 +163,7 @@ contains
 
     if(present(pulsewidth)) then
       pulsewidth = 0.0_fp
-      do i = 1, nraynode - 1
+      do i = 1, nraypath - 1
         call calc_traveltime_element(raynode(i), raynode(i + 1), velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
         &                            traveltime_tmp, &
         &                            qinv, lon_w_qinv, lat_s_qinv, dep_min_qinv, dlon_qinv, dlat_qinv, ddep_qinv, &
@@ -214,9 +224,6 @@ contains
     lon_index = int((node_mid%lon - lon_w) / dlon) + 1
     lat_index = int((node_mid%lat - lat_s) / dlat) + 1
     z_index   = int((node_mid%dep - dep_min) / ddep) + 1
-    if(z_index .eq. 0) then
-      write(0, *) node1%dep, node3%dep, node_mid%dep
-    endif
     lon_grid(1) = lon_w + dlon * real(lon_index - 1, kind = fp); lon_grid(2) = lon_grid(1) + dlon
     lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
     z_grid(1)   = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2)   = z_grid(1)   + ddep
