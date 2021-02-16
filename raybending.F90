@@ -11,9 +11,9 @@ module raybending
 
 contains
 
-  subroutine pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, &
-  &                          velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, ndiv_raypath, &
+  subroutine pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
   &                          traveltime, ray_az, ray_incangle, &
+  &                          velocity, lon_w, lat_s, dep_min, dlon, dlat, ddep, &
   &                          qinv, lon_w_qinv, lat_s_qinv, dep_min_qinv, dlon_qinv, dlat_qinv, ddep_qinv, &
   &                          pulsewidth)
     use def_gridpoint
@@ -21,16 +21,17 @@ contains
     use constants, only : r_earth, deg2rad, rad2deg, pi
     use greatcircle, only : latgtoc, latctog, greatcircle_dist
 
-    real(kind = fp), intent(inout)  :: raypath_lon(:), raypath_lat(:), raypath_dep(:)
-    integer,         intent(inout)  :: nraypath
-    real(kind = fp), intent(in)  :: velocity(:, :, :)                       !!either velocity of P- or S-waves
-    real(kind = fp), intent(in)  :: lon_w, lat_s, dep_min, dlon, dlat, ddep
-    integer,         intent(in)  :: ndiv_raypath
-    real(kind = fp), intent(out) :: traveltime                              !!second
+    !!array size of raypath_(lon|lat|dep) is nraypath(value when input) + 2 * (2 ** ndiv_raypath - 1)
+    real(kind = fp), intent(inout) :: raypath_lon(:), raypath_lat(:), raypath_dep(:)
+    integer,         intent(inout) :: nraypath
+    integer,         intent(in)    :: ndiv_raypath
+    real(kind = fp), intent(out)   :: traveltime                              !!second
+    real(kind = fp), intent(in)    :: velocity(:, :, :)                       !!either velocity of P- or S-waves
+    real(kind = fp), intent(in)    :: lon_w, lat_s, dep_min, dlon, dlat, ddep
     real(kind = fp), intent(out), optional :: ray_az, ray_incangle          !!radian
     real(kind = fp), intent(in),  optional :: qinv(:, :, :)
     real(kind = fp), intent(in),  optional :: lon_w_qinv, lat_s_qinv, dep_min_qinv, dlon_qinv, dlat_qinv, ddep_qinv
-    real(kind = fp), intent(out), optional :: pulsewidth
+    real(kind = fp), intent(out), optional :: pulsewidth                    !!second (t-star)
 
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
     real(kind = fp),  parameter :: enhance_factor = 1.5_fp
@@ -40,7 +41,6 @@ contains
     &                              traveltime_raybend_new, traveltime_raybend_old, pulsewidth_tmp
     real(kind = fp)             :: cos_psi, dist_tmp
     integer                     :: i, j, raynode_index_mid
-
 
     do i = 1, nraypath
       raynode(i)%lon = raypath_lon(i)
@@ -73,7 +73,6 @@ contains
 
       !!each new raynode is located at the midpoint of existing nodes
       nraypath = nraypath * 2 - 1
-      !print *, "new nraypath = ", nraypath
       do i = 2, nraypath - 1, 2
         call hypodist(raynode(i + 1)%lon, raynode(i + 1)%lat, raynode(i + 1)%dep, &
         &             raynode(i - 1)%lon, raynode(i - 1)%lat, raynode(i - 1)%dep, dist_tmp)
@@ -95,8 +94,8 @@ contains
       enddo
 
       if(traveltime_ini - traveltime_double .gt. 0.0_fp .and. &
-      &  traveltime_ini - traveltime_double .lt. traveltime_diff_threshold) then
-        !write(0, '(i0, a)') j, " traveltime_double is almost equal to traveltime_ini"
+      &  traveltime_ini - traveltime_double .lt. traveltime_diff_threshold .and. &
+      &  j .gt. 1) then
         traveltime = traveltime_double
         exit raypath_divide
       endif
@@ -229,7 +228,6 @@ contains
     lat_grid(1) = lat_s + dlat * real(lat_index - 1, kind = fp); lat_grid(2) = lat_grid(1) + dlat
     z_grid(1)   = dep_min + ddep * real(z_index - 1, kind = fp); z_grid(2)   = z_grid(1)   + ddep
     val_3d(1 : 2, 1 : 2, 1 : 2) = velocity(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
-
     call linear_interpolation_3d(node_mid%lon, node_mid%lat, node_mid%dep, lon_grid, lat_grid, z_grid, val_3d, vmid)
 
     !!calculate velocity gradient at node_mid
@@ -307,7 +305,6 @@ contains
       node2%r = node_mid%r + dist_move * 0.5_fp * normalvector_mid(1)
       node2%theta = node_mid%theta + dist_move * 0.5_fp * normalvector_mid(2) / node_mid%r
       node2%phi = node_mid%phi + dist_move * 0.5_fp * normalvector_mid(3) / (node_mid%r * sin(node_mid%theta))
-
       node2%dep = r_earth - node2%r
       call latctog(pi * 0.5_fp - node2%theta, node2%lat)
       node2%lon = node2%phi * rad2deg
@@ -394,6 +391,7 @@ contains
       z_grid(1) = dep_min_qinv + ddep_qinv * real(z_index - 1, kind = fp); z_grid(2) = z_grid(1) + 1
       val_3d(1 : 2, 1 : 2, 1 : 2) = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1)
       call block_interpolation_3d(node2%lon, node2%lat, node2%dep, lon_grid, lat_grid, z_grid, val_3d, v2)
+
       pulsewidth_element = ttime_element * (v1 + v2) * 0.5_fp
     endif
 
