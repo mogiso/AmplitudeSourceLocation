@@ -35,12 +35,13 @@ contains
 
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
     real(kind = fp),  parameter :: enhance_factor = 1.5_fp
+    integer,          parameter :: nraybend_max = 20
 
     type(gridpoint)             :: raynode(size(raypath_lon)), raynode_old(size(raypath_lon))
     real(kind = fp)             :: traveltime_ini, traveltime_double, traveltime_tmp, &
     &                              traveltime_raybend_new, traveltime_raybend_old, pulsewidth_tmp
     real(kind = fp)             :: cos_psi, dist_tmp
-    integer                     :: i, j, raynode_index_mid, k
+    integer                     :: i, j, raynode_index_mid, nraybend_count
 
     do i = 1, nraypath
       raynode(i)%lon = raypath_lon(i)
@@ -101,7 +102,13 @@ contains
       !!perturb raynode
       traveltime_raybend_old = traveltime_double
       raynode_old(1 : nraypath) = raynode(1 : nraypath)
+      nraybend_count = 0
       raybend_loop: do
+        nraybend_count = nraybend_count + 1
+        if(nraybend_count .gt. nraybend_max) then
+          traveltime_ini = traveltime_raybend_old
+          exit raybend_loop
+        endif
         raynode_index_mid = nraypath / 2 + 1
         if(raynode_index_mid .gt. 2) then
           do i = 2, raynode_index_mid - 1
