@@ -16,12 +16,15 @@ program AmplitudeSourceLocation_PulseWidth
   use greatcircle,          only : greatcircle_dist
   use itoa,                 only : int_to_char
   use grdfile_io,           only : read_grdfile_2d, write_grdfile_2d
-#ifdef WIN
+#if defined (WIN)
   use m_win
   use m_winch
 #endif
-#ifdef SAC
+#if defined (SAC)
   use read_sacfile,         only : read_sachdr, read_sacdata
+#endif
+#if defined (RAYBENDING)
+  use raybending,           only : pseudobending3D
 #endif
   !$ use omp_lib
 
@@ -113,9 +116,18 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
 
+#if defined (RAYBENDING)
+  integer,                parameter :: ndiv_raypath = 10
+  integer                 parameter :: nraypath_ini = 4
+  real(kind = fp)                   :: raypath_lon(nraypath_ini + 2 * (2 ** ndiv_raypath - 1), &
+  &                                    raypath_lat(nraypath_ini + 2 * (2 ** ndiv_raypath - 1), &
+  &                                    raypath_dep(nraypath_ini + 2 * (2 ** ndiv_raypath - 1)
+  integer                           :: nraypath
+
 #if defined (AMP_RATIO)
   real(kind = dp)                   :: amp_ratio_obs, amp_ratio_cal
 #endif
+#if defined
 
   !!filter variables
   real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
@@ -400,6 +412,9 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
   !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
   !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
+#if defined (RAYBENDING)
+  !$omp&                raypath_lon, raypath_lat, raypath_dep, nraypath, &
+#endif
   !$omp&                inc_angle_ini, inc_angle_ini_min)
 
   !$ omp_thread = omp_get_thread_num()
@@ -445,6 +460,29 @@ program AmplitudeSourceLocation_PulseWidth
           z_index   = int((depth_grid - z_str_min) / dz_str) + 1
           ttime_min(jj, i, j, k) = hypodist(jj, i, j, k) / velocity(lon_index, lat_index, z_index, wavetype)
           width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(lon_index, lat_index, z_index, wavetype)
+
+#else
+
+#if defined (RAYBENDING)
+          !!do ray tracing with pseudobending scheme
+          raypath_lon(1) = lon_grid
+          raypath_lat(1) = lat_grid
+          raypath_dep(1) = depth_grid
+          raypath_lon(nraypath_ini) = lon_sta(jj)
+          raypath_lat(nraypath_ini) = lat_sta(jj)
+          raypath_dep(nraypath_ini) = z_sta(jj)
+          do ii = 2, nraypath_ini - 1
+            raypath_lon(ii) = raypath_lon(1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) * dble(ii - 1)
+            raypath_lat(ii) = raypath_lat(1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) * dble(ii - 1)
+            raypath_dep(ii) = raypath_dep(1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) * dble(ii - 1)
+          enddo
+          nraypath = nraypath_ini
+          call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+          &                    ttime_min(jj, i, j, k), &
+          &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+          &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
+          &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
+          &                    pulsewidth = width_min(jj, i, j, k)
 
 #else
 
@@ -561,7 +599,9 @@ program AmplitudeSourceLocation_PulseWidth
             ttime_min(jj, i, j, k) = real(huge, kind = fp)
             width_min(jj, i, j, k) = 0.0_fp
           endif
-#endif
+
+#endif   /* -DRAYBENDING or not */
+#endif   /* -DREAD_TTIME or not */
 
         enddo station_loop
       enddo lon_loop

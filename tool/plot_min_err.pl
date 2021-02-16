@@ -6,20 +6,21 @@ use File::Basename;
 #Copyright: (c) Masashi Ogiso 2020
 #License  : MIT License https://opensource.org/licenses/MIT
 
-$yr = $ARGV[0];
-$mo = $ARGV[1];
-$dy = $ARGV[2];
-$hh = $ARGV[3];
-$mm = $ARGV[4];
-$ss = $ARGV[5];
-$result = $ARGV[6];
-$dem_lonlat = $ARGV[7];
-$dem_londep = $ARGV[8];
-$dem_deplat = $ARGV[9];
+$stationparam = $ARGV[0];
+$yr = $ARGV[1];
+$mo = $ARGV[2];
+$dy = $ARGV[3];
+$hh = $ARGV[4];
+$mm = $ARGV[5];
+$ss = $ARGV[6];
+$result = $ARGV[7];
+$dem_lonlat = $ARGV[8];
+$dem_londep = $ARGV[9];
+$dem_deplat = $ARGV[10];
 
 $argc = $#ARGV;
-if($argc != 9){
-  print stderr "usage: perl plot_min_err.pl yr mo day hh mm ss resultfile dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat)\n";
+if($argc != 10){
+  print stderr "usage: perl plot_min_err.pl stationparam yr mo day hh mm ss resultfile dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat)\n";
   die;
 }
 
@@ -27,9 +28,21 @@ $resultdir = dirname $result;
 
 $begin_sec = $hh * 3600 + $mm * 60 + $ss;
 
-@stlon = (143.9775, 143.9867, 144.0017, 144.0042);
-@stlat = (43.3797, 43.3955, 43.3818, 43.3903);
-@stname = ("V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM");
+open IN, "<", $stationparam;
+while(<IN>){
+  chomp;
+  $_ =~ s/^\s*(.*?)\s*$/$1/;
+  @tmp = split /\s+/, $_;
+  push @stlon, $tmp[0];
+  push @stlat, $tmp[1];
+  push @stname, $tmp[3];
+}
+close IN;
+
+
+#@stlon = (143.9775, 143.9867, 144.0017, 144.0042);
+#@stlat = (43.3797, 43.3955, 43.3818, 43.3903);
+#@stname = ("V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM");
 
 ##read result file
 open IN, "<", $result;
