@@ -26,7 +26,7 @@
 
 FC = ifort
 FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN
+DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN -DRAYBENDING -DOUT_TTIMETABLE
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
@@ -90,7 +90,7 @@ asl_masterevent_shmdump: AmplitudeSourceLocation_masterevent_shmdump.o nrtype.o 
 AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sacfile.o greatcircle.o \
 					set_velocity_model.o linear_interpolation.o itoa.o grdfile_io.o \
 					calc_bpf_coef.o calc_bpf_order.o tandem.o m_win.o m_winch.o m_util.o raybending.o \
-					def_gridpiont.o
+					def_gridpoint.o
 
 AmplitudeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_winch.o m_util.o \

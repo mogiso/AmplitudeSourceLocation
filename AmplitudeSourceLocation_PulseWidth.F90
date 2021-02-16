@@ -69,7 +69,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
-  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 30.0_fp
+  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 50.0_fp
   real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
@@ -81,9 +81,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),        parameter :: huge = 1.0e+5_dp
 
-  integer,                parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
-  integer,                parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
-  integer,                parameter :: nz   = int((z_max - z_min) / dz) + 2
+  integer,                parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
+  integer,                parameter :: nlat = int((lat_n - lat_s) / dlat) + 1 
+  integer,                parameter :: nz   = int((z_max - z_min) / dz) + 1
   integer,                parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,                parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,                parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
@@ -117,17 +117,17 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = maxlen)           :: time_count_char
 
 #if defined (RAYBENDING)
-  integer,                parameter :: ndiv_raypath = 10
-  integer                 parameter :: nraypath_ini = 4
-  real(kind = fp)                   :: raypath_lon(nraypath_ini + 2 * (2 ** ndiv_raypath - 1), &
-  &                                    raypath_lat(nraypath_ini + 2 * (2 ** ndiv_raypath - 1), &
-  &                                    raypath_dep(nraypath_ini + 2 * (2 ** ndiv_raypath - 1)
+  integer,                parameter :: ndiv_raypath = 6
+  integer,                parameter :: nraypath_ini = 4
+  real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_dep((nraypath_ini - 1) * 2 ** ndiv_raypath + 1)
   integer                           :: nraypath
+#endif
 
 #if defined (AMP_RATIO)
   real(kind = dp)                   :: amp_ratio_obs, amp_ratio_cal
 #endif
-#if defined
 
   !!filter variables
   real(kind = dp),        parameter :: ap = 0.5_dp, as = 5.0_dp                 !!bandpass filter parameters
@@ -472,17 +472,17 @@ program AmplitudeSourceLocation_PulseWidth
           raypath_lat(nraypath_ini) = lat_sta(jj)
           raypath_dep(nraypath_ini) = z_sta(jj)
           do ii = 2, nraypath_ini - 1
-            raypath_lon(ii) = raypath_lon(1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) * dble(ii - 1)
-            raypath_lat(ii) = raypath_lat(1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) * dble(ii - 1)
-            raypath_dep(ii) = raypath_dep(1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) * dble(ii - 1)
+            raypath_lon(ii) = raypath_lon(ii - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+            raypath_lat(ii) = raypath_lat(ii - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+            raypath_dep(ii) = raypath_dep(ii - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
           enddo
           nraypath = nraypath_ini
           call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
-          &                    ttime_min(jj, i, j, k), &
           &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+          &                    ttime_min(jj, i, j, k), &
           &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
           &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
-          &                    pulsewidth = width_min(jj, i, j, k)
+          &                    pulsewidth = width_min(jj, i, j, k))
 
 #else
 
@@ -605,8 +605,8 @@ program AmplitudeSourceLocation_PulseWidth
 
         enddo station_loop
       enddo lon_loop
-      !$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " lat index j = ", j, " depth index k = ", k, " end"
     enddo lat_loop
+    !$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " depth index k = ", k, " lat_index j = ", j, " end"
   enddo z_loop
   !$omp end do
   !$omp end parallel
