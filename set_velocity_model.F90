@@ -68,9 +68,9 @@ module set_velocity_model
       !!velocity structure read visually from Nakanishi et al., 2002, JGR, doi: 10.1029/2001JB000424
       if(i .eq. 1) write(0, '(a)') "velocity = off Kii peninsula"
       if(depth .le. 7.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = 2.0_fp
+        velocity(1 : nlon, 1 : nlat, i, 1) = (4.0_fp - 2.0_fp) / (7.0_fp - 0.0_fp) * (depth - 0.0_fp) + 2.0_fp
       elseif(depth .gt. 7.0_fp .and. depth .le. 9.0_fp) then
-        velocity(1 : nlon, 1 : nlat, i, 1) = (5.6_fp - 2.0_fp) / (9.0_fp - 7.0_fp) * (depth - 7.0_fp) + 2.0_fp
+        velocity(1 : nlon, 1 : nlat, i, 1) = (5.6_fp - 4.0_fp) / (9.0_fp - 7.0_fp) * (depth - 7.0_fp) + 4.0_fp
       elseif(depth .gt. 9.0_fp .and. depth .le. 13.0_fp) then
         velocity(1 : nlon, 1 : nlat, i, 1) = (6.8_fp - 5.6_fp) / (13.0_fp - 9.0_fp) * (depth - 9.0_fp) + 5.6_fp
       elseif(depth .gt. 13.0_fp .and. depth .le. 14.0_fp) then
