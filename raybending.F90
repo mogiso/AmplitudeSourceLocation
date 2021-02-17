@@ -20,7 +20,6 @@ contains
     use nrtype,      only : fp
     use constants,   only : r_earth, deg2rad, rad2deg, pi
     use greatcircle, only : latgtoc, latctog, greatcircle_dist
-    !$use omp_lib
 
     !!array size of raypath_(lon|lat|dep) is (nraypath(initial val) - 1) * 2 ** ndiv_raypath + 1
     real(kind = fp), intent(inout)         :: raypath_lon(:), raypath_lat(:), raypath_dep(:)
@@ -143,6 +142,7 @@ contains
       traveltime_ini = traveltime_double
 
     enddo raypath_divide
+    traveltime = traveltime_ini
 
     do i = 1, nraypath
       raypath_lon(i) = raynode(i)%lon
@@ -187,7 +187,7 @@ contains
     real(kind = fp), intent(in)    :: velocity(:, :, :)       !!either velocity of P- or S-waves
     real(kind = fp), intent(in)    :: lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor
 
-    real(kind = fp), parameter :: diff_threshold = 1.0e-4_fp
+    real(kind = fp), parameter :: diff_threshold = 1.0e-5_fp
     real(kind = fp) :: dist_l, slowness_mid, const, dist_move, v1, v2, vmid, cos_psi, vector_len
     real(kind = fp) :: tangentvector_mid(3), normalvector_mid(3), grad_vmid(3), &
     &                  lon_grid(2), lat_grid(2), z_grid(2), val_3d(2, 2, 2)
