@@ -20,6 +20,7 @@ contains
     use nrtype,      only : fp
     use constants,   only : r_earth, deg2rad, rad2deg, pi
     use greatcircle, only : latgtoc, latctog, greatcircle_dist
+    !$use omp_lib
 
     !!array size of raypath_(lon|lat|dep) is (nraypath(initial val) - 1) * 2 ** ndiv_raypath + 1
     real(kind = fp), intent(inout)         :: raypath_lon(:), raypath_lat(:), raypath_dep(:)
@@ -35,13 +36,13 @@ contains
 
     real(kind = fp),  parameter :: traveltime_diff_threshold = 0.01_fp
     real(kind = fp),  parameter :: enhance_factor = 1.5_fp
-    integer,          parameter :: nraybend_max = 30
+    integer,          parameter :: nraybend_max = 10
 
     type(gridpoint)             :: raynode(size(raypath_lon)), raynode_old(size(raypath_lon))
     real(kind = fp)             :: traveltime_ini, traveltime_double, traveltime_tmp, &
     &                              traveltime_raybend_new, traveltime_raybend_old, pulsewidth_tmp
     real(kind = fp)             :: cos_psi, dist_tmp
-    integer                     :: i, j, raynode_index_mid, nraybend_count
+    integer                     :: i, j, k, raynode_index_mid, nraybend_count
 
     do i = 1, nraypath
       raynode(i)%lon = raypath_lon(i)
@@ -186,6 +187,7 @@ contains
     real(kind = fp), intent(in)    :: velocity(:, :, :)       !!either velocity of P- or S-waves
     real(kind = fp), intent(in)    :: lon_w, lat_s, dep_min, dlon, dlat, ddep, enhance_factor
 
+    real(kind = fp), parameter :: diff_threshold = 1.0e-4_fp
     real(kind = fp) :: dist_l, slowness_mid, const, dist_move, v1, v2, vmid, cos_psi, vector_len
     real(kind = fp) :: tangentvector_mid(3), normalvector_mid(3), grad_vmid(3), &
     &                  lon_grid(2), lat_grid(2), z_grid(2), val_3d(2, 2, 2)
@@ -195,6 +197,11 @@ contains
     nlon = ubound(velocity, 1)
     nlat = ubound(velocity, 2)
     ndep = ubound(velocity, 3)
+
+    !!if node1 and node3 are close to each other, do nothing
+    if(abs(node1%lon - node3%lon) .lt. diff_threshold .or. &
+    &  abs(node1%lat - node3%lat) .lt. diff_threshold .or. &
+    &  abs(node1%dep - node3%dep) .lt. diff_threshold / 100.0_fp) return
 
     !!calculate distance between node1 and node3, then divide by 2
     call hypodist(node1%lon, node1%lat, node1%dep, node3%lon, node3%lat, node3%dep, dist_l)
