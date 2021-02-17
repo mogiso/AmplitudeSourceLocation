@@ -25,8 +25,8 @@
 ##               TraveltimeSourceLocation_masterevent.F90
 
 FC = ifort
-FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN -DRAYBENDING -DOUT_TTIMETABLE
+FFLAGS = -traceback -assume byterecl -g
+DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN -DRAYBENDING -DAMP_RATIO -DREAD_TTIMETABLE
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
