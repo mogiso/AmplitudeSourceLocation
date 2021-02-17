@@ -61,12 +61,12 @@ while(<IN>){
 close IN;
 
 ##for GMT
-$lon_w = 143.975;
-$lon_e = 144.03;
-$lat_s = 43.37;
-$lat_n = 43.407;
-$dep_min = -2.0;
-$dep_max = 3.0;
+$lon_w = 136.0;
+$lon_e = 137.5;
+$lat_s = 32.7;
+$lat_n = 33.7;
+$dep_min = 0.0;
+$dep_max = 20.0;
 
 $mapsize_x = 10.0;
 $mapsize_y = `echo $lon_e $lat_n | gmt mapproject -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n`;
@@ -76,7 +76,7 @@ $mapsize_z = 4.5;
 
 $scale_x = 9.0;
 $scale_y = $mapsize_y + 0.9;
-$scale_dist = "1.0k";
+$scale_dist = "10.0k";
 
 $cpt_x = $mapsize_x / 2;
 $cpt_y = -1.0;
@@ -88,12 +88,17 @@ $symbolsize_st = 0.45;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
 
+$annot_a_map = "0.5";
+$annot_f_map = "0.1";
+$annot_a_dep = "5";
+$annot_f_dep = "1";
+
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
 system "gmt set FONT_LABEL 14p,Helvetica";
 system "gmt set MAP_FRAME_PEN thin";
 
-$cpt = "error.cpt";
+$cpt = "error_ampratio.cpt";
 for($i = 0; $i <= $#sec_from_begin; $i++){
 #for($i = 0; $i <= 0; $i++){
   $sec_from_day = $begin_sec + $sec_from_begin[$i];
@@ -122,9 +127,10 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   ##lon-lat
   system "gmt grdimage $min_err_lonlat -C$cpt -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -O -K -P >> $out";
   system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                        -Bxya0.02f0.01 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
+                        -Bxya${annot_a_map}f${annot_f_map} -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                         -O -K -P >> $out";
-  system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.25p,black -O -K -P >> $out";
+  system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C200 -W0.3p,dimgray -O -K -P >> $out";
+  system "gmt pscoast -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -Df -W0.8p,black -Gwhite -O -K -P >> $out";
   open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                          -Si$symbolsize_st -W0.6p,black -Gwhite -O -K -P >> $out";
   for($j = 0; $j <= $#stlon; $j++){
@@ -149,7 +155,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   ##lon-dep
   system "gmt grdimage $min_err_londep -C$cpt -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -O -K -P >> $out";
   system "gmt psbasemap -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                        -Bxf0.01 -Bya1f0.5+l\"Depth (km)\" -BWsen -O -K -P >> $out";
+                        -Bxf${annot_f_map} -Bya${annot_a_dep}f${annot_f_dep}+l\"Depth (km)\" -BWsen -O -K -P >> $out";
   open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
                          -Sa$symbolsize -W0.6p,black -t100 -O -K -P >> $out";
   print OUT "$min_lon[$i] $min_dep[$i]\n";
@@ -162,7 +168,7 @@ for($i = 0; $i <= $#sec_from_begin; $i++){
   ##lon-dep
   system "gmt grdimage $min_err_deplat -C$cpt -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n -O -K -P >> $out";
   system "gmt psbasemap -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
-                        -Byf0.01 -Bxa1f0.5+l\"Depth (km)\" -BwSen -O -K -P >> $out";
+                        -Byf${annot_f_map} -Bxa${annot_a_dep}f${annot_f_dep}+l\"Depth (km)\" -BwSen -O -K -P >> $out";
   open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
                          -Sa$symbolsize -W0.6p,black -t100 -O -K -P >> $out";
   print OUT "$min_dep[$i] $min_lat[$i]\n";
