@@ -69,7 +69,7 @@ program AmplitudeSourceLocation_PulseWidth
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
-  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 50.0_fp
+  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 100.0_fp
   real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
@@ -117,7 +117,7 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = maxlen)           :: time_count_char
 
 #if defined (RAYBENDING)
-  integer,                parameter :: ndiv_raypath = 6
+  integer,                parameter :: ndiv_raypath = 10
   integer,                parameter :: nraypath_ini = 4
   real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
   &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
@@ -483,7 +483,13 @@ program AmplitudeSourceLocation_PulseWidth
           &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
           &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
           &                    pulsewidth = width_min(jj, i, j, k))
-
+          if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
+            print *, jj, i, j, k, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+            !do ii = 1, nraypath
+            !print *, raypath_lon(ii), raypath_lat(ii), raypath_dep(ii)
+            !enddo
+            stop
+          endif    
 #else
 
           !!do not rayshooting if hypodist is longer than threshold
@@ -601,7 +607,7 @@ program AmplitudeSourceLocation_PulseWidth
           endif
 
 #endif   /* -DRAYBENDING or not */
-#endif   /* -DREAD_TTIME or not */
+#endif   /* -DV_CONST or not */
 
         enddo station_loop
       enddo lon_loop
@@ -746,7 +752,9 @@ program AmplitudeSourceLocation_PulseWidth
           !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
+            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
+              use_flag_tmp(jj) = .false.
+            endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
             !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
             !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
@@ -780,8 +788,6 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
-
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
@@ -793,14 +799,12 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (AMP_RATIO)
           !!calculate amplitude ration and residual
           residual(i, j, k) = 0.0_dp
-          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta - 1
             if(use_flag_tmp(jj) .eqv. .false.) cycle
             if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             do ii = jj + 1, nsta
               if(use_flag_tmp(ii) .eqv. .false.) cycle
               if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
-              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
               &  * (real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp) / real(hypodist(ii, i, j, k), kind = dp)) &
@@ -809,8 +813,9 @@ program AmplitudeSourceLocation_PulseWidth
             enddo
           enddo
 
-          if(nsta_use_grid(i, j, k) .ne. 0) then
-            residual(i, j, k) = sqrt(2.0_dp / real(nsta_use_grid(i, j, k), kind = dp) * residual(i, j, k))
+          if(nsta_use_grid(i, j, k) - 1 .ne. 0) then
+            residual(i, j, k) &
+            &  = sqrt(2.0_dp / real(nsta_use_grid(i, j, k) * nsta_use_grid(i, j, k) - 1, kind = dp) * residual(i, j, k))
           else
             residual(i, j, k) = huge
           endif
