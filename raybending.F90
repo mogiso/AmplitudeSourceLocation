@@ -198,11 +198,6 @@ contains
     nlat = ubound(velocity, 2)
     ndep = ubound(velocity, 3)
 
-    !!if node1 and node3 are close to each other, do nothing
-    if(abs(node1%lon - node3%lon) .lt. diff_threshold .or. &
-    &  abs(node1%lat - node3%lat) .lt. diff_threshold .or. &
-    &  abs(node1%dep - node3%dep) .lt. diff_threshold / 100.0_fp) return
-
     !!calculate distance between node1 and node3, then divide by 2
     call hypodist(node1%lon, node1%lat, node1%dep, node3%lon, node3%lat, node3%dep, dist_l)
     dist_l = dist_l * 0.5_fp
