@@ -192,11 +192,13 @@ contains
     real(kind = fp) :: tangentvector_mid(3), normalvector_mid(3), grad_vmid(3), &
     &                  lon_grid(2), lat_grid(2), z_grid(2), val_3d(2, 2, 2)
     integer         :: lon_index, lat_index, z_index, i, nlon, nlat, ndep
-    type(gridpoint) :: node_mid, node_tmp
+    type(gridpoint) :: node_mid, node_tmp, node2_org
 
     nlon = ubound(velocity, 1)
     nlat = ubound(velocity, 2)
     ndep = ubound(velocity, 3)
+
+    node2_org = node2
 
     !!calculate distance between node1 and node3, then divide by 2
     call hypodist(node1%lon, node1%lat, node1%dep, node3%lon, node3%lat, node3%dep, dist_l)
@@ -312,15 +314,9 @@ contains
     if(node2%lon .lt. lon_w .or. node2%lon .gt. lon_w + dlon * real(nlon - 1, kind = fp) .or. &
     &  node2%lat .lt. lat_s .or. node2%lat .gt. lat_s + dlat * real(nlat - 1, kind = fp) .or. &
     &  node2%dep .lt. dep_min .or. node2%dep .gt. dep_min + ddep * real(ndep - 1, kind = fp)) then
+
+      node2 = node2_org
   
-      if(dist_move .ne. 0.0_fp) then
-        node2%r     = node_mid%r     + dist_move * 0.1_fp * normalvector_mid(1)
-        node2%theta = node_mid%theta + dist_move * 0.1_fp * normalvector_mid(2) / node_mid%r
-        node2%phi   = node_mid%phi   + dist_move * 0.1_fp * normalvector_mid(3) / (node_mid%r * sin(node_mid%theta))
-        node2%dep   = r_earth - node2%r
-        node2%lon   = node2%phi * rad2deg
-        call latctog(pi * 0.5_fp - node2%theta, node2%lat)
-      endif
     endif
 
     return
