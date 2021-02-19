@@ -120,7 +120,7 @@ program AmplitudeSourceLocation_masterevent
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, ttime_tmp, matrix_const, &
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                depth_max_tmp, depth_max
+  &                                depth_max_tmp, depth_max, siteamp_tmp
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, icount, ncount, nsta_use, ios
@@ -223,10 +223,11 @@ program AmplitudeSourceLocation_masterevent
   endif
   rewind(10)
   allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
-  &        use_flag(1 : nsta), use_flag_tmp(1 : nsta))
+  &        use_flag(1 : nsta), use_flag_tmp(1 : nsta), obsamp_noise(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp_tmp, &
+    &           obsamp_noise(i)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
     &     use_flag(i)
@@ -324,15 +325,15 @@ program AmplitudeSourceLocation_masterevent
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) * gn
     deallocate(h)
   enddo
-  allocate(obsamp_noise(1 : nsta))
-  do j = 1, nsta
-    obsamp_noise(j) = 0.0_fp
-    icount = 0
-    do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
-      obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
-    enddo
-    obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
-  enddo
+  !allocate(obsamp_noise(1 : nsta))
+  !do j = 1, nsta
+  !  obsamp_noise(j) = 0.0_fp
+  !  icount = 0
+  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
+  !    obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
+  !  enddo
+  !  obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
+  !enddo
 #endif
 
 #else /* -DWIN || -DSAC */
