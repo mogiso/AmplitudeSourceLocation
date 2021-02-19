@@ -8,12 +8,13 @@ $in = $ARGV[0];
 $out_list = $ARGV[1];
 $sourceamp_min = $ARGV[2];
 
-$lon_w = 136.0;
+$lon_w = 136.5;
 $lon_e = 137.5;
 $lat_s = 32.7;
-$lat_n = 33.7;
+$lat_n = 34.7;
 $dep_min = 0.0;
 $dep_max = 16.0;
+$residual_max = 0.05;
 
 ##read result file
 open IN, "<", $in;
@@ -27,6 +28,7 @@ while(<IN>){
   push @hypo_lon, $tmp[1];
   push @hypo_lat, $tmp[2];
   push @hypo_dep, $tmp[3];
+  push @residual, $tmp[5];
 }
 close IN;
 
@@ -34,9 +36,10 @@ for($i = 1; $i <= $#sourceamp - 1; $i++){
   $diff_back = $sourceamp[$i] - $sourceamp[$i - 1];
   $diff_forward = $sourceamp[$i] - $sourceamp[$i + 1];
   if($sourceamp[$i] > $sourceamp_min && $diff_back > 0.0 && $diff_forward > 0.0 && 
-     $hypo_lon[$i] > $lon_w && $hypo_lon[$i] < $lon_e &&
-     $hypo_lat[$i] > $lat_s && $hypo_lat[$i] < $lat_n &&
-     $hypo_dep[$i] >= $dep_min && $hypo_dep[$i] <= $dep_max){
+     #$hypo_lon[$i] > $lon_w && $hypo_lon[$i] < $lon_e &&
+     #$hypo_lat[$i] > $lat_s && $hypo_lat[$i] < $lat_n &&
+     #$hypo_dep[$i] >= $dep_min && $hypo_dep[$i] <= $dep_max){
+     $residual[$i] < $residual_max){
     push @result_localmax_picked, $result_all[$i];
   }
 }
