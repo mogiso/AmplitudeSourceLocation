@@ -31,7 +31,7 @@ program AmplitudeSourceLocation_PulseWidth
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
   integer,                parameter :: nsta_use_minimum = 8
-  real(kind = dp),        parameter :: snratio_accept = 0.0_dp
+  real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
   !!Use station
@@ -230,9 +230,10 @@ program AmplitudeSourceLocation_PulseWidth
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), use_flag_tmp(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
+  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta))
   do i = 1, nsta
-    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i)
+    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), &
+    &           rms_amp_obs_noise(i)
 
 #if defined (TESTDATA)
     ttime_cor(i, 1) = 0.0_fp
@@ -352,20 +353,20 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DAMP_TXT */
 
   !!calculate noise level
-  allocate(rms_amp_obs_noise(1 : nsta))
+  !allocate(rms_amp_obs_noise(1 : nsta))
 #if defined (AMP_TXT)
-  rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
+  !rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
 #else
-  do j = 1, nsta
-    icount = 0
-    rms_amp_obs_noise(j) = 0.0_dp
-    if(use_flag(j) .eqv. .false.) cycle
-    do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
-      rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
-      icount = icount + 1
-    enddo
-    rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
-  enddo
+  !do j = 1, nsta
+  !  icount = 0
+  !  rms_amp_obs_noise(j) = 0.0_dp
+  !  if(use_flag(j) .eqv. .false.) cycle
+  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
+  !    rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
+  !    icount = icount + 1
+  !  enddo
+  !  rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
+  !enddo
 #endif
 
 
@@ -612,7 +613,6 @@ program AmplitudeSourceLocation_PulseWidth
         enddo station_loop
       enddo lon_loop
     enddo lat_loop
-    !$ write(0, '(3(a, i0), a)') "omp_thread_num = ", omp_thread, " depth index k = ", k, " lat_index j = ", j, " end"
   enddo z_loop
   !$omp end do
   !$omp end parallel
@@ -657,9 +657,9 @@ program AmplitudeSourceLocation_PulseWidth
   open(unit = 20, file = ampfile)
   write(20, '(a)', advance = "no") "# "
   do i = 1, nsta
-    write(20, '(a, 1x)', advance = "no") stname(i)
+    write(20, '(a, 1x)', advance = "no") trim(stname(i))
   enddo
-  write(20, *)
+  write(20, '(a)') " time"
 #endif
 
 !!Do grid search
@@ -679,7 +679,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                amp_txt, time_count, &
 #endif
     !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
-    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography), &
+    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
@@ -731,11 +731,19 @@ program AmplitudeSourceLocation_PulseWidth
             icount = 0
             do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
               if(ii .lt. npts(jj)) then
+#if defined (ABS_MEAN)
+                rms_amp_obs(jj) = rms_amp_obs(jj) + abs(waveform_obs(ii, jj))
+#else
                 rms_amp_obs(jj) = rms_amp_obs(jj) + waveform_obs(ii, jj) * waveform_obs(ii, jj)
+#endif
                 icount = icount + 1
               endif
             enddo
+#if defind (ABS_MEAN)
+            if(icount .ne. 0) rms_amp_obs(jj) = rms_amp_obs(jj) / real(icount, kind = dp)
+#else
             if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
+#endif
 #endif /* -DAMP_TXT */
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
@@ -752,34 +760,28 @@ program AmplitudeSourceLocation_PulseWidth
           !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
+            if(use_flag(jj) .eqv. .false. .or. ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
               use_flag_tmp(jj) = .false.
+              cycle
             endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
-            !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-            !if(use_flag(jj) .eqv. .false.) then
-            !  use_flag_tmp(jj) = .false.
-            !else
-            !  if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
-            !  &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-            !    use_flag_tmp(jj) = .true.
-            !    nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-            !  else
-            !    use_flag_tmp(jj) = .false.
-            !  endif
-            !endif
-            if(use_flag(jj) .eqv. .false.) then
-              use_flag_tmp(jj) = .false.
+            rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
+            &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
+            &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+              use_flag_tmp(jj) = .true.
+              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             else
-              !!just compare amplitude  of signal and noise
-              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                use_flag_tmp(jj) = .true.
-                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-              else
-                use_flag_tmp(jj) = .false.
-              endif
+              use_flag_tmp(jj) = .false.
+              !print *, jj, trim(stname(jj)), rms_amp_obs(jj), rms_amp_cal, rms_amp_obs_noise(jj), source_amp(i, j, k), siteamp(jj)
             endif
+            !!just compare amplitude  of signal and noise
+            !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            !  use_flag_tmp(jj) = .true.
+            !  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            !else
+            !  use_flag_tmp(jj) = .false.
+            !endif
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
@@ -921,11 +923,19 @@ program AmplitudeSourceLocation_PulseWidth
       icount = 0
       do ii = wave_index, wave_index + int(rms_tw / sampling(i) + 0.5_fp) - 1
          if(ii .lt. npts(i)) then
+#if defined (ABS_MEAN)
+           rms_amp_obs(i) = rms_amp_obs(i) + abs(waveform_obs(ii, i))
+#else
            rms_amp_obs(i) = rms_amp_obs(i) + waveform_obs(ii, i) * waveform_obs(ii, i)
+#endif
            icount = icount + 1
          endif
       enddo
+#if  defined (ABS_MEAN)
+      rms_amp_obs(i) = rms_amp_obs(i) / real(icount, kind = dp)
+#else
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
+#endif
       if(rms_amp_obs(i) .le. snratio_accept * rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
 #elif defined (AMP_TXT)
       rms_amp_obs(i) = amp_txt(i, time_count + 1)
