@@ -53,9 +53,9 @@ while(<IN>){
 close IN;
 
 ##for GMT
-$lon_w = 136.0;
-$lon_e = 137.5;
-$lat_s = 32.7;
+$lon_w = 135.2;
+$lon_e = 137.7;
+$lat_s = 32.5;
 $lat_n = 34.0;
 $dep_min = 0.0;
 $dep_max = 20.0;
