@@ -10,6 +10,7 @@ module set_velocity_model
  
   subroutine set_velocity(z_min, dz, velocity, qinv)
     use nrtype, only : fp
+    use constants, only : pi
     implicit none
     real(kind = fp), intent(in)  :: z_min, dz                  !!size of depth direction
     real(kind = fp), intent(out) :: velocity(:, :, :, :), qinv(:, :, :, :)
@@ -87,8 +88,10 @@ module set_velocity_model
 
       !!freq = 5.0 (Hz, 2-8 Hz BPF), velocity = 3.5 km/s, C = 0.02 (1/km) from
       !!Yabe et al., 2020, Techtonophysics, doi: 10.1016/j.tecto.2020.228714
-      qinv(1 : nlon, 1 : nlat, i, 2) = (0.02_fp * 3.5_fp) / (3.1415_fp * 5.0_fp)
+      !!modify for depth > 14 km
+      qinv(1 : nlon, 1 : nlat, i, 2) = (0.02_fp * 3.5_fp) / (pi * 5.0_fp)
       qinv(1 : nlon, 1 : nlat, i, 1) = qinv(1 : nlon, 1 : nlat, i, 2) / (9.0_fp / 4.0_fp)
+      if(depth .gt. 14.0_fp) qinv(1 : nlon, 1 : nlat, i, 1 : 2) = qinv(1 : nlon, 1 : nlat, i, 1 : 2) * 0.5_fp
    
 
 #elif defined (JMA2001)
