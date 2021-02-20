@@ -597,7 +597,7 @@ program AmplitudeSourceLocation_masterevent
   ttime(1 : nsta) = 0.0_fp
 #endif
 
-#endif /* -DWIN || -DSAC */
+#endif /* (-DWIN || -DSAC) or not */
 
   !!make amplitude data from win- or sac-formatted waveform data
 #if defined (WIN) || defined (SAC)
@@ -625,15 +625,23 @@ program AmplitudeSourceLocation_masterevent
       do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
         time_index = int((ot_tmp - begin(j) + ttime(j)) / sampling(j) + 0.5_fp) + i
         if(time_index .ge. 1 .and. time_index .le. npts(j)) then
+#if defined (ABS_MEAN)
+          obsamp_sub(j, k) = obsamp_sub(j, k) + abs(waveform_obs(time_index, j))
+#else
           obsamp_sub(j, k) = obsamp_sub(j, k) + waveform_obs(time_index, j) ** 2
+#endif
           !print *, time_index, obsamp_sub(j, k), waveform_obs(time_index, j)
           icount = icount + 1
         endif
       enddo
+#if defined (ABS_MEAN)
+      obsamp_sub(j, k) = obsamp_sub(j, k) / real(icount, kind = dp)
+#else
       obsamp_sub(j, k) = sqrt(obsamp_sub(j, k) / real(icount, kind = dp))
+#endif
     enddo
   enddo
-#endif
+#endif /* (-DWIN || -DSAC) or not */
 
   !!velocity and Qinv at master event location
   lon_index = int((evlon_master - lon_str_w) / dlon_str) + 1
