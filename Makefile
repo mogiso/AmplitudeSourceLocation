@@ -25,12 +25,13 @@
 ##               TraveltimeSourceLocation_masterevent.F90
 
 FC = ifort
-FFLAGS = -traceback -assume byterecl -g
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN -DRAYBENDING -DAMP_RATIO -DREAD_TTIMETABLE
+#FFLAGS = -g -traceback -assume byterecl
+FFLAGS = -traceback -assume byterecl
+DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
-OPTS = -O3 -xHOST -qopenmp -mcmodel=large
+OPTS = -O3 -xHOST -ipo -qopenmp -mcmodel=large
 
 #FC = gfortran
 #FFLAGS = -g -Wall -fbounds-check -fbacktrace
