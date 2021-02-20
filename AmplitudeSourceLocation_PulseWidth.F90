@@ -484,13 +484,13 @@ program AmplitudeSourceLocation_PulseWidth
           &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
           &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
           &                    pulsewidth = width_min(jj, i, j, k))
-          if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
-            print *, jj, i, j, k, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
-            !do ii = 1, nraypath
-            !print *, raypath_lon(ii), raypath_lat(ii), raypath_dep(ii)
-            !enddo
-            stop
-          endif    
+          !if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
+          !  print *, jj, i, j, k, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+          !  do ii = 1, nraypath
+          !  print *, raypath_lon(ii), raypath_lat(ii), raypath_dep(ii)
+          !  enddo
+          !  stop
+          !endif    
 #else
 
           !!do not rayshooting if hypodist is longer than threshold
