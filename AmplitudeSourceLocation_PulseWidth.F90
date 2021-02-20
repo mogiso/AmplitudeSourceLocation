@@ -23,7 +23,7 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (SAC)
   use read_sacfile,         only : read_sachdr, read_sacdata
 #endif
-#if defined (RAYBENDING)
+#if defined (RAY_BENDING)
   use raybending,           only : pseudobending3D
 #endif
   !$ use omp_lib
@@ -65,7 +65,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
   real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 2.0_fp
+  real(kind = fp),        parameter :: dlon = 0.01_fp, dlat = 0.01_fp, dz = 1.0_fp
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
@@ -116,7 +116,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
 
-#if defined (RAYBENDING)
+#if defined (RAY_BENDING)
   integer,                parameter :: ndiv_raypath = 10
   integer,                parameter :: nraypath_ini = 4
   real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
@@ -413,7 +413,7 @@ program AmplitudeSourceLocation_PulseWidth
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
   !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
   !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
-#if defined (RAYBENDING)
+#if defined (RAY_BENDING)
   !$omp&                raypath_lon, raypath_lat, raypath_dep, nraypath, &
 #endif
   !$omp&                inc_angle_ini, inc_angle_ini_min)
@@ -464,7 +464,7 @@ program AmplitudeSourceLocation_PulseWidth
 
 #else
 
-#if defined (RAYBENDING)
+#if defined (RAY_BENDING)
           !!do ray tracing with pseudobending scheme
           raypath_lon(1) = lon_grid
           raypath_lat(1) = lat_grid
@@ -607,7 +607,7 @@ program AmplitudeSourceLocation_PulseWidth
             width_min(jj, i, j, k) = 0.0_fp
           endif
 
-#endif   /* -DRAYBENDING or not */
+#endif   /* -DRAY_BENDING or not */
 #endif   /* -DV_CONST or not */
 
         enddo station_loop
@@ -739,7 +739,7 @@ program AmplitudeSourceLocation_PulseWidth
                 icount = icount + 1
               endif
             enddo
-#if defind (ABS_MEAN)
+#if defined (ABS_MEAN)
             if(icount .ne. 0) rms_amp_obs(jj) = rms_amp_obs(jj) / real(icount, kind = dp)
 #else
             if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
