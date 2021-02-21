@@ -27,7 +27,7 @@
 FC = ifort
 #FFLAGS = -g -traceback -assume byterecl
 FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN
+DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DWIN -DRAY_BENDING
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
@@ -77,7 +77,7 @@ asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshoot
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 ttime_masterevent: TraveltimeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
-		linear_interpolation.o greatcircle.o grdfile_io.o
+		linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
 calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
@@ -101,7 +101,7 @@ AmplitudeSourceLocation_synthwave.o: nrtype.o constants.o rayshooting.o read_sac
 					linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
 
 TraveltimeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
-					linear_interpolation.o greatcircle.o grdfile_io.o
+					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o
 
 AmplitudeSourceLocation_masterevent_shmdump.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o m_winch.o m_util.o \
