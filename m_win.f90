@@ -417,7 +417,13 @@ contains
       
       !! expand buffer memory if necessary
       if( n == nb_buf - 1) then
-        call expand_i( pb, nb_buf )
+        nb_buf = size(pb); call expand_i( pb, nb_buf )
+        nb_buf = size(yr); call expand_i( yr, nb_buf )
+        nb_buf = size(mo); call expand_i( mo, nb_buf )
+        nb_buf = size(dy); call expand_i( dy, nb_buf )
+        nb_buf = size(hr); call expand_i( hr, nb_buf )
+        nb_buf = size(mi); call expand_i( mi, nb_buf )
+        nb_buf = size(sc); call expand_i( sc, nb_buf )
       end if
       
     end do
