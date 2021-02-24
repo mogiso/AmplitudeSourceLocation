@@ -30,7 +30,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 8
+  integer,                parameter :: nsta_use_minimum = 5
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
@@ -65,7 +65,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
   real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.01_fp, dlat = 0.01_fp, dz = 1.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
   !!structure range
   real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
   real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
@@ -770,7 +770,6 @@ program AmplitudeSourceLocation_PulseWidth
             if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
             &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
               use_flag_tmp(jj) = .true.
-              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             else
               use_flag_tmp(jj) = .false.
               !print *, jj, trim(stname(jj)), rms_amp_obs(jj), rms_amp_cal, rms_amp_obs_noise(jj), source_amp(i, j, k), siteamp(jj)
@@ -782,6 +781,7 @@ program AmplitudeSourceLocation_PulseWidth
             !else
             !  use_flag_tmp(jj) = .false.
             !endif
+            if(use_flag_tmp(jj) .eqv. .true.) nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
@@ -803,10 +803,8 @@ program AmplitudeSourceLocation_PulseWidth
           residual(i, j, k) = 0.0_dp
           do jj = 1, nsta - 1
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             do ii = jj + 1, nsta
               if(use_flag_tmp(ii) .eqv. .false.) cycle
-              if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
               &  * (real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp) / real(hypodist(ii, i, j, k), kind = dp)) &
@@ -827,13 +825,20 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
             if(use_flag_tmp(ii) .eqv. .false.) cycle
-            if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+#if defined (L1_RESIDUAL)
+            residual(i, j, k) = residual(i, j, k) &
+            &                 + abs(rms_amp_obs(ii) / siteamp(ii) &
+            &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
+            &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp))
+            residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii))
+#else
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
             &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)) ** 2
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
+#endif
             !residual_normalize = source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             !&                    * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)
             !residual(i, j, k) = residual(i, j, k) &
