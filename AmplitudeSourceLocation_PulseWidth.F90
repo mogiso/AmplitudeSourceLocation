@@ -16,21 +16,24 @@ program AmplitudeSourceLocation_PulseWidth
   use greatcircle,          only : greatcircle_dist
   use itoa,                 only : int_to_char
   use grdfile_io,           only : read_grdfile_2d, write_grdfile_2d
-#ifdef WIN
+#if defined (WIN)
   use m_win
   use m_winch
 #endif
-#ifdef SAC
+#if defined (SAC)
   use read_sacfile,         only : read_sachdr, read_sacdata
+#endif
+#if defined (RAY_BENDING)
+  use raybending,           only : pseudobending3D
 #endif
   !$ use omp_lib
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
   integer,                parameter :: nsta_use_minimum = 5
-  real(kind = dp),        parameter :: snratio_accept = 0.0_dp
-  real(kind = fp),        parameter :: do_rayshooting_threshhold = 300.0_fp
-  real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.05_fp
+  real(kind = dp),        parameter :: snratio_accept = 3.0_dp
+  real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
+  real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -59,15 +62,15 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
-  real(kind = fp),        parameter :: lat_s = 43.35_fp, lat_n = 43.410_fp
-  real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.2_fp
-  real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
+  real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
+  real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
   !!structure range
-  real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
-  real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
+  real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
+  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 100.0_fp
+  real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
@@ -78,9 +81,9 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),        parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = dp),        parameter :: huge = 1.0e+5_dp
 
-  integer,                parameter :: nlon = int((lon_e - lon_w) / dlon) + 2
-  integer,                parameter :: nlat = int((lat_n - lat_s) / dlat) + 2
-  integer,                parameter :: nz   = int((z_max - z_min) / dz) + 2
+  integer,                parameter :: nlon = int((lon_e - lon_w) / dlon) + 1
+  integer,                parameter :: nlat = int((lat_n - lat_s) / dlat) + 1 
+  integer,                parameter :: nz   = int((z_max - z_min) / dz) + 1
   integer,                parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,                parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,                parameter :: nz_str   = int((z_str_max - z_str_min) / dz_str) + 2
@@ -112,6 +115,15 @@ program AmplitudeSourceLocation_PulseWidth
   character(len = 129)              :: station_param, dem_file, ot_begin_t, ot_end_t, &
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
+
+#if defined (RAY_BENDING)
+  integer,                parameter :: ndiv_raypath = 10
+  integer,                parameter :: nraypath_ini = 4
+  real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_dep((nraypath_ini - 1) * 2 ** ndiv_raypath + 1)
+  integer                           :: nraypath
+#endif
 
 #if defined (AMP_RATIO)
   real(kind = dp)                   :: amp_ratio_obs, amp_ratio_cal
@@ -218,9 +230,10 @@ program AmplitudeSourceLocation_PulseWidth
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), use_flag_tmp(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz))
+  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta))
   do i = 1, nsta
-    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i)
+    read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), &
+    &           rms_amp_obs_noise(i)
 
 #if defined (TESTDATA)
     ttime_cor(i, 1) = 0.0_fp
@@ -340,20 +353,20 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DAMP_TXT */
 
   !!calculate noise level
-  allocate(rms_amp_obs_noise(1 : nsta))
+  !allocate(rms_amp_obs_noise(1 : nsta))
 #if defined (AMP_TXT)
-  rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
+  !rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
 #else
-  do j = 1, nsta
-    icount = 0
-    rms_amp_obs_noise(j) = 0.0_dp
-    if(use_flag(j) .eqv. .false.) cycle
-    do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
-      rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
-      icount = icount + 1
-    enddo
-    rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
-  enddo
+  !do j = 1, nsta
+  !  icount = 0
+  !  rms_amp_obs_noise(j) = 0.0_dp
+  !  if(use_flag(j) .eqv. .false.) cycle
+  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
+  !    rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
+  !    icount = icount + 1
+  !  enddo
+  !  rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
+  !enddo
 #endif
 
 
@@ -393,27 +406,33 @@ program AmplitudeSourceLocation_PulseWidth
   !!make traveltime/pulse width table for each grid point
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
-  !$omp&         shared(topography, nsta, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
+  !$omp&         shared(topography, nsta, stname, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
   !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo, use_flag), &
   !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
   !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
   !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
+#if defined (RAY_BENDING)
+  !$omp&                raypath_lon, raypath_lat, raypath_dep, nraypath, &
+#endif
   !$omp&                inc_angle_ini, inc_angle_ini_min)
 
   !$ omp_thread = omp_get_thread_num()
 
   !$omp do schedule(guided)
   z_loop: do k = 1, nz
+  !z_loop: do k = nz / 2, nz / 2
     depth_grid = z_min + dz * real(k - 1, kind = fp)
     !$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
     lat_loop: do j = 1, nlat
+    !lat_loop: do j = nlat / 2, nlat / 2
       lat_grid = lat_s + dlat * real(j - 1, kind = fp)
       lon_loop: do i = 1, nlon
+      !lon_loop: do i = nlon / 2, nlon / 2
         lon_grid = lon_w + dlon * real(i - 1, kind = fp)
 
-        ttime_min(1 : nsta, i, j, k) = huge
+        ttime_min(1 : nsta, i, j, k) = real(huge, kind = fp)
         width_min(1 : nsta, i, j, k) = 0.0_fp
 
         !!check the grid is lower than the topo
@@ -444,7 +463,38 @@ program AmplitudeSourceLocation_PulseWidth
           width_min(jj, i, j, k) = ttime_min(jj, i, j, k) * qinv(lon_index, lat_index, z_index, wavetype)
 
 #else
-          
+
+#if defined (RAY_BENDING)
+          !!do ray tracing with pseudobending scheme
+          raypath_lon(1) = lon_grid
+          raypath_lat(1) = lat_grid
+          raypath_dep(1) = depth_grid
+          raypath_lon(nraypath_ini) = lon_sta(jj)
+          raypath_lat(nraypath_ini) = lat_sta(jj)
+          raypath_dep(nraypath_ini) = z_sta(jj)
+          do ii = 2, nraypath_ini - 1
+            raypath_lon(ii) = raypath_lon(ii - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+            raypath_lat(ii) = raypath_lat(ii - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+            raypath_dep(ii) = raypath_dep(ii - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
+          enddo
+          nraypath = nraypath_ini
+          call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+          &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+          &                    ttime_min(jj, i, j, k), &
+          &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
+          &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
+          &                    pulsewidth = width_min(jj, i, j, k))
+          !if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
+          !  print *, jj, i, j, k, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+          !  do ii = 1, nraypath
+          !  print *, raypath_lon(ii), raypath_lat(ii), raypath_dep(ii)
+          !  enddo
+          !  stop
+          !endif    
+#else
+
+          !!do not rayshooting if hypodist is longer than threshold
+          if(hypodist(jj, i, j, k) .gt. do_rayshooting_threshold) cycle station_loop
           !!do ray shooting
           dist_min = huge
           incangle_loop2: do kk = 1, nrayshoot
@@ -546,15 +596,19 @@ program AmplitudeSourceLocation_PulseWidth
             enddo incangle_loop
           enddo incangle_loop2
           !print '(a, 4(f8.4, 1x))', "grid lon, lat, depth, az_ini = ", lon_grid, lat_grid, depth_grid, az_ini * rad2deg
-          !print '(a, 3(f8.4, 1x))', "station lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
+          !print '(a, i0, 3a, 3(f8.4, 1x))', "jj = ", jj, " station ", &
+          !&                                  trim(stname(jj)), " lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
           !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
           !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
           !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+          !print *, ""
           if(dist_min .gt. conv_rayshooting_threshold) then
-            ttime_min(jj, i, j, k) = huge
+            ttime_min(jj, i, j, k) = real(huge, kind = fp)
             width_min(jj, i, j, k) = 0.0_fp
           endif
-#endif
+
+#endif   /* -DRAY_BENDING or not */
+#endif   /* -DV_CONST or not */
 
         enddo station_loop
       enddo lon_loop
@@ -603,9 +657,9 @@ program AmplitudeSourceLocation_PulseWidth
   open(unit = 20, file = ampfile)
   write(20, '(a)', advance = "no") "# "
   do i = 1, nsta
-    write(20, '(a, 1x)', advance = "no") stname(i)
+    write(20, '(a, 1x)', advance = "no") trim(stname(i))
   enddo
-  write(20, *)
+  write(20, '(a)') " time"
 #endif
 
 !!Do grid search
@@ -625,7 +679,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                amp_txt, time_count, &
 #endif
     !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
-    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography), &
+    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
@@ -637,7 +691,7 @@ program AmplitudeSourceLocation_PulseWidth
 
 
     !$omp do schedule(guided)
-    z_loop2: do k = 1, nz - 1
+    z_loop2: do k = 1, nz
       depth_grid = z_min + dz * real(k - 1, kind = fp)
       !!$ write(0, '(2(a, i0))') "omp_thread_num = ", omp_thread, " depth index k = ", k
       lat_loop2: do j = 1, nlat
@@ -677,11 +731,19 @@ program AmplitudeSourceLocation_PulseWidth
             icount = 0
             do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
               if(ii .lt. npts(jj)) then
+#if defined (ABS_MEAN)
+                rms_amp_obs(jj) = rms_amp_obs(jj) + abs(waveform_obs(ii, jj))
+#else
                 rms_amp_obs(jj) = rms_amp_obs(jj) + waveform_obs(ii, jj) * waveform_obs(ii, jj)
+#endif
                 icount = icount + 1
               endif
             enddo
+#if defined (ABS_MEAN)
+            if(icount .ne. 0) rms_amp_obs(jj) = rms_amp_obs(jj) / real(icount, kind = dp)
+#else
             if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
+#endif
 #endif /* -DAMP_TXT */
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
@@ -698,32 +760,28 @@ program AmplitudeSourceLocation_PulseWidth
           !!check s/n ratio
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
-            !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            !rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
-            !&             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-            !if(use_flag(jj) .eqv. .false.) then
-            !  use_flag_tmp(jj) = .false.
-            !else
-            !  if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
-            !  &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-            !    use_flag_tmp(jj) = .true.
-            !    nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-            !  else
-            !    use_flag_tmp(jj) = .false.
-            !  endif
-            !endif
-            if(use_flag(jj) .eqv. .false.) then
+            if(use_flag(jj) .eqv. .false. .or. ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) then
               use_flag_tmp(jj) = .false.
-            else
-              !!just compare amplitude  of signal and noise
-              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                use_flag_tmp(jj) = .true.
-                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-              else
-                use_flag_tmp(jj) = .false.
-              endif
+              cycle
             endif
+            !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
+            rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
+            &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj) .or. &
+            &  rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+              use_flag_tmp(jj) = .true.
+            else
+              use_flag_tmp(jj) = .false.
+              !print *, jj, trim(stname(jj)), rms_amp_obs(jj), rms_amp_cal, rms_amp_obs_noise(jj), source_amp(i, j, k), siteamp(jj)
+            endif
+            !!just compare amplitude  of signal and noise
+            !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            !  use_flag_tmp(jj) = .true.
+            !  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            !else
+            !  use_flag_tmp(jj) = .false.
+            !endif
+            if(use_flag_tmp(jj) .eqv. .true.) nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
@@ -732,7 +790,6 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
@@ -744,14 +801,10 @@ program AmplitudeSourceLocation_PulseWidth
 #if defined (AMP_RATIO)
           !!calculate amplitude ration and residual
           residual(i, j, k) = 0.0_dp
-          nsta_use_grid(i, j, k) = 0
           do jj = 1, nsta - 1
             if(use_flag_tmp(jj) .eqv. .false.) cycle
-            if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             do ii = jj + 1, nsta
               if(use_flag_tmp(ii) .eqv. .false.) cycle
-              if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
-              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               amp_ratio_obs = rms_amp_obs(ii) / rms_amp_obs(jj)
               amp_ratio_cal = (siteamp(ii) / siteamp(jj)) &
               &  * (real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp) / real(hypodist(ii, i, j, k), kind = dp)) &
@@ -759,8 +812,10 @@ program AmplitudeSourceLocation_PulseWidth
               residual(i, j, k) = residual(i, j, k) + ((amp_ratio_obs - amp_ratio_cal) / amp_ratio_cal) ** 2
             enddo
           enddo
-          if(nsta_use_grid(i, j, k) .ne. 0) then
-            residual(i, j, k) = sqrt(2.0_dp / real(nsta_use_grid(i, j, k), kind = dp) * residual(i, j, k))
+
+          if(nsta_use_grid(i, j, k) - 1 .ne. 0) then
+            residual(i, j, k) &
+            &  = sqrt(2.0_dp / real(nsta_use_grid(i, j, k) * nsta_use_grid(i, j, k) - 1, kind = dp) * residual(i, j, k))
           else
             residual(i, j, k) = huge
           endif
@@ -770,13 +825,20 @@ program AmplitudeSourceLocation_PulseWidth
           nsta_use_grid(i, j, k) = 0
           do ii = 1, nsta
             if(use_flag_tmp(ii) .eqv. .false.) cycle
-            if(ttime_min(ii, i, j, k) .eq. real(huge, kind = fp)) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+#if defined (L1_RESIDUAL)
+            residual(i, j, k) = residual(i, j, k) &
+            &                 + abs(rms_amp_obs(ii) / siteamp(ii) &
+            &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
+            &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp))
+            residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii))
+#else
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
             &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)) ** 2
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii)) ** 2
+#endif
             !residual_normalize = source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             !&                    * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp)
             !residual(i, j, k) = residual(i, j, k) &
@@ -866,11 +928,19 @@ program AmplitudeSourceLocation_PulseWidth
       icount = 0
       do ii = wave_index, wave_index + int(rms_tw / sampling(i) + 0.5_fp) - 1
          if(ii .lt. npts(i)) then
+#if defined (ABS_MEAN)
+           rms_amp_obs(i) = rms_amp_obs(i) + abs(waveform_obs(ii, i))
+#else
            rms_amp_obs(i) = rms_amp_obs(i) + waveform_obs(ii, i) * waveform_obs(ii, i)
+#endif
            icount = icount + 1
          endif
       enddo
+#if  defined (ABS_MEAN)
+      rms_amp_obs(i) = rms_amp_obs(i) / real(icount, kind = dp)
+#else
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
+#endif
       if(rms_amp_obs(i) .le. snratio_accept * rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
 #elif defined (AMP_TXT)
       rms_amp_obs(i) = amp_txt(i, time_count + 1)

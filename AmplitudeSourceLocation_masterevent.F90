@@ -20,6 +20,10 @@ program AmplitudeSourceLocation_masterevent
   use grdfile_io,           only : read_grdfile_2d
   !$ use omp_lib
 
+#if defined (RAY_BENDING)
+  use raybending,           only : pseudobending3D
+#endif
+
 #if defined (WIN)
   use m_win
   use m_winch
@@ -120,12 +124,21 @@ program AmplitudeSourceLocation_masterevent
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, ttime_tmp, matrix_const, &
   &                                lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                data_residual, data_variance, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                depth_max_tmp, depth_max
+  &                                depth_max_tmp, depth_max, siteamp_tmp
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, qinv_interpolate, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nsubevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, icount, ncount, nsta_use, ios
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile
   character(len = 20)           :: cfmt, nsta_c
+
+#if defined (RAY_BENDING)
+  integer,                parameter :: ndiv_raypath = 10
+  integer,                parameter :: nraypath_ini = 4
+  real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_dep((nraypath_ini - 1) * 2 ** ndiv_raypath + 1)
+  integer                           :: nraypath
+#endif
 
   !!OpenMP variable
   !$ integer                    :: omp_thread
@@ -223,10 +236,11 @@ program AmplitudeSourceLocation_masterevent
   endif
   rewind(10)
   allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
-  &        use_flag(1 : nsta), use_flag_tmp(1 : nsta))
+  &        use_flag(1 : nsta), use_flag_tmp(1 : nsta), obsamp_noise(1 : nsta))
   nsta_use = 0
   do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2)
+    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp_tmp, &
+    &           obsamp_noise(i)
     write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
     &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), trim(stname(i)), &
     &     use_flag(i)
@@ -324,15 +338,15 @@ program AmplitudeSourceLocation_masterevent
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) * gn
     deallocate(h)
   enddo
-  allocate(obsamp_noise(1 : nsta))
-  do j = 1, nsta
-    obsamp_noise(j) = 0.0_fp
-    icount = 0
-    do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
-      obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
-    enddo
-    obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
-  enddo
+  !allocate(obsamp_noise(1 : nsta))
+  !do j = 1, nsta
+  !  obsamp_noise(j) = 0.0_fp
+  !  icount = 0
+  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
+  !    obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
+  !  enddo
+  !  obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
+  !enddo
 #endif
 
 #else /* -DWIN || -DSAC */
@@ -388,6 +402,9 @@ program AmplitudeSourceLocation_masterevent
   !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, &
   !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, ttime_tmp, &
   !$omp&                 dist_tmp, lon_min, lat_min, depth_min, depth_max, depth_max_tmp, velocity_interpolate, dvdz, &
+#if defined (RAY_BENDING)
+  !$omp&                 raypath_lon, raypath_lat, raypath_dep, nraypath, &
+#endif
   !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, ii, kk, omp_thread)
 
   !$ omp_thread = omp_get_thread_num()
@@ -410,6 +427,39 @@ program AmplitudeSourceLocation_masterevent
 #if defined (V_CONST)
     !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
     ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
+#else
+
+#if defined (RAY_BENDING)
+    !!do ray tracing with pseudobending scheme
+    raypath_lon(1) = evlon_master
+    raypath_lat(1) = evlat_master
+    raypath_dep(1) = evdp_master
+    raypath_lon(nraypath_ini) = stlon(jj)
+    raypath_lat(nraypath_ini) = stlat(jj)
+    raypath_dep(nraypath_ini) = stdp(jj)
+    do i = 2, nraypath_ini - 1
+      raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+      raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+      raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
+    enddo
+    nraypath = nraypath_ini
+    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
+
+#if defined (WIN) || defined (SAC)
+    ttime(jj) = ttime_tmp
+#endif
+
+    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
+    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+    write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
+    &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
+#if defined (WIN) || defined (SAC)
+    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
+#endif
+
 #else
     !!do ray shooting
     dist_min(jj) = real(huge, kind = fp)
@@ -522,7 +572,8 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-#endif /* -DV_CONST */
+#endif /* -DRAY_BENDING or not */
+#endif /* -DV_CONST or not */
 
   enddo station_loop
   !$omp end do
@@ -546,7 +597,7 @@ program AmplitudeSourceLocation_masterevent
   ttime(1 : nsta) = 0.0_fp
 #endif
 
-#endif /* -DWIN || -DSAC */
+#endif /* (-DWIN || -DSAC) or not */
 
   !!make amplitude data from win- or sac-formatted waveform data
 #if defined (WIN) || defined (SAC)
@@ -574,15 +625,23 @@ program AmplitudeSourceLocation_masterevent
       do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
         time_index = int((ot_tmp - begin(j) + ttime(j)) / sampling(j) + 0.5_fp) + i
         if(time_index .ge. 1 .and. time_index .le. npts(j)) then
+#if defined (ABS_MEAN)
+          obsamp_sub(j, k) = obsamp_sub(j, k) + abs(waveform_obs(time_index, j))
+#else
           obsamp_sub(j, k) = obsamp_sub(j, k) + waveform_obs(time_index, j) ** 2
+#endif
           !print *, time_index, obsamp_sub(j, k), waveform_obs(time_index, j)
           icount = icount + 1
         endif
       enddo
+#if defined (ABS_MEAN)
+      obsamp_sub(j, k) = obsamp_sub(j, k) / real(icount, kind = dp)
+#else
       obsamp_sub(j, k) = sqrt(obsamp_sub(j, k) / real(icount, kind = dp))
+#endif
     enddo
   enddo
-#endif
+#endif /* (-DWIN || -DSAC) or not */
 
   !!velocity and Qinv at master event location
   lon_index = int((evlon_master - lon_str_w) / dlon_str) + 1

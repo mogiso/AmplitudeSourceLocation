@@ -12,18 +12,32 @@ $result = $ARGV[1];
 $dem_lonlat = $ARGV[2];
 $dem_londep = $ARGV[3];
 $dem_deplat = $ARGV[4];
+$stationparam = $ARGV[5];
 
 $argc = $#ARGV;
-if($argc != 4){
-  print stderr "usage: perl plot_result_masterevent.pl (out_ps) (result_txt) dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat)\n";
+if($argc != 5){
+  print stderr "usage: perl plot_result_masterevent.pl (out_ps) (result_txt) dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat) stationparam\n";
   die;
 }
 
 
 
-@stlon = (143.9775, 143.9867, 144.0017, 144.0042, 144.0160);
-@stlat = (43.3797, 43.3955, 43.3818, 43.3903, 43.3695);
-@stname = ("V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK");
+#@stlon = (143.9775, 143.9867, 144.0017, 144.0042, 144.0160);
+#@stlat = (43.3797, 43.3955, 43.3818, 43.3903, 43.3695);
+#@stname = ("V.MEAB", "V.MEAA", "V.PMNS", "V.NSYM", "V.MNDK");
+#
+open IN, "<", $stationparam;
+while(<IN>){
+  chomp;
+  $_ =~ s/^\s*(.*?)\s*$/$1/;
+  @tmp = split /\s+/, $_;
+  if($tmp[4] eq ".true."){
+    push @stlon, $tmp[0];
+    push @stlat, $tmp[1];
+    push @stname, $tmp[3];
+  }
+}
+close IN;
 
 ##read result file
 open IN, "<", $result;
@@ -41,12 +55,12 @@ while(<IN>){
 close IN;
 
 ##for GMT
-$lon_w = 143.975;
-$lon_e = 144.04;
-$lat_s = 43.36;
-$lat_n = 43.405;
-$dep_min = -2.0;
-$dep_max = 2.0;
+$lon_w = 135.2;
+$lon_e = 137.7;
+$lat_s = 32.5;
+$lat_n = 34.0;
+$dep_min = 0.0;
+$dep_max = 20.0;
 
 $mapsize_x = 10.0;
 $mapsize_y = `echo $lon_e $lat_n | gmt mapproject -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n`;
@@ -58,7 +72,7 @@ $dy = 5.7;
 
 $scale_x = 9.0;
 $scale_y = $mapsize_y + 0.9;
-$scale_dist = "1.0k";
+$scale_dist = "20k";
 
 $cpt_x = $mapsize_x / 2;
 $cpt_y = -1.0;
@@ -66,18 +80,17 @@ $cpt_len_x = $mapsize_x;
 $cpt_len_y = "0.3h";
 
 $symbolsize = 0.5;
-$symbolwidth = "1.0p";
+$symbolwidth = "0.5p";
 $symbolsize_st = 0.4;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
 
-$color_p1 = "red";
-$color_p2 = "green4";
-$color_p3 = "blue";
+$annot_a_map = "0.5";
+$annot_f_map = "0.1";
+$annot_a_dep = "5";
+$annot_f_dep = "1";
 
-$color_p1 = "black";
-$color_p2 = $color_p1;
-$color_p3 = $color_p1;
+$color = "black";
 
 system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
@@ -91,10 +104,21 @@ open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -K -P -X3c -Y12c > $out";
 close OUT;
 
 ##lon-lat
+system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C200 -W0.6p,dimgray -O -K -P >> $out";
+
+open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
+                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
+for($j = 0; $j <= $#origintime; $j++){
+  print OUT "$evlon[$j] $evlat[$j]\n";
+}
+close OUT;
+
+system "gmt pscoast -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -Df -Gwhite -W1p,black -O -K -P >> $out";
 system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                      -Bxya0.02f0.01 -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
+                      -Bxya${annot_a_map}f${annot_f_map} -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                       -O -K -P >> $out";
-system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -C50 -W0.6p,dimgray -O -K -P >> $out";
+
+
 open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                        -Si$symbolsize_st -W0.9p,black -Gwhite -O -K -P >> $out";
 for($j = 0; $j <= $#stlon; $j++){
@@ -103,46 +127,20 @@ for($j = 0; $j <= $#stlon; $j++){
 close OUT;
 
 
-for($j = 0; $j <= $#origintime; $j++){
-  if($origintime[$j] <= 555.0){
-    $color = $color_p1;
-  }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = $color_p2;
-  }else{
-    $color = $color_p3;
-  }
-  open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
-                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
-    print OUT "$evlon[$j] $evlat[$j]\n";
-  close OUT;
-}
-
-#96-1 crator
-open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -SE -Gblack -O -K -P >> $out";
-  print OUT "144.0097 43.3826 90.0 0.3 0.15\n";
-close OUT;
-
 
 open OUT, " | gmt psxy -JX1/1 -R0/1/0/1 -Sc0.1 -O -K -P -Y-$dy >> $out";
 close OUT;
 
 ##lon-dep
 system "gmt psbasemap -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                      -Bxf0.01 -Bya1f0.5+l\"Depth (km)\" -BWsen -O -K -P >> $out";
+                      -Bxf${annot_f_map} -Bya${annot_a_dep}f${annot_f_dep}+l\"Depth (km)\" -BWsen -O -K -P >> $out";
 
+open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
+                       -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
 for($j = 0; $j <= $#origintime; $j++){
-  if($origintime[$j] <= 555.0){
-    $color = $color_p1;
-  }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = $color_p2;
-  }else{
-    $color = $color_p3;
-  }
-  open OUT, " | gmt psxy -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max \\
-                         -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
   print OUT "$evlon[$j] $evdep[$j]\n";
-  close OUT;
 }
+close OUT;
 
 
 system "gmt psxy $dem_londep -JX$mapsize_x/-$mapsize_z -R$lon_w/$lon_e/$dep_min/$dep_max -W0.6p,black -O -K -P >> $out";
@@ -152,22 +150,15 @@ close OUT;
 
 ##lon-dep
 system "gmt psbasemap -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
-                      -Byf0.01 -Bxa1f0.5+l\"Depth (km)\" -BwSen -O -K -P >> $out";
+                      -Byf${annot_f_map} -Bxa${annot_a_dep}f${annot_f_dep}+l\"Depth (km)\" -BwSen -O -K -P >> $out";
 
 
-for($j = $#origintime; $j >= 0; $j--){
-  if($origintime[$j] <= 555.0){
-    $color = $color_p1;
-  }elsif($origintime[$j] >= 555.0 && $origintime[$j] <= 795.0){
-    $color = $color_p2;
-  }else{
-    $color = $color_p3;
-  }
-  open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
+open OUT, " | gmt psxy -JX$mapsize_z/$mapsize_y -R$dep_min/$dep_max/$lat_s/$lat_n \\
                        -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
-    print OUT "$evdep[$j] $evlat[$j]\n";
-  close OUT;
+for($j = 0; $j <= $#origintime; $j++){
+  print OUT "$evdep[$j] $evlat[$j]\n";
 }
+close OUT;
 system "gmt psxy $dem_deplat -JX$mapsize_z/$mapsize_y -R/$dep_min/$dep_max/$lat_s/$lat_n -W0.6p,black -O -K -P >> $out";
 
 #open OUT, " | gmt pslegend -J -R -Dx0/-3+w$mapsize_x/3c+jTL -O -K >> $out";
