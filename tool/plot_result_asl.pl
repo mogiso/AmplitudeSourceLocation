@@ -31,9 +31,11 @@ while(<IN>){
   chomp;
   $_ =~ s/^\s*(.*?)\s*$/$1/;
   @tmp = split /\s+/, $_;
-  push @stlon, $tmp[0];
-  push @stlat, $tmp[1];
-  push @stname, $tmp[3];
+  if($tmp[4] eq ".true."){
+    push @stlon, $tmp[0];
+    push @stlat, $tmp[1];
+    push @stname, $tmp[3];
+  }
 }
 close IN;
 
