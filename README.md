@@ -38,6 +38,8 @@ making travel time and pulse width tables is time-consuming work.
 - `-DOUT_AMPLITUDE`: output seismic amplitude at each station into a text-formatted file. This file can be used in AmplitudeSourceLocation_masterevent.F90.
 - `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
 - `-DAMP_RATIO`: conduct grid search with seismic amplitude ratios (Taisne et al., 2011; Ichihara and Matsumoto, 2017) instead of original ASL method
+- `-DRAY_BENDING`: use pseudobending method (Um and Thurber, 1987; Koketsu and Sekine, 1998) for ray tracing (default method is ray shooting)
+- `-DABS_MEAN`: take mean of absolute amplitude when calculating observed amplitude (default is root-mean-squared amplitudes)
 
 ### Executable commands
 When `-DSAC` is set,
@@ -57,16 +59,17 @@ or when `-DAMP_TXT` is set,
 - The format of station parameter file is as follows:
  
 <pre>
-    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 0.0 1.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, and site amplification term of 1st station)
-    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.0 0.738  #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, and site amplification term of 2nd station)
-    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 0.0 2.213 
-    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 0.0 1.487
-    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 0.0 2.761
+    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 0.0 1.0 0.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, and noise level of 1st station)
+    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.0 0.738 0.0 #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, and noise level of 2nd station)
+    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 0.0 2.213 0.0
+    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 0.0 1.487 0.0
+    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 0.0 2.761 0.0
 </pre>
 
 The number of stations is automatically determined from station parameter file. Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will
 not use in the estimation of source locations.
 - If a travel time correction term is positive, it is added to a theoretical (calculated) travel time.
+- If noise level equals zero, all amplitude data will pass the check of signal-to-noise ratio.
 - When `-DSAC` is set, filename of each SAC file is set to be `trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac"`.
 Prefix of sac files and component are given in arguments while station name is given by the station parameter file.
 - When `-DAMP_TXT` is set, the format of amplitude file is as follows:
@@ -147,6 +150,8 @@ Some options are same as those of AmplitudeSourceLocation_PulseWidth.F90. The de
 is calculated using all subevents so that estimation errors of locations would be the same for all subevents.
 - `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
 - `-DMKL`: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
+- `-DRAY_BENDING`: use pseudobending method (Um and Thurber, 1987; Koketsu and Sekine, 1998) for ray tracing (default method is ray shooting)
+- `-DABS_MEAN`: take mean of absolute amplitude when calculating observed amplitude (default is root-mean-squared amplitudes)
 
 ### Executable commands
 When `-DSAC` is set,
@@ -275,6 +280,8 @@ Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, *Journal of Physi
 
 Ichihara and Matsumoto (2017), Relative Source Locations of Continuous Tremor Before and After the Subplinian Events at Shinmoe-dake, in 2011, *Geophys. Res. Lett.*, **44**, 10,871-10,877, [doi: 10.1002/2017GL075293](https://doi.org/10.1002/2017GL075293).
 
+Koketsu and Sekine (1998), Pseudo-bending method for three-dimensional seismic ray tracing in a spherical earth with discontinuities, *Geophys. J. Int.*, **132**(2), 339–346, [doi: 10.1046/j.1365-246x.1998.00427.x](https://doi.org/10.1046/j.1365-246x.1998.00427.x).
+
 Kumagai et al. (2019), Amplitude Source Location Method With Depth-Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia,
 *J. Geophys. Res.*, **124**, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
 
@@ -284,6 +291,8 @@ and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and 
 Saito (1978), An automatic design algorithm for band selective recursive digital filters, *Geophysical Prospecting (Butsuri Tanko)*, **31**(4), 240-263. (In Japanese)
 
 Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, *Geophys. Res. Lett.*, **38**, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.1029/2010GL046068).
+
+Um and Thurber (1987), A fast algorithm for two-point seismic ray tracing, *Bull. Seismo. Soc. Am.*, **77**(3), 972–986.
 
 ## Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
