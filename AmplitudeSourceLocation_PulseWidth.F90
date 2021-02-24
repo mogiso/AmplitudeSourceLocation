@@ -31,7 +31,7 @@ program AmplitudeSourceLocation_PulseWidth
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
   integer,                parameter :: nsta_use_minimum = 4
-  real(kind = dp),        parameter :: snratio_accept = 3.0_dp
+  real(kind = dp),        parameter :: snratio_accept = 0.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
   !!Use station
@@ -769,13 +769,13 @@ program AmplitudeSourceLocation_PulseWidth
               cycle
             endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
               use_flag_tmp(jj) = .true.
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             else
               rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
               &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+              if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
                 use_flag_tmp(jj) = .true.
                 nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
