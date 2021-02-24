@@ -452,8 +452,6 @@ program AmplitudeSourceLocation_PulseWidth
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
 
-          if(use_flag(jj) .eqv. .false.) cycle
-
 #if defined (V_CONST)
           !!homogeneous structure: using velocity/qinv at the grid
           lon_index = int((lon_grid - lon_str_w) / dlon_str) + 1
@@ -595,13 +593,13 @@ program AmplitudeSourceLocation_PulseWidth
 
             enddo incangle_loop
           enddo incangle_loop2
-          !print '(a, 4(f8.4, 1x))', "grid lon, lat, depth, az_ini = ", lon_grid, lat_grid, depth_grid, az_ini * rad2deg
-          !print '(a, i0, 3a, 3(f8.4, 1x))', "jj = ", jj, " station ", &
-          !&                                  trim(stname(jj)), " lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
-          !print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
-          !&                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
-          !print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
-          !print *, ""
+          print '(a, 4(f8.4, 1x))', "grid lon, lat, depth, az_ini = ", lon_grid, lat_grid, depth_grid, az_ini * rad2deg
+          print '(a, i0, 3a, 3(f8.4, 1x))', "jj = ", jj, " station ", &
+          &                                  trim(stname(jj)), " lon, lat, depth = ", lon_sta(jj), lat_sta(jj), z_sta(jj)
+          print '(a, 4(f8.4, 1x))', "rayshoot lon, lat, depth, inc_angle = ", lon_min, lat_min, depth_min, &
+          &                                                                   inc_angle_ini_min(nrayshoot) * rad2deg
+          print '(a, 3(f8.4, 1x))', "dist_min, ttime, width = ", dist_min, ttime_min(jj, i, j, k), width_min(jj, i, j, k)
+          print *, ""
           if(dist_min .gt. conv_rayshooting_threshold) then
             ttime_min(jj, i, j, k) = real(huge, kind = fp)
             width_min(jj, i, j, k) = 0.0_fp
