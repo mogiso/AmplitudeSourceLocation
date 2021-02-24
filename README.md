@@ -38,6 +38,8 @@ making travel time and pulse width tables is time-consuming work.
 - `-DOUT_AMPLITUDE`: output seismic amplitude at each station into a text-formatted file. This file can be used in AmplitudeSourceLocation_masterevent.F90.
 - `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
 - `-DAMP_RATIO`: conduct grid search with seismic amplitude ratios (Taisne et al., 2011; Ichihara and Matsumoto, 2017) instead of original ASL method
+- `-DRAY_BENDING`: use pseudobending method (Um and Thurber, 1987; Koketsu and Sekine, 1998) for ray tracing (default method is ray shooting)
+- `-DABS_MEAN`: take mean of absolute amplitude when calculating observed amplitude (default is root-mean-squared amplitudes)
 
 ### Executable commands
 When `-DSAC` is set,
@@ -148,6 +150,8 @@ Some options are same as those of AmplitudeSourceLocation_PulseWidth.F90. The de
 is calculated using all subevents so that estimation errors of locations would be the same for all subevents.
 - `-DWITHOUT_TTIME`: do not consider travel time from assumed seismic location to each station when calculating seismic amplitudes
 - `-DMKL`: use Intel Math Kernel Library instead of original lapack95/lapack subroutine libraries.
+- `-DRAY_BENDING`: use pseudobending method (Um and Thurber, 1987; Koketsu and Sekine, 1998) for ray tracing (default method is ray shooting)
+- `-DABS_MEAN`: take mean of absolute amplitude when calculating observed amplitude (default is root-mean-squared amplitudes)
 
 ### Executable commands
 When `-DSAC` is set,
@@ -276,6 +280,8 @@ Aoki (1974), Plate Tectonics of Arc-junction at Central Japan, *Journal of Physi
 
 Ichihara and Matsumoto (2017), Relative Source Locations of Continuous Tremor Before and After the Subplinian Events at Shinmoe-dake, in 2011, *Geophys. Res. Lett.*, **44**, 10,871-10,877, [doi: 10.1002/2017GL075293](https://doi.org/10.1002/2017GL075293).
 
+Koketsu and Sekine (1998), Pseudo-bending method for three-dimensional seismic ray tracing in a spherical earth with discontinuities, *Geophys. J. Int.*, **132**(2), 339–346, [doi: 10.1046/j.1365-246x.1998.00427.x](https://doi.org/10.1046/j.1365-246x.1998.00427.x).
+
 Kumagai et al. (2019), Amplitude Source Location Method With Depth-Dependent Scattering and Attenuation Structures: Application at Nevado del Ruiz Volcano, Colombia,
 *J. Geophys. Res.*, **124**, [doi: 10.1029/2019JB018156](https://doi.org/10.1029/2019JB018156).
 
@@ -285,6 +291,8 @@ and tremors at Meakandake volcano, eastern Hokkaido, Japan, *Earth, Planets and 
 Saito (1978), An automatic design algorithm for band selective recursive digital filters, *Geophysical Prospecting (Butsuri Tanko)*, **31**(4), 240-263. (In Japanese)
 
 Taisne et al. (2011), Imaging the dynamics of magma propagation using radiated seismic intensity, *Geophys. Res. Lett.*, **38**, L04304, [doi: 10.1029/2010GL046068](https://doi.org/10.1029/2010GL046068).
+
+Um and Thurber (1987), A fast algorithm for two-point seismic ray tracing, *Bull. Seismo. Soc. Am.*, **77**(3), 972–986.
 
 ## Acknowledgments
 I utilize a part of fwin source code written by Takuto Maeda (https://github.com/tktmyd/fwin).
