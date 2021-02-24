@@ -30,7 +30,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 4
+  integer,                parameter :: nsta_use_minimum = 5
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
@@ -62,15 +62,15 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.03_fp
-  real(kind = fp),        parameter :: lat_s = 43.35_fp, lat_n = 43.41_fp
-  real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.2_fp
-  real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
+  real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
+  real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
   !!structure range
-  real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
-  real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
+  real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
+  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 100.0_fp
+  real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
@@ -769,13 +769,13 @@ program AmplitudeSourceLocation_PulseWidth
               cycle
             endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
               use_flag_tmp(jj) = .true.
               nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             else
               rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
               &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-              if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+              if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
                 use_flag_tmp(jj) = .true.
                 nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
               else
