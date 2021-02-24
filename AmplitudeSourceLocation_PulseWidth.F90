@@ -452,8 +452,6 @@ program AmplitudeSourceLocation_PulseWidth
           hypodist(jj, i, j, k) = sqrt((r_earth - depth_grid) ** 2 + (r_earth - z_sta(jj)) ** 2 &
           &                     - 2.0_fp * (r_earth - depth_grid) * (r_earth - z_sta(jj)) * cos(epdelta))
 
-          if(use_flag(jj) .eqv. .false.) cycle
-
 #if defined (V_CONST)
           !!homogeneous structure: using velocity/qinv at the grid
           lon_index = int((lon_grid - lon_str_w) / dlon_str) + 1
