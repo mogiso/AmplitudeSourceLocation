@@ -318,7 +318,6 @@ program AmplitudeSourceLocation_PulseWidth
   !!remove offset
   write(0, '(a)') "Removing offset"
   do j = 1, nsta
-    if(use_flag(j) .eqv. .false.) cycle
     amp_avg = 0.0_dp
     icount = 0
     do i = 1, int(rms_tw / sampling(j))
@@ -336,7 +335,6 @@ program AmplitudeSourceLocation_PulseWidth
   !!bandpass filter
   write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
   do j = 1, nsta
-    if(use_flag(j) .eqv. .false.) cycle
     !!design
     call calc_bpf_order(fl, fh, fs, ap, as, sampling(j), m, n, c)
     allocate(h(4 * m), waveform_tmp(npts(j)))
