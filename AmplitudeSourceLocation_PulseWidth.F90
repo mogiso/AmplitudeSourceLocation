@@ -346,6 +346,7 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
+
 #endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
@@ -724,6 +725,7 @@ program AmplitudeSourceLocation_PulseWidth
             wave_index = int((origintime - begin(jj) + ttime_min(jj, i, j, k) + ttime_cor(jj, wavetype)) &
             &                / sampling(jj) + 0.5_fp) + 1
 #endif
+
             icount = 0
             do ii = wave_index, wave_index + int(rms_tw / sampling(jj) + 0.5_fp) - 1
               if(ii .lt. npts(jj)) then
@@ -740,6 +742,7 @@ program AmplitudeSourceLocation_PulseWidth
 #else
             if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
 #endif
+
 #endif /* -DAMP_TXT */
 
             !!calculate source amplitude temporally from high-s/n ratio staitons
@@ -918,6 +921,7 @@ program AmplitudeSourceLocation_PulseWidth
 
 #if defined (OUT_AMPLITUDE)
     do i = 1, nsta
+
 #if defined (WITHOUT_TTIME)
       wave_index = int((origintime - begin(i)) / sampling(i) + 0.5_fp) + 1
 #else
@@ -945,7 +949,8 @@ program AmplitudeSourceLocation_PulseWidth
       rms_amp_obs(i) = sqrt(rms_amp_obs(i) / real(icount, kind = dp))
 #endif
       if(rms_amp_obs(i) .le. snratio_accept * rms_amp_obs_noise(i)) rms_amp_obs(i) = 0.0_fp
-#elif defined (AMP_TXT)
+
+#else /* -DWIN || -DSAC */ 
       rms_amp_obs(i) = amp_txt(i, time_count + 1)
 #endif
 
