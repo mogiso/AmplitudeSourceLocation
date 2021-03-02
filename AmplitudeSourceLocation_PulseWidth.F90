@@ -30,7 +30,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 5
+  integer,                parameter :: nsta_use_minimum = 6 
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
@@ -62,13 +62,13 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 135.5_fp, lon_e = 137.5_fp
-  real(kind = fp),        parameter :: lat_s = 32.7_fp, lat_n = 33.7_fp
+  real(kind = fp),        parameter :: lon_w = 135.0_fp, lon_e = 137.5_fp
+  real(kind = fp),        parameter :: lat_s = 32.5_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 1.0_fp
+  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 2.0_fp
   !!structure range
-  real(kind = fp),        parameter :: lon_str_w = 135.0_fp, lon_str_e = 138.0_fp
-  real(kind = fp),        parameter :: lat_str_s = 32.0_fp,  lat_str_n = 34.5_fp
+  real(kind = fp),        parameter :: lon_str_w = 134.0_fp, lon_str_e = 138.0_fp
+  real(kind = fp),        parameter :: lat_str_s = 30.0_fp,  lat_str_n = 34.5_fp
   real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 100.0_fp
   real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
   !!Ray shooting
@@ -318,7 +318,6 @@ program AmplitudeSourceLocation_PulseWidth
   !!remove offset
   write(0, '(a)') "Removing offset"
   do j = 1, nsta
-    if(use_flag(j) .eqv. .false.) cycle
     amp_avg = 0.0_dp
     icount = 0
     do i = 1, int(rms_tw / sampling(j))
@@ -336,7 +335,6 @@ program AmplitudeSourceLocation_PulseWidth
   !!bandpass filter
   write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
   do j = 1, nsta
-    if(use_flag(j) .eqv. .false.) cycle
     !!design
     call calc_bpf_order(fl, fh, fs, ap, as, sampling(j), m, n, c)
     allocate(h(4 * m), waveform_tmp(npts(j)))
