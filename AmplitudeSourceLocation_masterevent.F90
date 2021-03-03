@@ -300,7 +300,9 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = amp_avg / real(icount, kind = dp)
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
+
 #elif defined (SAC)
+
   !!read waveform data from sac
   allocate(stime(1 : nsta))
   do i = 1, nsta
@@ -347,7 +349,7 @@ program AmplitudeSourceLocation_masterevent
   !  enddo
   !  obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
   !enddo
-#endif
+#endif /* -DTESTDATA */
 
 #else /* -DWIN || -DSAC */
   !!read subevent paramter
@@ -367,8 +369,8 @@ program AmplitudeSourceLocation_masterevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
   close(10)
-  allocate(obsamp_noise(1 : nsta))
-  obsamp_noise(1 : nsta) = 0.0_fp
+  !allocate(obsamp_noise(1 : nsta))
+  !obsamp_noise(1 : nsta) = 0.0_fp
 #endif /* -DWIN || -DSAC */
 
   !!set velocity/attenuation structure
@@ -447,20 +449,19 @@ program AmplitudeSourceLocation_masterevent
     &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
     &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
 
-#if defined (WIN) || defined (SAC)
-    ttime(jj) = ttime_tmp
-#endif
-
     write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
     &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
     write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
     write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
     &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
+
 #if defined (WIN) || defined (SAC)
+    ttime(jj) = ttime_tmp
     write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-#else
+#else /* -DRAY_BENDING */
+
     !!do ray shooting
     dist_min(jj) = real(huge, kind = fp)
     incangle_loop2: do kk = 1, nrayshoot
@@ -572,8 +573,8 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-#endif /* -DRAY_BENDING or not */
-#endif /* -DV_CONST or not */
+#endif /* -DRAY_BENDING */
+#endif /* -DV_CONST     */
 
   enddo station_loop
   !$omp end do
@@ -597,7 +598,7 @@ program AmplitudeSourceLocation_masterevent
   ttime(1 : nsta) = 0.0_fp
 #endif
 
-#endif /* (-DWIN || -DSAC) or not */
+#endif /* -DWIN || -DSAC */
 
   !!make amplitude data from win- or sac-formatted waveform data
 #if defined (WIN) || defined (SAC)
@@ -625,6 +626,7 @@ program AmplitudeSourceLocation_masterevent
       do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
         time_index = int((ot_tmp - begin(j) + ttime(j)) / sampling(j) + 0.5_fp) + i
         if(time_index .ge. 1 .and. time_index .le. npts(j)) then
+
 #if defined (ABS_MEAN)
           obsamp_sub(j, k) = obsamp_sub(j, k) + abs(waveform_obs(time_index, j))
 #else
@@ -634,14 +636,17 @@ program AmplitudeSourceLocation_masterevent
           icount = icount + 1
         endif
       enddo
+
 #if defined (ABS_MEAN)
       obsamp_sub(j, k) = obsamp_sub(j, k) / real(icount, kind = dp)
 #else
       obsamp_sub(j, k) = sqrt(obsamp_sub(j, k) / real(icount, kind = dp))
 #endif
+
     enddo
   enddo
-#endif /* (-DWIN || -DSAC) or not */
+
+#endif /* (-DWIN || -DSAC) */
 
   !!velocity and Qinv at master event location
   lon_index = int((evlon_master - lon_str_w) / dlon_str) + 1
@@ -677,22 +682,25 @@ program AmplitudeSourceLocation_masterevent
     do i = 1, nsta
       if(use_flag(i) .eqv. .false.) then
         use_flag_tmp(i) = .false.
-        cycle
       else
-        if(obsamp_sub(i, j) .gt. snratio_accept * obsamp_noise(i)) then
-          use_flag_tmp(i) = .true.
-          icount = icount + 1
-        else
+        if(obsamp_sub(i, j) .eq. 0.0_fp) then
           use_flag_tmp(i) = .false.
+        elseif(obsamp_sub(i, j) * 0.0_fp .ne. 0.0_fp) then
+          use_flag_tmp(i) = .false.
+        else
+          if(obsamp_sub(i, j) .gt. snratio_accept * obsamp_noise(i)) then
+            use_flag_tmp(i) = .true.
+            icount = icount + 1
+          else
+            use_flag_tmp(i) = .false.
+          endif
         endif
       endif
     enddo
-    if(icount .lt. 4) use_flag_tmp(1 : nsta) = use_flag(1 : nsta)
+    if(icount .lt. 4) use_flag_tmp(1 : nsta) = .false.  !!cannot estimate relative location
 
     icount = 1
     do i = 1, nsta
-      if(use_flag(i) .eqv. .false.) cycle
-      if(obsamp_sub(i, j) .eq. 0.0_fp) use_flag_tmp(i) = .false.
 
       if(use_flag_tmp(i) .eqv. .true.) then
         nsta_use_tmp(j) = nsta_use_tmp(j) + 1
@@ -772,6 +780,7 @@ program AmplitudeSourceLocation_masterevent
   error_matrix(1 : 4 * nsubevent, 1 : 4 * nsubevent) = 0.0_fp
 
 #if defined (EACH_ERROR)
+
 #if defined (DAMPED)
   allocate(sigma_inv_data(1 : nsta_use + 4, 1 : nsta_use + 4), &
   &        inversion_matrix_sub(1 : nsta_use + 4, 1 : 4), error_matrix_sub(1 : 4, 1 : 4))
@@ -784,13 +793,17 @@ program AmplitudeSourceLocation_masterevent
   do j = 1, nsubevent
     !!calculate variance
     data_variance = 0.0_fp
+    icount = 0
     do i = 1, nsta_use
+      if(dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)) &
+      &  .eq. 0.0_fp) cycle
+      icount = icount + 1
       data_variance = data_variance + (data_residual_subevent(j) &
       &              - (obsvector_copy(nsta_use * (j - 1) + i) &
       &              -  dot_product(inversion_matrix_copy(nsta_use * (j - 1) + i, 1 : 4 * nsubevent), &
       &                           obsvector(1 : 4 * nsubevent)))) ** 2
     enddo
-    if(nsta_use - 1 .ne. 0) data_variance = data_variance / real(nsta_use - 1, kind = fp)
+    if(icount - 1 .ne. 0) data_variance = data_variance / real(icount - 1, kind = fp)
     do i = 1, nsta_use
       sigma_inv_data(i, i) = 1.0_fp / data_variance
       inversion_matrix_sub(i, 1 : 4) = inversion_matrix_copy(nsta_use * (j - 1) + i, 4 * (j - 1) + 1 : 4 * (j - 1) + 4)
@@ -819,7 +832,9 @@ program AmplitudeSourceLocation_masterevent
     deallocate(ipiv)
   enddo
   deallocate(sigma_inv_data, inversion_matrix_sub, error_matrix_sub)
+
 #else /* -DEACH_ERROR */
+
 #if defined (DAMPED)
   allocate(sigma_inv_data(1 : (nsta_use + 4) * nsubevent, 1 : (nsta_use + 4) * nsubevent))
 #else
@@ -836,9 +851,7 @@ program AmplitudeSourceLocation_masterevent
     data_variance = data_variance + (data_residual - (obsvector_copy(i) &
     &             - dot_product(inversion_matrix_copy(i, 1 : 4 * nsubevent), obsvector(1 : 4 * nsubevent)))) ** 2
   enddo
-  if(icount .ne. 1) then
-    data_variance = data_variance / real(icount - 1, kind = fp)
-  endif
+  if(icount - 1 .ne. 0) data_variance = data_variance / real(icount - 1, kind = fp)
   do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
@@ -861,6 +874,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
   deallocate(ipiv, sigma_inv_data)
+
 #endif /* -DEACH_ERROR */
   
 
@@ -895,7 +909,9 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master - delta_depth, sigma_depth
   enddo
   close(10)
+
 #else
+
   write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum nsta"
   do i = 1, nsubevent
     delta_lat = (obsvector(4 * (i - 1) + 2) / (r_earth - evdp_master)) * rad2deg
@@ -921,6 +937,7 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ", evdp_master - delta_depth, sigma_depth
   enddo
   close(10)
+
 #endif
     
 
