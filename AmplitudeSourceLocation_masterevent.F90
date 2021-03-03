@@ -837,9 +837,6 @@ program AmplitudeSourceLocation_masterevent
 
 #if defined (DAMPED)
   allocate(sigma_inv_data(1 : (nsta_use + 4) * nsubevent, 1 : (nsta_use + 4) * nsubevent))
-  do i = 1, 4 * nsubevent
-    sigma_inv_data(nsta_use * nsubevent + i, nsta_use * nsubevent + i) = huge
-  enddo
 #else
   allocate(sigma_inv_data(1 : nsta_use * nsubevent, 1 : nsta_use * nsubevent))
 #endif
@@ -858,6 +855,12 @@ program AmplitudeSourceLocation_masterevent
   do i = 1, nsta_use * nsubevent
     sigma_inv_data(i, i) = 1.0_fp / data_variance
   enddo
+
+#if defined (DAMPED)
+  do i = 1, 4 * nsubevent
+    sigma_inv_data(nsta_use * nsubevent + i, nsta_use * nsubevent + i) = huge
+  enddo
+#endif
 
   error_matrix = matmul(matmul(transpose(inversion_matrix_copy), sigma_inv_data), inversion_matrix_copy)
   allocate(ipiv(1 : size(error_matrix, 1)))
