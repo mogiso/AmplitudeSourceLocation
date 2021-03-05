@@ -699,28 +699,30 @@ program AmplitudeSourceLocation_masterevent
     enddo
     if(icount .lt. 4) use_flag_tmp(1 : nsta) = .false.  !!cannot estimate relative location
 
-    icount = 1
+    icount = 0
     do i = 1, nsta
+      if(use_flag(i) .eqv. .true.) then
+        icount = icount + 1
 
-      if(use_flag_tmp(i) .eqv. .true.) then
-        nsta_use_tmp(j) = nsta_use_tmp(j) + 1
-        obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
-        normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
-        &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
-        &                       cos(ray_azinc(2, i))]
-        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
-        matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
-        do ii = 1, 3
-          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
-        enddo
-      else
-        obsvector(nsta_use * (j - 1) + icount) = 0.0_fp
-        inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 0.0_fp
-        do ii = 1, 3
-          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = 0.0_fp
-        enddo
+        if(use_flag_tmp(i) .eqv. .true.) then
+          nsta_use_tmp(j) = nsta_use_tmp(j) + 1
+          obsvector(nsta_use * (j - 1) + icount) = log(obsamp_sub(i, j) / obsamp_master(i))
+          normal_vector(1 : 3) = [sin(ray_azinc(2, i)) * cos(ray_azinc(1, i)), &
+          &                       sin(ray_azinc(2, i)) * sin(ray_azinc(1, i)), &
+          &                       cos(ray_azinc(2, i))]
+          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 1.0_fp
+          matrix_const = pi * freq * qinv_interpolate / velocity_interpolate + 1.0_fp / hypodist(i)
+          do ii = 1, 3
+            inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = (-1.0_fp) * matrix_const * normal_vector(ii)
+          enddo
+        else
+          obsvector(nsta_use * (j - 1) + icount) = 0.0_fp
+          inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1) = 0.0_fp
+          do ii = 1, 3
+            inversion_matrix(nsta_use * (j - 1) + icount, 4 * (j - 1) + 1 + ii) = 0.0_fp
+          enddo
+        endif
       endif
-      icount = icount + 1
     enddo
 
 #if defined (DAMPED)
