@@ -98,7 +98,7 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = fp),      allocatable :: lon_sta(:), lat_sta(:), z_sta(:), sampling(:), begin(:), &
   &                                    width_min(:, :, :, :), ttime_min(:, :, :, :), hypodist(:, :, :, :)
   real(kind = dp),      allocatable :: waveform_obs(:, :), topography(:, :), lon_topo(:), lat_topo(:), rms_amp_obs(:), &
-  &                                    rms_amp_obs_noise(:)
+  &                                    rms_amp_obs_noise(:), waveform_obs_ratio(:, :, :), rms_amp_ratio(:, :)
   
   real(kind = fp)                   :: ttime_tmp, width_tmp, velocity_interpolate, qinv_interpolate, &
   &                                    az_tmp, inc_angle_tmp, inc_angle_min, az_new, inc_angle_new, az_ini, &
@@ -135,6 +135,12 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp)                   :: gn, c, fl, fh, fs
   integer                           :: m, n
   character(len = 6)                :: fl_t, fh_t, fs_t
+  !!for amplitude ratio
+  integer,                parameter :: nstation_amp_freqrange = 3
+  real(kind = dp),        parameter :: fl_ratio(1 : nstation_amp_freqrange) = [0.02_dp, 2.0_dp, 10.0_dp], &
+  &                                    fh_ratio(1 : nstation_amp_freqrange) = [0.1_dp, 5.0_dp, 15.0_dp],  &
+  &                                    fs_ratio(1 : nstation_amp_freqrange) = [0.5_dp, 8.0_dp, 20.0_dp]
+  real(kind = dp),        parameter :: station_ampratio_accept = 5.0_dp
 
   !!OpenMP variable
   !$ integer                        :: omp_thread
@@ -230,7 +236,8 @@ program AmplitudeSourceLocation_PulseWidth
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), use_flag_tmp(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta))
+  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta), &
+  &        rms_amp_ratio(1 : nstation_amp_freqrange, 1 : nsta))
   do i = 1, nsta
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), &
     &           rms_amp_obs_noise(i)
@@ -307,7 +314,7 @@ program AmplitudeSourceLocation_PulseWidth
     !write(0, '(a, i0, 3a, f8.4, 1x, f7.4, 1x, f6.2)') &
     !&     "station(", i, ") name = ", trim(stname(i)), " lon/lat/dep = ", lon_sta(i), lat_sta(i), z_sta(i)
   enddo
-  allocate(waveform_obs(npts_max, nsta))
+  allocate(waveform_obs(1 : npts_max, 1 : nsta))
   do i = 1, nsta
     sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
     call read_sacdata(sacfile, npts_max, waveform_obs(:, i))
@@ -347,26 +354,29 @@ program AmplitudeSourceLocation_PulseWidth
     deallocate(h, waveform_tmp)
   enddo
 
+  !!for amplitude ratios at each station to detect tectonic tremors
+  allocate(waveform_obs_ratio(1 : nstation_amp_freqrange, 1 : npts_max, 1 : nsta))
+  waveform_obs_ratio(1 : nstation_amp_freqrange, 1 : npts_max, 1 : nsta) = 0.0_dp
+  !!filtering
+  do k = 1, nsta
+    write(0, '(a, i0)') "station index = ", k
+    do j = 1, nstation_amp_freqrange
+      write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl_ratio(j), " (Hz), fh = ", fh_ratio(j), &
+      &                           " (Hz), fs = ", fs_ratio(j), " (Hz) for amplitude ratio of different frequency ranges"
+      call calc_bpf_order(fl_ratio(j), fh_ratio(j), fs_ratio(j), ap, as, sampling(k), m, n, c)
+      allocate(h(4 * m), waveform_tmp(1 : npts(k)))
+      call calc_bpf_coef(fl_ratio(j), fh_ratio(j), sampling(k), m, n, h, c, gn)
+      waveform_tmp(1 : npts(k)) = waveform_obs(1 : npts(k), k)
+      call tandem1(waveform_tmp, waveform_tmp, npts(k), h, m, 1)
+      waveform_obs_ratio(j, 1 : npts(k), k) = waveform_tmp(1 : npts(k)) * gn
+      deallocate(h, waveform_tmp)
+    enddo
+  enddo
+
 #endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
 
-  !!calculate noise level
-  !allocate(rms_amp_obs_noise(1 : nsta))
-#if defined (AMP_TXT)
-  !rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
-#else
-  !do j = 1, nsta
-  !  icount = 0
-  !  rms_amp_obs_noise(j) = 0.0_dp
-  !  if(use_flag(j) .eqv. .false.) cycle
-  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
-  !    rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
-  !    icount = icount + 1
-  !  enddo
-  !  rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
-  !enddo
-#endif
 
 
   !!station list
@@ -676,13 +686,13 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                amp_txt, time_count, &
 #endif
     !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
-    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname), &
+    !$omp&                waveform_obs_ratio, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
 #endif
     !$omp&                 lon_grid, lat_grid, lon_index, lat_index, xgrid, ygrid, val_2d, topography_interpolate, &
-    !$omp&                 use_flag_tmp, rms_amp_cal)
+    !$omp&                 use_flag_tmp, rms_amp_cal, rms_amp_ratio)
 
     !$ omp_thread = omp_get_thread_num()
 
@@ -711,7 +721,8 @@ program AmplitudeSourceLocation_PulseWidth
 
           !!caluculate site-corrected amplitude
           do jj = 1, nsta
-            rms_amp_obs(jj) = 0.0_fp
+            rms_amp_obs(jj) = 0.0_dp
+            rms_amp_ratio(1 : nstation_amp_freqrange, jj) = 0.0_dp
 
             if(ttime_min(jj, i, j, k) .eq. real(huge, kind = fp)) cycle
             if(use_flag(jj) .eqv. .false.) cycle
@@ -734,6 +745,10 @@ program AmplitudeSourceLocation_PulseWidth
 #else
                 rms_amp_obs(jj) = rms_amp_obs(jj) + waveform_obs(ii, jj) * waveform_obs(ii, jj)
 #endif
+                do kk = 1, nstation_amp_freqrange
+                  rms_amp_ratio(kk, jj) = rms_amp_ratio(kk, jj) &
+                  &                     + waveform_obs_ratio(kk, ii, jj) * waveform_obs_ratio(kk, ii, jj)
+                enddo
                 icount = icount + 1
               endif
             enddo
@@ -742,6 +757,9 @@ program AmplitudeSourceLocation_PulseWidth
 #else
             if(icount .ne. 0) rms_amp_obs(jj) = sqrt(rms_amp_obs(jj) / real(icount, kind = dp))
 #endif
+            do kk = 1, nstation_amp_freqrange
+              if(icount .ne. 0) rms_amp_ratio(kk, jj) = sqrt(rms_amp_ratio(kk, jj) / real(icount, kind = dp))
+            enddo
 
 #endif /* -DAMP_TXT */
 
@@ -768,26 +786,30 @@ program AmplitudeSourceLocation_PulseWidth
               cycle
             endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-              use_flag_tmp(jj) = .true.
-              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-            else
-              rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
-              &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-              if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                use_flag_tmp(jj) = .true.
-                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-              else
-                use_flag_tmp(jj) = .false.
-              endif
-            endif
-            !!just compare amplitude  of signal and noise
             !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
             !  use_flag_tmp(jj) = .true.
             !  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             !else
-            !  use_flag_tmp(jj) = .false.
+            !  rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
+            !  &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            !  if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            !    use_flag_tmp(jj) = .true.
+            !    nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            !  else
+            !    use_flag_tmp(jj) = .false.
+            !  endif
             !endif
+            !!just compare amplitude  of signal and noise
+            !!and check amplitude ratio
+            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj) &
+            &  .and. (rms_amp_ratio(2, jj) * rms_amp_ratio(2, jj)) .gt. &
+            &        (rms_amp_ratio(1, jj) * rms_amp_ratio(3, jj)) * station_ampratio_accept) then
+              use_flag_tmp(jj) = .true.
+              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            else
+              use_flag_tmp(jj) = .false.
+              cycle
+            endif
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
