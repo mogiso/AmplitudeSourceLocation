@@ -804,6 +804,10 @@ program AmplitudeSourceLocation_PulseWidth
               use_flag_tmp(jj) = .false.
               cycle
             endif
+            if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) then
+              use_flag_tmp(jj) = .false.
+              cycle
+            endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
             !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
             !  use_flag_tmp(jj) = .true.
@@ -829,7 +833,6 @@ program AmplitudeSourceLocation_PulseWidth
               use_flag_tmp(jj) = .false.
               cycle
             endif
-            if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) use_flag_tmp(jj) = .false.
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
           if(nsta_use_grid(i, j, k) .gt. nsta_use_maximum) cycle lon_loop2
