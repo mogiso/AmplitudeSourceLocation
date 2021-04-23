@@ -30,10 +30,12 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 6 
+  integer,                parameter :: nsta_use_minimum = 5
+  integer,                parameter :: nsta_use_maximum = 23 
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
+  real(kind = fp),        parameter :: max_hypodist_asl = 100.0_fp
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -62,7 +64,7 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 135.0_fp, lon_e = 137.5_fp
+  real(kind = fp),        parameter :: lon_w = 135.2_fp, lon_e = 137.5_fp
   real(kind = fp),        parameter :: lat_s = 32.5_fp, lat_n = 33.7_fp
   real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
   real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 2.0_fp
@@ -424,8 +426,7 @@ program AmplitudeSourceLocation_PulseWidth
   write(0, '(a)') "making traveltime / pulse width table..."
   !$omp parallel default(none), &
   !$omp&         shared(topography, nsta, stname, lat_sta, lon_sta, z_sta, velocity, qinv, ttime_min, width_min, hypodist, &
-  !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo, use_flag, nearest_stationindex, &
-  !$omp&                use_flag), &
+  !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, nlon_topo, nlat_topo, use_flag, nearest_stationindex), &
   !$omp&         private(i, j, k, ii, jj, kk, lon_grid, lat_grid, depth_grid, az_ini, epdelta, lon_index, lat_index, z_index, &
   !$omp&                dist_min, inc_angle_tmp, inc_angle_min, lon_tmp, lat_tmp, depth_tmp, az_tmp, val_2d, &
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
@@ -828,8 +829,10 @@ program AmplitudeSourceLocation_PulseWidth
               use_flag_tmp(jj) = .false.
               cycle
             endif
+            if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) use_flag_tmp(jj) = .false.
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
+          if(nsta_use_grid(i, j, k) .gt. nsta_use_maximum) cycle lon_loop2
           !!do not calculate residual if nearest station is not used in calculation
           if(use_flag_tmp(nearest_stationindex(i, j, k)) .eqv. .false.) cycle lon_loop2
 
