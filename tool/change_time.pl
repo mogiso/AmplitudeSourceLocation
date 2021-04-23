@@ -2,14 +2,21 @@
 #
 ##change format of origintime
 #
+
+if($#ARGV != 8){
+  print stderr "usage: perl change_time.pl (input_file) (output_file) (index of column of the time) (ref_year) (ref_month) (ref_day) (ref_hour) (ref_minute) (ref_sec)\n";
+  die;
+}
+
 $in = $ARGV[0];
 $out = $ARGV[1];
-$yy = $ARGV[2];
-$mo = $ARGV[3];
-$dy = $ARGV[4];
-$hh = $ARGV[5];
-$mm = $ARGV[6];
-$ss = $ARGV[7];
+$num_timeindex = $ARGV[2];
+$yy = $ARGV[3];
+$mo = $ARGV[4];
+$dy = $ARGV[5];
+$hh = $ARGV[6];
+$mm = $ARGV[7];
+$ss = $ARGV[8];
 
 open IN, "<", $in;
 open OUT, ">", $out;
@@ -20,8 +27,7 @@ while(<IN>){
   chomp $_;
   $_ =~ s/^\s*(.*?)\s*$/$1/;
   @tmp = split /\s+/, $_;
-  $time_index = 0;
-  #$time_index = $#tmp;
+  $time_index = $num_timeindex;
   if((substr $_, 0, 1) eq "#"){
     print OUT "$_\n";
   }else{

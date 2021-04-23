@@ -53,14 +53,14 @@ while(<IN>){
 close IN;
 
 ##for GMT
-$lon_w = 136.0;
+$lon_w = 135.45;
 $lon_e = 137.7;
-$lat_s = 32.5;
+$lat_s = 32.45;
 $lat_n = 34.0;
 $dep_min = -1;
-$dep_max = 21.0;
-$ot_min = "2020-12-21T00:00:00";
-$ot_max = "2021-1-1T00:00:00";
+$dep_max = 21;
+$ot_min = "2020-12-1T00:00:00";
+$ot_max = "2021-2-1T00:00:00";
 
 $size_x = 11.0;
 $size_y = 7.0;
@@ -69,13 +69,13 @@ $dy = $size_y + 1.0;;
 
 $size_hist = 5.0;
 $freq_min = 0;
-$freq_max = 1200;
+$freq_max = 2500;
 $bin_deg = 0.1;
 $bin_depth = 2;
 
 
-$symbolsize = 0.5;
-$symbolwidth = "0.5p";
+$symbolsize = 0.3;
+$symbolwidth = "0.4p";
 $symbolsize_st = 0.4;
 $title_x = 0.0;
 $title_y = $mapsize_y + 0.4;
@@ -85,9 +85,10 @@ $annot_f_map = "0.1";
 $annot_a_dep = "5";
 $annot_f_dep = "1";
 $annot_a_time = "10d";
+$annot_a_time2 = "1O";
 $annot_f_time = "1d";
 $annot_a_hist = 500;
-$annot_f_hist = 100;
+$annot_f_hist = 500;
 
 $color = "black";
 
@@ -95,7 +96,9 @@ system "gmt set PS_LINE_JOIN round";
 system "gmt set FORMAT_GEO_MAP +D";
 system "gmt set FONT_LABEL 17p,Helvetica";
 system "gmt set MAP_FRAME_PEN thin";
-system "gmt set FONT_ANNOT_PRIMARY 16p,Helvetica";
+system "gmt set FONT_ANNOT_PRIMARY 11p,Helvetica";
+system "gmt set FONT_ANNOT_SECONDARY 16p,Helvetica";
+system "gmt set FORMAT_DATE_MAP yyyy-mm";
 
 
 print stderr "output ps = $out\n";
@@ -107,6 +110,7 @@ close OUT;
 open OUT, " | gmt psxy -JX${size_x}T/$size_y -R$ot_min/$ot_max/$lon_w/$lon_e \\
                        -Sa$symbolsize -W${symbolwidth},$color \\
                        -BWesn -Bpx${annot_a_time}f${annot_f_time} -By${annot_a_map}f${annot_f_map}+l\"Longitude\" \\
+                       -Bsx${annot_a_time2} \\
                        -O -K -P >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$origintime[$j] $evlon[$j]\n";
@@ -115,7 +119,8 @@ close OUT;
 
 #histogram
 open OUT, " | gmt pshistogram -JX$size_hist/$size_y -A -R$lon_w/$lon_e/$freq_min/$freq_max -W$bin_deg \\
-                              -L0.5p,black -Gdimgray -Bya${annot_a_hist}f${annot_f_hist} -Bxf${annot_f_map} -BwSen \\
+                              -L0.5p,black -Gdimgray \\
+                              -Bya${annot_a_hist}f${annot_f_hist} -Bxa${annot_a_map}f${annot_f_map} -BwSen \\
                               -O -K -P -X$dx >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$evlon[$j]\n";
@@ -129,6 +134,7 @@ close OUT;
 open OUT, " | gmt psxy -JX${size_x}T/$size_y -R$ot_min/$ot_max/$lat_s/$lat_n \\
                        -Sa$symbolsize -W${symbolwidth},$color \\
                        -BWesn -Bpx${annot_a_time}f${annot_f_time} -By${annot_a_map}f${annot_f_map}+l\"Latitude\" \\
+                       -Bsx${annot_a_time2} \\
                        -O -K -P >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$origintime[$j] $evlat[$j]\n";
@@ -137,7 +143,8 @@ close OUT;
 
 #histogram
 open OUT, " | gmt pshistogram -JX$size_hist/$size_y -A -R$lat_s/$lat_n/$freq_min/$freq_max -W$bin_deg \\
-                              -L0.5p,black -Gdimgray -Bya${annot_a_hist}f${annot_f_hist} -Bxf${annot_f_map} -BwSen \\
+                              -L0.5p,black -Gdimgray \\
+                              -Bya${annot_a_hist}f${annot_f_hist} -Bxa${annot_a_map}f${annot_f_map} -BwSen \\
                               -O -K -P -X$dx >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$evlat[$j]\n";
@@ -153,6 +160,7 @@ close OUT;
 open OUT, " | gmt psxy -JX${size_x}T/-$size_y -R$ot_min/$ot_max/$dep_min/$dep_max \\
                        -Sa$symbolsize -W${symbolwidth},$color \\
                        -BWeSn -Bpx${annot_a_time}f${annot_f_time} -By${annot_a_dep}f${annot_f_dep}+l\"Depth\" \\
+                       -Bsx${annot_a_time2} \\
                        -O -K -P >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$origintime[$j] $evdep[$j]\n";
@@ -161,7 +169,8 @@ close OUT;
 
 #histogram
 open OUT, " | gmt pshistogram -JX$size_hist/-$size_y -A -R$dep_min/$dep_max/$freq_min/$freq_max -W$bin_depth \\
-                              -L0.5p,black -Gdimgray -Bya${annot_a_hist}f${annot_f_hist} -Bxf${annot_f_dep} -BwSen \\
+                              -L0.5p,black -Gdimgray \\
+                              -Bya${annot_a_hist}f${annot_f_hist} -Bxa${annot_a_dep}f${annot_f_dep} -BwSen \\
                               -O -K -P -X$dx >> $out";
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$evdep[$j]\n";

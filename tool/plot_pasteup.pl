@@ -11,6 +11,7 @@ $eqlat = $ARGV[5];
 $eqdep = $ARGV[6];
 
 $filter = "2 8 10";
+#$filter = "";
 $stcomp = "Z";
 
 $dumpwin = "/home/mogiso/dumpwin/dumpwin";
@@ -118,7 +119,11 @@ $range_y = "$mindist/$maxdist";
 ##GMT
 $size_x = 23;
 $size_y = 15;
-$amp = 1;
+if($filter eq ""){
+  $amp = 50;
+}else{
+  $amp = 1;
+}
 $scale_x = 8.6;
 $scale_y = 6.6;
 $annot_x = "a10sf5s";

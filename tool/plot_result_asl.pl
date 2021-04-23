@@ -83,12 +83,12 @@ $symbolsize = 0.5;
 $symbolwidth = "0.5p";
 $symbolsize_st = 0.4;
 $title_x = 0.0;
-$title_y = $mapsize_y + 0.4;
+$title_y = $mapsize_y + 0.3;
 
 $annot_a_map = "0.5";
-$annot_f_map = "0.1";
+$annot_f_map = "0.25";
 $annot_a_dep = "5";
-$annot_f_dep = "1";
+$annot_f_dep = "5";
 
 $color = "black";
 
@@ -108,22 +108,27 @@ system "gmt grdcontour $dem_lonlat -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -
 
 open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                        -Sa$symbolsize -W${symbolwidth},$color -O -K -P >> $out";
+$count = 0;
 for($j = 0; $j <= $#origintime; $j++){
   print OUT "$evlon[$j] $evlat[$j]\n";
+  $count++;
 }
 close OUT;
 
-system "gmt pscoast -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -Df -Gwhite -W1p,black -O -K -P >> $out";
+system "gmt pscoast -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -Df -W1p,black -O -K -P >> $out";
 system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                       -Bxya${annot_a_map}f${annot_f_map} -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                       -O -K -P >> $out";
-
 
 open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                        -Si$symbolsize_st -W0.9p,black -Gwhite -O -K -P >> $out";
 for($j = 0; $j <= $#stlon; $j++){
   print OUT "$stlon[$j] $stlat[$j]\n";
 }
+close OUT;
+
+open OUT, " | gmt pstext -JX$mapsize_x/$mapsize_y -R0/$mapsize_x/0/$mapsize_y -N -F+f+jLB -O -K -P >> $out";
+  print OUT "$title_x $title_y 13p,Helvetica,black N=${count}\n";
 close OUT;
 
 
