@@ -1,4 +1,5 @@
 program AmplitudeSourceLocation_masterevent
+#define RAY_BENDING
   !!Relative amplitude source location (master event)
   !!using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
