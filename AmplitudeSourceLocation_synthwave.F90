@@ -30,13 +30,13 @@ program AmplitudeSourceLocation_synthwave
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
   !!assumed hypocenter
-  integer,            parameter :: nhypo = 1
-  real(kind = fp),    parameter :: origintime(1 : nhypo) = [2.0_fp]
-  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0183_fp]
-  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3902_fp]
-  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [0.1_fp]
-  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [1.3_dp]
-  real(kind = dp),    parameter :: characteristicfreq    = 0.5_dp
+  integer,            parameter :: nhypo = 3
+  real(kind = fp),    parameter :: origintime(1 : nhypo) = [2.0_fp, 7.0_fp, 12.0_fp]
+  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0060_fp, 144.0040_fp, 144.0020_fp]
+  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3900_fp, 43.3930_fp, 43.3960_fp]
+  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [-1.2_fp, -1.1_fp, -0.9_fp]
+  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [5.0_dp, 3.0_dp, 2.5_fp]
+  real(kind = dp),    parameter :: characteristicfreq    = 0.1_dp
   real(kind = dp),    parameter :: asl_freq              = 7.5_dp
 
   !!assumed data length, sampling frequency (s)
@@ -112,9 +112,6 @@ program AmplitudeSourceLocation_synthwave
   !!read sac file
   do i = 1, nsta
     call read_sachdr(sacfile(i), header = sachdr(:, i), stlat = lat_sta(i), stlon = lon_sta(i), stdp = z_sta(i))
-#ifdef STDP_COR
-    z_sta(i) = z_sta(i) * (alt_to_depth)
-#endif
   enddo
 
   !!make traveltime/pulse width table for each grid point

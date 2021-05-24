@@ -35,6 +35,7 @@ module read_sacfile
     real(kind = fp), intent(out), optional :: user9
     character(len = 8), intent(out), optional :: stname
   
+    real(kind = fp), parameter :: alt_to_depth = -1.0e-3_fp
     real(kind = sp) :: buf, stel
     integer :: i
     character(len = 4) :: stname1, stname2
@@ -79,7 +80,7 @@ module read_sacfile
     read(10, rec = 34) stel
     if(present(stdp)) then
       read(10, rec = 35) buf; stdp = real(buf, kind = fp)
-      if(stdp .eq. -12345.0_fp) stdp = stel
+      if(stdp .eq. -12345.0_fp) stdp = stel * alt_to_depth
     endif
     if(present(eqlat)) then
       read(10, rec = 36) buf; eqlat = real(buf, kind = fp)
