@@ -30,8 +30,8 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 5
-  integer,                parameter :: nsta_use_maximum = 23 
+  integer,                parameter :: nsta_use_minimum = 6
+  integer,                parameter :: nsta_use_maximum = 20
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
@@ -114,7 +114,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dlon_topo, dlat_topo, freq, rms_amp_cal
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                    npts_max, nlon_topo, nlat_topo, ios
+  &                                    npts_max, nlon_topo, nlat_topo, ios, second_nearest_stationindex
   character(len = 129)              :: station_param, dem_file, ot_begin_t, ot_end_t, &
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
@@ -711,7 +711,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
 #endif
     !$omp&                 lon_grid, lat_grid, lon_index, lat_index, xgrid, ygrid, val_2d, topography_interpolate, &
-    !$omp&                 use_flag_tmp, rms_amp_cal, rms_amp_ratio)
+    !$omp&                 use_flag_tmp, rms_amp_cal, rms_amp_ratio, second_nearest_stationindex)
 
     !$ omp_thread = omp_get_thread_num()
 
@@ -804,10 +804,10 @@ program AmplitudeSourceLocation_PulseWidth
               use_flag_tmp(jj) = .false.
               cycle
             endif
-            if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) then
-              use_flag_tmp(jj) = .false.
-              cycle
-            endif
+            !if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) then
+            !  use_flag_tmp(jj) = .false.
+            !  cycle
+            !endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
             !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
             !  use_flag_tmp(jj) = .true.
@@ -834,10 +834,24 @@ program AmplitudeSourceLocation_PulseWidth
               cycle
             endif
           enddo
-          if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
           if(nsta_use_grid(i, j, k) .gt. nsta_use_maximum) cycle lon_loop2
-          !!do not calculate residual if nearest station is not used in calculation
+
+          !!do not calculate residual if either nearest or 2nd-nearest station is not used in calculation
+          !!check 2nd nearest station
+          second_nearest_stationindex = 1
+          do jj = 1, nsta
+            if(hypodist(jj, i, j, k) .le. hypodist(second_nearest_stationindex, i, j, k)) then
+              second_nearest_stationindex = jj
+            endif
+            if(use_flag_tmp(jj) .eqv. .false.) cycle
+            if(hypodist(jj, i, j, k) .gt. max_hypodist_asl) then
+              use_flag_tmp(jj) = .false.
+              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) - 1 
+            endif
+          enddo
           if(use_flag_tmp(nearest_stationindex(i, j, k)) .eqv. .false.) cycle lon_loop2
+          if(use_flag_tmp(second_nearest_stationindex) .eqv. .false.) cycle lon_loop2
+          if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
           !!calculate source amplitude again
           source_amp(i, j, k) = 0.0_dp
