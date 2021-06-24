@@ -40,7 +40,7 @@ program AmplitudeSourceLocation_PulseWidth
   integer                           :: nsta
   integer,              allocatable :: npts(:)
   character(len = 6),   allocatable :: stname(:)
-  real(kind = dp),      allocatable :: siteamp(:)
+  real(kind = dp),      allocatable :: siteamp(:), var_siteamp(:)
   real(kind = fp),      allocatable :: ttime_cor(:, :)
   logical,              allocatable :: use_flag(:), use_flag_tmp(:)
 #if defined (WIN)    /* use win-format waveform file for input waveforms */
@@ -94,7 +94,8 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                    val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                    xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot)
-  real(kind = dp)                   :: residual(1 : nlon, 1 : nlat, 1 : nz), source_amp(1 : nlon, 1 : nlat, 1 : nz)
+  real(kind = dp)                   :: residual(1 : nlon, 1 : nlat, 1 : nz), source_amp(1 : nlon, 1 : nlat, 1 : nz), &
+  &                                    var_source_amp(1 : nlon, 1 : nlat, 1 : nz)
   integer                           :: residual_minloc(3), nsta_use_grid(1 : nlon, 1 : nlat, 1 : nz), &
   &                                    nearest_stationindex(1 : nlon, 1 : nlat, 1 : nz)
   real(kind = sp),      allocatable :: residual_grd(:, :)
@@ -111,10 +112,12 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dinc_angle, dinc_angle_org, inc_angle_ini, smallest_traveltime
   real(kind = sp)                   :: lon_r, lat_r, topo_r
   real(kind = dp)                   :: residual_normalize, amp_avg, topography_interpolate, &
-  &                                    dlon_topo, dlat_topo, freq, rms_amp_cal
+  &                                    dlon_topo, dlat_topo, freq, rms_amp_cal, std_source_amp
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
-  &                                    npts_max, nlon_topo, nlat_topo, ios, second_nearest_stationindex
+  &                                    npts_max, nlon_topo, nlat_topo, ios, second_nearest_stationindex, &
+  &                                    hypo_lon_w_index, hypo_lon_e_index, hypo_lat_s_index, hypo_lat_n_index, &
+  &                                    hypo_dep_min_index, hypo_dep_max_index
   character(len = 129)              :: station_param, dem_file, ot_begin_t, ot_end_t, &
   &                                    rms_tw_t, ot_shift_t, grdfile, resultfile, resultdir, ampfile
   character(len = maxlen)           :: time_count_char
@@ -240,10 +243,11 @@ program AmplitudeSourceLocation_PulseWidth
   &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), use_flag_tmp(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
   &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta), &
-  &        rms_amp_ratio(1 : nstation_amp_freqrange, 1 : nsta))
+  &        rms_amp_ratio(1 : nstation_amp_freqrange, 1 : nsta), var_siteamp(1 : nsta))
   do i = 1, nsta
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), &
-    &           rms_amp_obs_noise(i)
+    &           var_siteamp(i), rms_amp_obs_noise(i)
+    var_siteamp(i) = var_siteamp(i) * var_siteamp(i)
 
 #if defined (TESTDATA)
     ttime_cor(i, 1) = 0.0_fp
@@ -705,7 +709,7 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
     !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
     !$omp&                waveform_obs_ratio, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname, &
-    !$omp&                nearest_stationindex), &
+    !$omp&                nearest_stationindex, var_source_amp, var_siteamp), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
     !$omp&                 amp_ratio_obs, amp_ratio_cal, &
@@ -856,14 +860,22 @@ program AmplitudeSourceLocation_PulseWidth
           !!calculate source amplitude again
           source_amp(i, j, k) = 0.0_dp
           nsta_use_grid(i, j, k) = 0
+          var_source_amp(i, j, k) = 0.0_dp
           do jj = 1, nsta
             if(use_flag_tmp(jj) .eqv. .false.) cycle
             nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             source_amp(i, j, k) = source_amp(i, j, k) &
             &            + rms_amp_obs(jj) / siteamp(jj) &
             &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)
+            var_source_amp(i, j, k) = var_source_amp(i, j, k) &
+            &            + (rms_amp_obs(jj) / (siteamp(jj) ** 2) &
+            &            * real(hypodist(jj, i, j, k) * exp(width_min(jj, i, j, k) * (pi * freq)), kind = dp)) ** 2 &
+            &            * var_siteamp(jj)
           enddo
-          if(nsta_use_grid(i, j, k) .ne. 0) source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
+          if(nsta_use_grid(i, j, k) .ne. 0) then
+            source_amp(i, j, k) = source_amp(i, j, k) / real(nsta_use_grid(i, j, k), kind = dp)
+            var_source_amp(i, j, k) = var_source_amp(i, j, k) / real(nsta_use_grid(i, j, k) ** 2, kind = dp)
+          endif
 
 
 #if defined (AMP_RATIO)
@@ -928,6 +940,30 @@ program AmplitudeSourceLocation_PulseWidth
     lat_grid = lat_s + real(residual_minloc(2) - 1, kind = fp) * dlat
     depth_grid = z_min + real(residual_minloc(3) - 1, kind = fp) * dz
 
+    hypo_lon_w_index = nlon
+    hypo_lon_e_index = 1
+    hypo_lat_s_index = nlat
+    hypo_lat_n_index = 1
+    hypo_dep_min_index = nz
+    hypo_dep_max_Index = 1
+    std_source_amp = sqrt(var_source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)))
+    do k = 1, nz
+      do j = 1, nlat
+        do i = 1, nlon
+          if(source_amp(i, j, k) .eq. 0.0_dp) cycle
+          if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+          &    - source_amp(i, j, k)) .le. std_source_amp) then
+            if(i .le. hypo_lon_w_index) hypo_lon_w_index = i
+            if(i .ge. hypo_lon_e_index) hypo_lon_e_index = i
+            if(j .le. hypo_lat_s_index) hypo_lat_s_index = j
+            if(j .ge. hypo_lat_n_index) hypo_lat_n_index = j
+            if(k .le. hypo_dep_min_index) hypo_dep_min_index = k
+            if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
+          endif
+        enddo
+      enddo
+    enddo
+
 #if defined (AMP_TXT)
     write(0, '(2a, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7), a, i0)') &
     &                 "Index = ", trim(eventindex(time_count + 1)), " residual_minimum (lon, lat, dep) = (", &
@@ -936,22 +972,35 @@ program AmplitudeSourceLocation_PulseWidth
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " nsta_use = ", nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3))
     
-    write(10, '(a, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7), 1x, i0)') &
+    write(10, '(a, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7), 1x, i0, 4(1x, f0.4), 2(1x, f0.2))') &
     &                 trim(eventindex(time_count + 1)), lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
-    &                 nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+    &                 nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
+    &                 lon_w + dlon * real(hypo_lon_w_index - 1, kind = fp), &
+    &                 lon_w + dlon * real(hypo_lon_e_index - 1, kind = fp), &
+    &                 lat_s + dlat * real(hypo_lat_s_index - 1, kind = fp), &
+    &                 lat_s + dlat * real(hypo_lat_n_index - 1, kind = fp), &
+    &                 z_min + dz * real(hypo_dep_min_index - 1, kind = fp), &
+    &                 z_min + dz * real(hypo_dep_max_index - 1, kind = fp)
+    
 #else
     write(0, '(a, f0.1, a, f0.4, 1x, f0.4, 1x, f0.2, a, 2(a, e15.7), a, i0)') &
     &                 "OT = ", origintime, " residual_minimum (lon, lat, dep) = (", lon_grid, lat_grid, depth_grid, ")", &
     &                 " source_amp = ", source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " residual = ", residual(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 " nsta_use = ", nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3))
-    write(10, '(f0.1, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7), 1x, i0)') &
+    write(10, '(f0.1, 1x, f0.4, 1x, f0.4, 1x, f0.2, 2(1x, e15.7), 1x, i0, 4(1x, f0.4), 2(1x, f0.2))') &
     &                 origintime, lon_grid, lat_grid, depth_grid, &
     &                 source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
     &                 residual(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
-    &                 nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3))
+    &                 nsta_use_grid(residual_minloc(1), residual_minloc(2), residual_minloc(3)), &
+    &                 lon_w + dlon * real(hypo_lon_w_index - 1, kind = fp), &
+    &                 lon_w + dlon * real(hypo_lon_e_index - 1, kind = fp), &
+    &                 lat_s + dlat * real(hypo_lat_s_index - 1, kind = fp), &
+    &                 lat_s + dlat * real(hypo_lat_n_index - 1, kind = fp), &
+    &                 z_min + dz * real(hypo_dep_min_index - 1, kind = fp), &
+    &                 z_min + dz * real(hypo_dep_max_index - 1, kind = fp)
 #endif
 
     !!output grd files
