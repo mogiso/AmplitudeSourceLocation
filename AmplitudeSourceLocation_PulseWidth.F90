@@ -888,20 +888,30 @@ program AmplitudeSourceLocation_PulseWidth
     hypo_dep_max_Index = 1
     std_source_amp = sqrt(var_source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)))
     do k = 1, nz
-      do j = 1, nlat
-        do i = 1, nlon
-          if(source_amp(i, j, k) .eq. 0.0_dp) cycle
-          if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-          &    - source_amp(i, j, k)) .le. std_source_amp) then
-            if(i .le. hypo_lon_w_index) hypo_lon_w_index = i
-            if(i .ge. hypo_lon_e_index) hypo_lon_e_index = i
-            if(j .le. hypo_lat_s_index) hypo_lat_s_index = j
-            if(j .ge. hypo_lat_n_index) hypo_lat_n_index = j
-            if(k .le. hypo_dep_min_index) hypo_dep_min_index = k
-            if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
-          endif
-        enddo
-      enddo
+      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) cycle
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(residual_minloc(1), residual_minloc(2), k)) .le. std_source_amp) then
+        if(k .le. hypo_dep_min_index) hypo_dep_min_index = k
+        if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
+      endif
+    enddo
+
+    do j = 1, nlat
+      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) cycle
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(residual_minloc(1), j, residual_minloc(3))) .le. std_source_amp) then
+        if(j .le. hypo_lat_s_index) hypo_lat_s_index = j
+        if(j .ge. hypo_lat_n_index) hypo_lat_n_index = j
+      endif
+    enddo
+
+    do i = 1, nlon
+      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) cycle
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(i, residual_minloc(2), residual_minloc(3))) .le. std_source_amp) then
+        if(i .le. hypo_lon_w_index) hypo_lon_w_index = i
+        if(i .ge. hypo_lon_e_index) hypo_lon_e_index = i
+      endif
     enddo
 
 #if defined (AMP_TXT)
