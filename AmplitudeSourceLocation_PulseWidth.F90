@@ -947,29 +947,48 @@ program AmplitudeSourceLocation_PulseWidth
     hypo_dep_min_index = nz
     hypo_dep_max_Index = 1
     std_source_amp = sqrt(var_source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)))
-    do k = 1, nz
-      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) cycle
+
+    do k = residual_minloc(3), 1, -1
+      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) exit
       if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
       &    - source_amp(residual_minloc(1), residual_minloc(2), k)) .le. std_source_amp) then
         if(k .le. hypo_dep_min_index) hypo_dep_min_index = k
+      endif
+    enddo
+    do k = residual_minloc(3), nz
+      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) exit
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(residual_minloc(1), residual_minloc(2), k)) .le. std_source_amp) then
         if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
       endif
     enddo
 
-    do j = 1, nlat
-      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) cycle
+    do j = residual_minloc(2), 1, -1
+      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) exit
       if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
       &    - source_amp(residual_minloc(1), j, residual_minloc(3))) .le. std_source_amp) then
         if(j .le. hypo_lat_s_index) hypo_lat_s_index = j
+      endif
+    enddo
+    do j = residual_minloc(2), nlat
+      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) exit
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(residual_minloc(1), j, residual_minloc(3))) .le. std_source_amp) then
         if(j .ge. hypo_lat_n_index) hypo_lat_n_index = j
       endif
     enddo
 
-    do i = 1, nlon
-      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) cycle
+    do i = residual_minloc(1), 1, -1
+      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) exit
       if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
       &    - source_amp(i, residual_minloc(2), residual_minloc(3))) .le. std_source_amp) then
         if(i .le. hypo_lon_w_index) hypo_lon_w_index = i
+      endif
+    enddo
+    do i = residual_minloc(1), nlon
+      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) exit
+      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
+      &    - source_amp(i, residual_minloc(2), residual_minloc(3))) .le. std_source_amp) then
         if(i .ge. hypo_lon_e_index) hypo_lon_e_index = i
       endif
     enddo
