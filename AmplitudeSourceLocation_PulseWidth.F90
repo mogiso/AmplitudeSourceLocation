@@ -112,7 +112,7 @@ program AmplitudeSourceLocation_PulseWidth
   &                                    dinc_angle, dinc_angle_org, inc_angle_ini, smallest_traveltime
   real(kind = sp)                   :: lon_r, lat_r, topo_r
   real(kind = dp)                   :: residual_normalize, amp_avg, topography_interpolate, &
-  &                                    dlon_topo, dlat_topo, freq, rms_amp_cal, std_source_amp
+  &                                    dlon_topo, dlat_topo, freq, rms_amp_cal, std_source_amp, residual_coefficient
   
   integer                           :: i, j, k, ii, jj, kk, icount, wave_index, time_count, lon_index, lat_index, z_index, &
   &                                    npts_max, nlon_topo, nlat_topo, ios, second_nearest_stationindex, &
@@ -946,49 +946,32 @@ program AmplitudeSourceLocation_PulseWidth
     hypo_lat_n_index = 1
     hypo_dep_min_index = nz
     hypo_dep_max_Index = 1
-    std_source_amp = sqrt(var_source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)))
+    if(log(residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))) .ge. 0.0_fp) then
+      residual_coefficient = 2.0_fp
+    else
+      residual_coefficient = 0.5_fp
+    endif
 
-    do k = residual_minloc(3), 1, -1
-      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(residual_minloc(1), residual_minloc(2), k)) .le. std_source_amp) then
+    do k = 1, nz 
+      if(log(residual(residual_minloc(1), residual_minloc(2), k)) .le. &
+      &  log(residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))) * residual_coefficient) then
+        if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
         if(k .le. hypo_dep_min_index) hypo_dep_min_index = k
       endif
     enddo
-    do k = residual_minloc(3), nz
-      if(source_amp(residual_minloc(1), residual_minloc(2), k) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(residual_minloc(1), residual_minloc(2), k)) .le. std_source_amp) then
-        if(k .ge. hypo_dep_max_index) hypo_dep_max_index = k
-      endif
-    enddo
 
-    do j = residual_minloc(2), 1, -1
-      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(residual_minloc(1), j, residual_minloc(3))) .le. std_source_amp) then
+    do j = 1, nlat
+      if(log(residual(residual_minloc(1), j, residual_minloc(3))) .le. &
+      &  log(residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))) * residual_coefficient) then
         if(j .le. hypo_lat_s_index) hypo_lat_s_index = j
-      endif
-    enddo
-    do j = residual_minloc(2), nlat
-      if(source_amp(residual_minloc(1), j, residual_minloc(3)) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(residual_minloc(1), j, residual_minloc(3))) .le. std_source_amp) then
         if(j .ge. hypo_lat_n_index) hypo_lat_n_index = j
       endif
     enddo
 
-    do i = residual_minloc(1), 1, -1
-      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(i, residual_minloc(2), residual_minloc(3))) .le. std_source_amp) then
+    do i = 1, nlon
+      if(log(residual(i, residual_minloc(2), residual_minloc(3))) .le. &
+      &  log(residual(residual_minloc(1), residual_minloc(2), residual_minloc(3))) * residual_coefficient) then
         if(i .le. hypo_lon_w_index) hypo_lon_w_index = i
-      endif
-    enddo
-    do i = residual_minloc(1), nlon
-      if(source_amp(i, residual_minloc(2), residual_minloc(3)) .eq. 0.0_dp) exit
-      if(abs(source_amp(residual_minloc(1), residual_minloc(2), residual_minloc(3)) &
-      &    - source_amp(i, residual_minloc(2), residual_minloc(3))) .le. std_source_amp) then
         if(i .ge. hypo_lon_e_index) hypo_lon_e_index = i
       endif
     enddo
