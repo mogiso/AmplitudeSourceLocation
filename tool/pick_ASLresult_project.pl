@@ -1,10 +1,10 @@
 #!/usr/bin/env perl
 use File::Basename;
 
-if($#ARGV != 8){
-  print stderr "usage: perl pick_ASLresult_project.pl (output_ps) (input_asl_result) (stationparam_file) (project_lon1) (project_lat1) (project_lon2) (project_lat2) (project_maxwidth) (project_output_file)\n";
-  die;
-}
+#if($#ARGV != 8){
+#  print stderr "usage: perl pick_ASLresult_project.pl (output_ps) (input_asl_result) (stationparam_file) (project_lon1) (project_lat1) (project_lon2) (project_lat2) (project_maxwidth) (project_output_file)\n";
+#  die;
+#}
 
 $out = $ARGV[0];
 $result = $ARGV[1];
@@ -16,12 +16,9 @@ $proj_lat_e = $ARGV[6];
 $proj_width = $ARGV[7];
 $proj_out = $ARGV[8];
 
-$argc = $#ARGV;
-#if($argc != 5){
-#  print stderr "usage: perl plot_result_masterevent.pl (out_ps) (result_txt) dem_grd(lon-lat) dem_txt(lon-dep) dem_txt(dep-lat) stationparam\n";
-#  die;
-#}
+$plate = "PB2002_boundaries.dig.txt";
 
+$argc = $#ARGV;
 
 open IN, "<", $stationparam;
 while(<IN>){
@@ -57,9 +54,12 @@ close IN;
 
 ##project
 unlink "$proj_out";
-open OUT, " | gmt project -C$proj_lon_b/$proj_lat_b -E$proj_lon_e/$proj_lat_e -Lw -W-${proj_width}/$proj_width -Fxyz -Q \\
+open OUT, " | gmt project -C$proj_lon_b/$proj_lat_b -E$proj_lon_e/$proj_lat_e -Lw -W0/$proj_width -Fxyzpq -Q \\
             > $proj_out ";
+#open OUT, " | gmt project -C$proj_lon_b/$proj_lat_b -A$proj_angle -W-${proj_width}/$proj_width -L0/$proj_length \\
+#                          -Fxyz -Q > $proj_out ";
 for($i = 0; $i <= $#origintime; $i++){
+  next if $evdep[$i] > 14.1;
   print OUT "$evlon[$i] $evlat[$i] $evdep[$i] $origintime[$i] $sourceamp[$i] $residual[$i] $nsta_use[$i]\n";
 }
 close OUT;
@@ -139,6 +139,7 @@ system "gmt pscoast -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -Df -W0.8p,black
 system "gmt psbasemap -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n \\
                       -Bxya${annot_a_map}f${annot_f_map} -BWeSn -Lx$scale_x/$scale_y+c$lat_s+w$scale_dist  \\
                       -O -K -P >> $out";
+system "gmt psxy $plate -J -R -W0.8p,black,- -O -K -P >> $out";
 
 open OUT, " | gmt psxy -JM$mapsize_x -R$lon_w/$lon_e/$lat_s/$lat_n -W1p,black -O -K -P >> $out";
   print OUT "$proj_lon_b $proj_lat_b\n$proj_lon_e $proj_lat_e\n";
@@ -158,13 +159,15 @@ while(<IN>){
   chomp;
   $_ =~ s/^\s*(.*?)\s*$/$1/;
   @tmp = split /\s+/, $_;
-  push @origintime_proj, $tmp[3];
   push @evlon_proj, $tmp[0];
   push @evlat_proj, $tmp[1];
   push @evdep_proj, $tmp[2];
+  push @origintime_proj, $tmp[3];
   push @sourceamp_proj, $tmp[4];
   push @residual_proj, $tmp[5];
   push @nsta_use_proj, $tmp[6];
+  push @evx_proj, $tmp[7];
+  push @evy_proj, $tmp[8];
   print OUT "$tmp[0] $tmp[1]\n";
 }
 close IN;
@@ -173,7 +176,7 @@ $proj_count = $#origintime_proj + 1;
 
 open OUT, ">", $proj_out;
 for($i = 0; $i < $proj_count; $i++){
-  print OUT "$origintime_proj[$i] $evlon_proj[$i] $evlat_proj[$i] $evdep_proj[$i] $sourceamp_proj[$i] $residual_proj[$i] $nsta_use_proj[$i]\n";
+  print OUT "$origintime_proj[$i] $evlon_proj[$i] $evlat_proj[$i] $evdep_proj[$i] $sourceamp_proj[$i] $residual_proj[$i] $nsta_use_proj[$i] $evx_proj[$i] $evy_proj[$i]\n";
 }
 close OUT;
   

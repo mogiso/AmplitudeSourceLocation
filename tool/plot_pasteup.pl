@@ -10,9 +10,9 @@ $eqlon = $ARGV[4];
 $eqlat = $ARGV[5];
 $eqdep = $ARGV[6];
 
-$filter = "2 8 10";
+$filter = "-fl 2 -fh 8 -fs 10";
 #$filter = "";
-$stcomp = "Z";
+$stcomp = "-comp Z";
 
 $dumpwin = "/home/mogiso/dumpwin/dumpwin";
 $wavedir = "/home/mogiso/kii_shallow_LF";
@@ -23,8 +23,15 @@ $i = 0;
 while(<IN>){
   chomp;
   $_ =~ s/^\s*(.*?)\s*$/$1/;
-  ($stlon[$i], $stlat[$i], $stdep[$i], $stname[$i], $stflag[$i], $cor1[$i], $cor2[$i], $site[$i], $noise[$i]) = split /\s+/, $_;
-  $i++;
+  @tmp = split /\s+/, $_;
+  if($tmp[4] eq ".true."){
+    push @stlon, $tmp[0];
+    push @stlat, $tmp[1];
+    push @stdep, $tmp[2];
+    push @stname, $tmp[3];
+  }
+  #($stlon[$i], $stlat[$i], $stdep[$i], $stname[$i], $stflag[$i], $cor1[$i], $cor2[$i], $site[$i], $noise[$i]) = split /\s+/, $_;
+  #$i++;
 }
 close IN;
 ($eqyy, $eqmo, $eqdy, $eqhh, $eqmm, $eqss) = split /[-T: ]/, $eqdate;
@@ -94,6 +101,9 @@ if($wavemo_e > 12){
   $waveyy_e = $waveyy_e + 1;
 }
 
+$wavehh_b = sprintf "%02d", $wavehh_b;
+$wavedy_b = sprintf "%02d", $wavedy_b;
+
 $winfile = "$wavedir/${waveyy_b}${wavemo_b}${wavedy_b}/${waveyy_b}${wavemo_b}${wavedy_b}.${wavehh_b}0000.win32";
 for($i = 0; $i <= $#stlon; $i++){
   $stlat_c = geograph2geocen($stlat[$i]);
@@ -108,6 +118,7 @@ for($i = 0; $i <= $#stlon; $i++){
   #print stderr "$stname[$i] $stlon[$i] $stlat[$i] $stdep[$i] $eqlon $eqlat $eqdep $distance[$i]\n";
 }
 $maxdist = max @distance;
+#$maxdist = 50;
 $mindist = min @distance;
 
 $mindist = int($mindist / 10.0 - 1.0) * 10.0;
@@ -122,7 +133,8 @@ $size_y = 15;
 if($filter eq ""){
   $amp = 50;
 }else{
-  $amp = 1;
+  #$amp = 0.5;
+  $amp = 3;
 }
 $scale_x = 8.6;
 $scale_y = 6.6;
@@ -137,7 +149,7 @@ $txt_x ="${waveyy_e}-${wavemo_e}-${wavedy_e}T${wavehh_e}:${wavemm_e}:${wavess_e}
 $txt_pen = "12p,Helvetica";
 
 $title_x = 0;
-$title_y = $size_y + 0.3;
+$title_y = $size_y + 0.6;
 $title_pen = "14p,Helvetica";
 
 system "gmt set PS_LINE_JOIN round";
@@ -152,20 +164,40 @@ open OUT, " | gmt pswiggle -JX${size_x}T/-${size_y} -R$range_x/$range_y -Z$amp -
                            -Bsx${annot_x2} \\
                            -O -K >> $out";
   $j = -1;
-  for($i = 0; $i <= $#stname; $i++){
-    next if $stflag[$i] eq ".false.";
-    open IN, "$dumpwin $winfile $winchfile $stname[$i] $stcomp $filter | ";
-    while(<IN>){
+  open IN, "$dumpwin $winfile $winchfile $stcomp $filter @stname | ";
+  while(<IN>){
+    chomp;
+    $_ =~ s/^\s*(.*?)\s*$/$1/;
+    if($_ =~ />/){
+      print OUT "$_\n";
+      #print stdout "$_\n";
       $j++;
-      $_ =~ s/^\s*(.*?)\s*$/$1/;
+      $k = -1;
+    }else{
+      $k++;
       @tmp = split /\s+/, $_;
-      if($j % 2 == 0){ 
-        print OUT "${tmp[0]}-${tmp[1]}-${tmp[2]}T${tmp[3]}:${tmp[4]}:${tmp[5]} $distance[$i] $tmp[6]\n";
+      if($k % 2 == 0){ 
+        print OUT "${tmp[0]}-${tmp[1]}-${tmp[2]}T${tmp[3]}:${tmp[4]}:${tmp[5]} $distance[$j] $tmp[6]\n";
+        #print stdout "${tmp[0]}-${tmp[1]}-${tmp[2]}T${tmp[3]}:${tmp[4]}:${tmp[5]} $distance[$j] $tmp[6]\n";
       }
     }
-    close IN;
-    print OUT ">\n";
   }
+  close IN;
+       
+  #for($i = 0; $i <= $#stname; $i++){
+  #  next if $stflag[$i] eq ".false.";
+  #  open IN, "$dumpwin $winfile $winchfile $stname[$i] $stcomp $filter | ";
+  #  while(<IN>){
+  #    $j++;
+  #    $_ =~ s/^\s*(.*?)\s*$/$1/;
+  #    @tmp = split /\s+/, $_;
+  #    if($j % 2 == 0){ 
+  #      print OUT "${tmp[0]}-${tmp[1]}-${tmp[2]}T${tmp[3]}:${tmp[4]}:${tmp[5]} $distance[$i] $tmp[6]\n";
+  #    }
+  #  }
+  #  close IN;
+  #  print OUT ">\n";
+  #}
 close OUT;
 
 open OUT, " | gmt pstext -JX${size_x}T/-${size_y} -R$range_x/$range_y -F+f+j -N -O -K -P >> $out";
@@ -175,8 +207,11 @@ open OUT, " | gmt pstext -JX${size_x}T/-${size_y} -R$range_x/$range_y -F+f+j -N 
   }
 close OUT;
 
+$eqlon = sprintf "%.2f", $eqlon;
+$eqlat = sprintf "%.2f", $eqlat;
+$eqdep = sprintf "%i", $eqdep;
 open OUT, " | gmt pstext -JX${size_x}/${size_y} -R0/$size_x/0/$size_y -F+f+j -N -O -K -P >> $out";
-  print OUT "$title_x $title_y $title_pen LB $eqyy-$eqmo-$eqdy $eqhh:$eqmm:$eqss\n";
+  print OUT "$title_x $title_y $title_pen LB $eqyy-$eqmo-$eqdy $eqhh:$eqmm:$eqss ${eqlat}N ${eqlon}E ${eqdep}km\n";
 close OUT;
 
     

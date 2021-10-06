@@ -100,7 +100,7 @@ program AmplitudeSourceLocation_masterevent
   integer                         :: m, n
 
 #if defined (DAMPED) /* constraints */
-  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 1.0_fp]  !![amp, dx, dy, dz]
+  real(kind = fp),    parameter :: damp(4) = [0.0_fp, 0.0_fp, 0.0_fp, 100.0_fp]  !![amp, dx, dy, dz]
 #endif
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp

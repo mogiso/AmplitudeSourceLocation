@@ -16,16 +16,17 @@ $nsta_use_max = $ARGV[5];
 $subevent_amplitude = $ARGV[6];
 $subevent_amplitude_out = $ARGV[7];
 
-$lon_w = 135.0;
-$lon_e = 137.5;
-$lat_s = 32.5;
-$lat_n = 33.7;
-$dep_min = 0.0;
-$dep_max = 20.0;
+$lon_w = 134.9;
+$lon_e = 137.6;
+$lat_s = 32.4;
+$lat_n = 33.8;
+$dep_min = -1.0;
+$dep_max = 21.0;
 $dlon = 0.02;
 $dlat = 0.02;
 $dz = 2.0;
-$delta_hypo = 2.0;
+$delta_hypo = 3.0;
+$compare_index = 1;
 
 ##read result file
 $read_comment = 0;
@@ -69,30 +70,44 @@ if(-f $subevent_amplitude && $subevent_amplitude ne ""){
   }
 }
 
-for($i = 1; $i <= $#sourceamp - 1; $i++){
+for($i = $compare_index; $i <= $#sourceamp - $compare_index; $i++){
+  $diff_back2    = $sourceamp[$i] - $sourceamp[$i - $compare_index];
+  $diff_forward2 = $sourceamp[$i] - $sourceamp[$i + $compare_index];
   $diff_back1    = $sourceamp[$i] - $sourceamp[$i - 1];
   $diff_forward1 = $sourceamp[$i] - $sourceamp[$i + 1];
-  if($sourceamp[$i] > $sourceamp_min                               && 
-     $diff_back1    > 0.0                                          &&
-     $diff_forward1 > 0.0                                          && 
-     $hypo_lon[$i]  > $lon_w                                       &&
-     $hypo_lon[$i]  < $lon_e                                       &&
-     $hypo_lat[$i]  > $lat_s                                       &&
-     $hypo_lat[$i]  < $lat_n                                       &&
-     $hypo_dep[$i]  > $dep_min                                     &&
-     $hypo_dep[$i]  < $dep_max                                     &&
-     $nsta_use[$i] >= $nsta_use_min                                &&
-     $nsta_use[$i] <= $nsta_use_max                                &&
-     $residual[$i]  < $residual_max                                &&
-     abs($hypo_lon[$i] - $hypo_lon[$i - 1]) <= $delta_hypo * $dlon &&
-     abs($hypo_lon[$i] - $hypo_lon[$i + 1]) <= $delta_hypo * $dlon &&
-     abs($hypo_lat[$i] - $hypo_lat[$i - 1]) <= $delta_hypo * $dlat &&
-     abs($hypo_lat[$i] - $hypo_lat[$i + 1]) <= $delta_hypo * $dlat &&
-     abs($hypo_dep[$i] - $hypo_dep[$i - 1]) <= $delta_hypo * $dz   &&
-     abs($hypo_dep[$i] - $hypo_dep[$i + 1]) <= $delta_hypo * $dz   ){
-    push @result_localmax_picked, $result_all[$i];
-    if(@subevent_amp){
-      push @subevent_amp_picked, $subevent_amp[$i];
+  if($sourceamp[$i] > $sourceamp_min                              && 
+     $diff_back1    > 0.0                                         &&
+     $diff_forward1 > 0.0                                         && 
+#     $diff_back2    > 0.0                                         &&
+#     $diff_forward2 > 0.0                                         && 
+     $hypo_lon[$i]  > $lon_w                                      &&
+     $hypo_lon[$i]  < $lon_e                                      &&
+     $hypo_lat[$i]  > $lat_s                                      &&
+     $hypo_lat[$i]  < $lat_n                                      &&
+     $hypo_dep[$i]  > $dep_min                                    &&
+     $hypo_dep[$i]  < $dep_max                                    &&
+     $nsta_use[$i] >= $nsta_use_min                               &&
+     $nsta_use[$i] <= $nsta_use_max                               &&
+     $residual[$i]  < $residual_max                               &&
+     abs($hypo_lon[$i] - $hypo_lon[$i - 1]) < $delta_hypo * $dlon &&
+     abs($hypo_lon[$i] - $hypo_lon[$i + 1]) < $delta_hypo * $dlon &&
+     abs($hypo_lat[$i] - $hypo_lat[$i - 1]) < $delta_hypo * $dlat &&
+     abs($hypo_lat[$i] - $hypo_lat[$i + 1]) < $delta_hypo * $dlat 
+#     abs($hypo_dep[$i] - $hypo_dep[$i - 1]) <= $delta_hypo * $dz   &&
+#     abs($hypo_dep[$i] - $hypo_dep[$i + 1]) <= $delta_hypo * $dz   
+  ){
+    if($result_localmax_picked[$#result_localmax_picked] eq $result_all[$i - 2]){
+      if($residual[$i - 2] > $residual[$i]){
+        pop @result_localmax_picked;
+        push @result_localmax_picked, $result_all[$i];
+        if(@subevent_amp){
+          pop @subevent_amp_picked;
+          push @subevent_amp_picked, $subevent_amp[$i] ;
+        }
+      }
+    }else{
+      push @result_localmax_picked, $result_all[$i];
+      push @subevent_amp_picked, $subevent_amp[$i] if (@subevent_amp);
     }
   }
 }
