@@ -35,7 +35,8 @@ program AmplitudeSourceLocation_PulseWidth
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
-  real(kind = fp),        parameter :: max_hypodist_asl = 100.0_fp
+  !real(kind = fp),        parameter :: max_hypodist_asl = 100.0_fp
+  real(kind = fp),        parameter :: max_hypodist_asl = 150.0_fp
   !!Use station
   integer                           :: nsta
   integer,              allocatable :: npts(:)
@@ -854,7 +855,7 @@ program AmplitudeSourceLocation_PulseWidth
             endif
           enddo
           if(use_flag_tmp(nearest_stationindex(i, j, k)) .eqv. .false.) cycle lon_loop2
-          if(use_flag_tmp(second_nearest_stationindex) .eqv. .false.) cycle lon_loop2
+          !if(use_flag_tmp(second_nearest_stationindex) .eqv. .false.) cycle lon_loop2
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
           !!calculate source amplitude again
@@ -912,6 +913,12 @@ program AmplitudeSourceLocation_PulseWidth
             &                 - source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
             &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp))
             residual_normalize = residual_normalize + (rms_amp_obs(ii) / siteamp(ii))
+#elif defined (LOG_RESIDUAL)
+            residual(i, j, k) = residual(i, j, k) &
+            &                 + (log(rms_amp_obs(ii) / siteamp(ii)) &
+            &                 - log(source_amp(i, j, k) / real(hypodist(ii, i, j, k), kind = dp) &
+            &                   * real(exp(-pi * freq * width_min(ii, i, j, k)), kind = dp))) ** 2
+            residual_normalize = residual_normalize + 1.0_dp
 #else
             residual(i, j, k) = residual(i, j, k) &
             &                 + (rms_amp_obs(ii) / siteamp(ii) &
