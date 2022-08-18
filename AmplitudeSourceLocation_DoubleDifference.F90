@@ -213,6 +213,7 @@ program AmplitudeSourceLocation_DoubleDifference
 #else
   main_loop: do mainloop_count = 1, nevent + 1
 #endif
+
     if(mainloop_count .gt. 1) evflag(mainloop_count - 1, mainloop_count) = .false.
     residual_old = huge
     iter_loop_count = 0
@@ -458,7 +459,7 @@ program AmplitudeSourceLocation_DoubleDifference
           call greatcircle_dist(evlat(i, mainloop_count), evlon(i, mainloop_count), &
           &                     evlat(j, mainloop_count), evlon(j, mainloop_count), delta_out = epdelta)
           interevent_dist = sqrt((r_earth - evdp(i, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
-          &            - 2.0_fp * (r_earth - evdp(i, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
+          &           - 2.0_fp * (r_earth - evdp(i, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
           if(interevent_dist .le. interevent_dist_max) then
             do k = 1, nsta
               if(obsamp_flag(k, i) .eqv. .true. .and. obsamp_flag(k, j) .eqv. .true.) nobsamp_ratio = nobsamp_ratio + 1
@@ -479,7 +480,7 @@ program AmplitudeSourceLocation_DoubleDifference
           call greatcircle_dist(evlat(j, mainloop_count), evlon(j, mainloop_count), &
           &                     evlat(k, mainloop_count), evlon(k, mainloop_count), delta_out = epdelta)
           interevent_dist = sqrt((r_earth - evdp(j, mainloop_count)) ** 2 + (r_earth - evdp(k, mainloop_count)) ** 2 &
-          &            - 2.0_fp * (r_earth - evdp(j, mainloop_count)) * (r_earth - evdp(k, mainloop_count)) * cos(epdelta))
+          &           - 2.0_fp * (r_earth - evdp(j, mainloop_count)) * (r_earth - evdp(k, mainloop_count)) * cos(epdelta))
           dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max ** 2))
           if(interevent_dist .le. interevent_dist_max) then
             do i = 1, nsta
@@ -570,6 +571,7 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
 
     enddo iter_loop
+    write(0, '(a, i0)') "Iteration loop count = ", iter_loop_count
   enddo main_loop
 
 
