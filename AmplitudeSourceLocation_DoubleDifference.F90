@@ -2,7 +2,7 @@ program AmplitudeSourceLocation_DoubleDifference
   !!Relative amplitude source location (Double-differnce of amplitude)
   !!using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!Copyright: (c) Masashi Ogiso 2020
+  !!Copyright: (c) Masashi Ogiso 2022
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
   !!-DWITHOUT_ERROR: do not calculate estimation errors
@@ -38,7 +38,7 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: delta_residual_max = 1.0e-10_fp
   integer,            parameter :: nsta_use_min = 4
   integer,            parameter :: nconstraint = 4
-  integer,            parameter :: loop_count_max = 10
+  integer,            parameter :: iter_loop_count_max = 10
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -79,10 +79,10 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const_j, &
   &                                matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                siteamp_tmp, interevent_dist
+  &                                siteamp_tmp, interevent_dist, dist_weight, constraint_weight
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, loop_count, icount, nsta_use, ios, &
+  &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, &
   &                                obsvector_count, irow_count, icol_count, nnonzero_elem, nonzero_elem_count, &
   &                                nevent_est, nobsamp_ratio, mainloop_count, event_count
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
@@ -208,13 +208,17 @@ program AmplitudeSourceLocation_DoubleDifference
   call set_velocity(z_str_min, dz_str, velocity, qinv)
 
   !!Main loop: estimate \Delta_x, \Delta_y, \Delta_z, \Delta_amp until convergence
+#if defined (WITHOUT_ERROR)
+  main_loop: do mainloop_count = 1, 1
+#else
   main_loop: do mainloop_count = 1, nevent + 1
+#endif
     if(mainloop_count .gt. 1) evflag(mainloop_count - 1, mainloop_count) = .false.
     residual_old = huge
-    loop_count = 0
+    iter_loop_count = 0
     iter_loop: do
-      if(loop_count .gt. loop_count_max) exit iter_loop
-      loop_count = loop_count + 1   
+      if(iter_loop_count .gt. iter_loop_count_max) exit iter_loop
+      iter_loop_count = iter_loop_count + 1   
       !!calculate ray length, pulse width, unit vector of ray incident
       write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for each event"
 
@@ -255,7 +259,6 @@ program AmplitudeSourceLocation_DoubleDifference
   
         station_loop: do i = 1, nsta
           if(obsamp_flag(i, j) .eqv. .false.) cycle
-          print *, stlon(i), stlat(i)
           !!calculate azimuth and hypocentral distance
           call greatcircle_dist(evlat(j, mainloop_count), evlon(j, mainloop_count), stlat(i), stlon(i), &
           &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)
@@ -477,12 +480,14 @@ program AmplitudeSourceLocation_DoubleDifference
           &                     evlat(k, mainloop_count), evlon(k, mainloop_count), delta_out = epdelta)
           interevent_dist = sqrt((r_earth - evdp(j, mainloop_count)) ** 2 + (r_earth - evdp(k, mainloop_count)) ** 2 &
           &            - 2.0_fp * (r_earth - evdp(j, mainloop_count)) * (r_earth - evdp(k, mainloop_count)) * cos(epdelta))
+          dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max ** 2))
           if(interevent_dist .le. interevent_dist_max) then
             do i = 1, nsta
               if(obsamp_flag(i, j) .eqv. .true. .and. obsamp_flag(i, k) .eqv. .true.) then
                 obsvector(obsvector_count) = (log(obsamp(i, k)) - log(calamp(i, k))) &
                 &                          - (log(obsamp(i, j)) - log(calamp(i, j))) &
                 &                          +  log(evamp(k, mainloop_count)) - log(evamp(j, mainloop_count))
+                obsvector(obsvector_count) = obsvector(obsvector_count) * dist_weight
 
                 normal_vector_j(1 : 3) = [sin(ray_azinc(2, i, j)) * cos(ray_azinc(1, i, j)), &
                 &                         sin(ray_azinc(2, i, j)) * sin(ray_azinc(1, i, j)), &
@@ -510,6 +515,9 @@ program AmplitudeSourceLocation_DoubleDifference
                 nonzero_elem(8 * (obsvector_count - 1) + 6) =  matrix_const_j * normal_vector_j(1) !Delta X_j
                 nonzero_elem(8 * (obsvector_count - 1) + 7) =  matrix_const_j * normal_vector_j(2) !Delta Y_j
                 nonzero_elem(8 * (obsvector_count - 1) + 8) =  matrix_const_j * normal_vector_j(3) !Delta Z_j
+
+                nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) &
+                &  = nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) * dist_weight
               
                 obsvector_count = obsvector_count + 1
               endif
@@ -519,12 +527,13 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
 
       !!constraints
+      constraint_weight = 1.0_fp / real(iter_loop_count, kind = fp)
       do j = 1, nconstraint
         obsvector(obsvector_count + (j - 1)) = 0.0_fp
         do i = 1, nevent_est
           irow(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = obsvector_count + (j - 1)
           icol(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = 4 * (i - 1) + j
-          nonzero_elem(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = 1.0_fp
+          nonzero_elem(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = 1.0_fp * constraint_weight
         enddo
       enddo
 
@@ -564,11 +573,16 @@ program AmplitudeSourceLocation_DoubleDifference
   enddo main_loop
 
 
-  !!output result
+  !!calculate estimation errors
   sigma_amp = 0.0_fp
   sigma_lat = 0.0_fp
   sigma_lon = 0.0_fp
   sigma_depth = 0.0_fp
+#if defined (WITHOUT_ERROR)
+#else
+#endif
+
+  !!output result
   open(unit = 10, file = trim(resultfile))
   write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum nsta"
   do i = 1, nevent
