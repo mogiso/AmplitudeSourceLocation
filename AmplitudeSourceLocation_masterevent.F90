@@ -72,7 +72,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
 #if defined (SAC) /* use sac-format wavefome files (NVHDR=6) */
-  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+  real(kind = dp),    parameter   :: order = 1.0_dp
   character(len = 3), parameter   :: sacfile_extension = "sac"
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), sampling(:), stime(:), ttime(:)
@@ -306,16 +306,20 @@ program AmplitudeSourceLocation_masterevent
   !!read waveform data from sac
   allocate(stime(1 : nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
+    !sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
+    sacfile = trim(sacfile_index) // trim(stname(i)) // "_env_cal." // sacfile_extension
     call read_sachdr(sacfile, delta=sampling(i), npts=npts(i), begin=begin(i), t0=stime(i))
   enddo
   allocate(waveform_obs(maxval(npts), nsta))
   do i = 1, nsta
-    sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
+    !sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
+    sacfile = trim(sacfile_index) // trim(stname(i)) // "_env_cal." // sacfile_extension
     call read_sacdata(sacfile, npts(i), waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
   !!remove offset
+#if defined (TESTDATA)
+#else
   do j = 1, nsta
     amp_avg = 0.0_dp
     icount = 0
@@ -326,6 +330,7 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = amp_avg / real(icount, kind = dp)
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
+#endif
 #endif
 
 #if defined (TESTDATA)
@@ -375,6 +380,9 @@ program AmplitudeSourceLocation_masterevent
 
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
+  do i = 1, nsta
+    print *, stlon(i), stlat(i)
+  enddo
 
   !!calculate ray length, pulse width, unit vector of ray incident
   write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for master event"
@@ -414,6 +422,7 @@ program AmplitudeSourceLocation_masterevent
   !!calculate traveltime to station        
   !$omp do
   station_loop: do jj = 1, nsta
+    print *, stlon(jj), stlat(jj)
     !!calculate azimuth and hypocentral distance
     call greatcircle_dist(evlat_master, evlon_master, stlat(jj), stlon(jj), &
     &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)

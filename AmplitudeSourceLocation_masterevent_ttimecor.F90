@@ -47,7 +47,7 @@ program AmplitudeSourceLocation_masterevent
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   integer,            parameter :: nsta_use_minimum = 5
-  real(kind = fp),    parameter :: snratio_accept = 0.1_fp
+  real(kind = fp),    parameter :: snratio_accept = 0.0_fp
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -66,7 +66,7 @@ program AmplitudeSourceLocation_masterevent
 
   !!traveltime correction table
   real(kind = fp),    parameter :: dlon_cor = 0.02_fp, dlat_cor = 0.02_fp, dz_cor = 0.0_fp
-  integer,            parameter :: nlon_cor = 0, nlat_cor = 0, nz_cor = 0
+  integer,            parameter :: nlon_cor = 10, nlat_cor = 10, nz_cor = 0
   real(kind = dp)               :: residual_loc_cor(-nlon_cor : nlon_cor, -nlat_cor : nlat_cor, -nz_cor : nz_cor)
 
 #if defined (WIN) /* use win-format waveform file for input waveforms */
@@ -300,17 +300,9 @@ program AmplitudeSourceLocation_masterevent
   allocate(waveform_obs(1 : maxval(npts), 1 : nsta))
   waveform_obs(1 : maxval(npts), 1 : nsta) = 0.0_dp
   do j = 1, nsta
-    amp_avg = 0.0_dp
-    icount = 0
     do i = 1, npts(j)
       waveform_obs(i, j) = real(waveform_obs_int(i, j), kind = dp) * chtbl(ikey(j))%conv * order
-      if(i .le. int(rms_tw / sampling(j))) then
-        amp_avg = amp_avg + waveform_obs(i, j)
-        icount = icount + 1
-      endif
     enddo
-    amp_avg = amp_avg / real(icount, kind = dp)
-    waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
 #elif defined (SAC)
   !!read waveform data from sac
@@ -327,6 +319,10 @@ program AmplitudeSourceLocation_masterevent
     call read_sacdata(sacfile, npts(i), waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
+#endif
+
+#if defined (TESTDATA)
+#else
   !!remove offset
   do j = 1, nsta
     amp_avg = 0.0_dp
@@ -338,10 +334,6 @@ program AmplitudeSourceLocation_masterevent
     amp_avg = amp_avg / real(icount, kind = dp)
     waveform_obs(1 : npts(j), j) = waveform_obs(1 : npts(j), j) - amp_avg
   enddo
-#endif
-
-#if defined (TESTDATA)
-#else
   !!bandpass filter
   write(0, '(a)') "Applying bandpass filter"
   do j = 1, nsta
@@ -443,38 +435,38 @@ program AmplitudeSourceLocation_masterevent
     ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
 #else
 
-#if defined (RAY_BENDING)
-    !!do ray tracing with pseudobending scheme
-    raypath_lon(1) = evlon_master
-    raypath_lat(1) = evlat_master
-    raypath_dep(1) = evdp_master
-    raypath_lon(nraypath_ini) = stlon(jj)
-    raypath_lat(nraypath_ini) = stlat(jj)
-    raypath_dep(nraypath_ini) = stdp(jj)
-    do i = 2, nraypath_ini - 1
-      raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
-      raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
-      raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
-    enddo
-    nraypath = nraypath_ini
-    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
-    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
-    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
+/* #if defined (RAY_BENDING) */
+!    !!do ray tracing with pseudobending scheme
+!    raypath_lon(1) = evlon_master
+!    raypath_lat(1) = evlat_master
+!    raypath_dep(1) = evdp_master
+!    raypath_lon(nraypath_ini) = stlon(jj)
+!    raypath_lat(nraypath_ini) = stlat(jj)
+!    raypath_dep(nraypath_ini) = stdp(jj)
+!    do i = 2, nraypath_ini - 1
+!      raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+!      raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+!      raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
+!    enddo
+!    nraypath = nraypath_ini
+!    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+!    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+!    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
 
 #if defined (WIN) || defined (SAC)
-    ttime(jj) = ttime_tmp
+!    ttime(jj) = ttime_tmp
 #endif
 
-    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
-    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
-    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
-    write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
-    &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
+!    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+!    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
+!    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+!    write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
+!    &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
 #if defined (WIN) || defined (SAC)
-    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
+!    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-#else
+/* #else */
     !!do ray shooting
     dist_min(jj) = real(huge, kind = fp)
     incangle_loop2: do kk = 1, nrayshoot
@@ -586,7 +578,7 @@ program AmplitudeSourceLocation_masterevent
     write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-#endif /* -DRAY_BENDING or not */
+/* #endif */ /* -DRAY_BENDING or not */
 #endif /* -DV_CONST or not */
 
   enddo station_loop
@@ -628,19 +620,19 @@ program AmplitudeSourceLocation_masterevent
 
 !  !$omp end parallel
 
-  !open(unit = 10, file = "ttime_cor_table.txt")
-  !do kk = -nz_cor, nz_cor
-  !  depth_tmp = evdp_master + dz_cor * real(kk, kind = fp)
-  !  do jj = -nlat_cor, nlat_cor
-  !    lat_tmp = evlat_master + dlat_cor * real(jj, kind = fp)
-  !    do ii = -nlon_cor, nlon_cor
-  !      lon_tmp = evlon_master + dlon_cor * real(ii, kind = fp)
-  !      write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
-  !    enddo
-  !    write(10, *) ""
-  !  enddo
-  !enddo
-  !close(10)
+  open(unit = 10, file = "ttime_cor_table.txt")
+  do kk = -nz_cor, nz_cor
+    depth_tmp = evdp_master + dz_cor * real(kk, kind = fp)
+    do jj = -nlat_cor, nlat_cor
+      lat_tmp = evlat_master + dlat_cor * real(jj, kind = fp)
+      do ii = -nlon_cor, nlon_cor
+        lon_tmp = evlon_master + dlon_cor * real(ii, kind = fp)
+        write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
+      enddo
+      write(10, *) ""
+    enddo
+  enddo
+  close(10)
   !stop
 
 
@@ -649,14 +641,14 @@ program AmplitudeSourceLocation_masterevent
 #if defined (WIN)
   ttime(1 : nsta) = ttime(1 : nsta) + ttime_cor(1 : nsta, wavetype)
 #elif defined (SAC)
-  do i = 1, nsta
-    if(stime(i) .ne. -12345.0_fp) then
-      write(0, '(a, i0, a, f5.2)') "station(", i, ") read traveltime from sacfile ", stime(i)
-      ttime(i) = stime(i)
-    else
-      ttime(i) = ttime(i) + ttime_cor(i, wavetype)
-    endif
-  enddo
+  !do i = 1, nsta
+  !  if(stime(i) .ne. -12345.0_fp) then
+  !    write(0, '(a, i0, a, f5.2)') "station(", i, ") read traveltime from sacfile ", stime(i)
+  !    ttime(i) = stime(i)
+  !  else
+  !    ttime(i) = ttime(i) + ttime_cor(i, wavetype)
+  !  endif
+  !enddo
 #endif
 
 
@@ -821,7 +813,8 @@ program AmplitudeSourceLocation_masterevent
             &  + (obsvector_copy(i) - dot_product(inversion_matrix_copy(i, 1 : 4), obsvector_tmp(1 : 4, ii, jj, kk))) ** 2
           enddo
           residual_loc_cor(ii, jj , kk) = residual_loc_cor(ii, jj, kk) / real(icount, kind = dp)
-          !print *, ii, jj, kk, residual_loc_cor(ii, jj, kk)
+          if(icount .lt. nsta) residual_loc_cor(ii, jj, kk) = real(huge, kind = dp)
+          print *, ii, jj, kk, residual_loc_cor(ii, jj, kk), icount
         enddo  !!lon
       enddo    !!lat
     enddo      !!dep
@@ -830,7 +823,7 @@ program AmplitudeSourceLocation_masterevent
     lon_tmp = evlon_master + dlon_cor * real(min_residual(1) - nlon_cor - 1, kind = fp)
     lat_tmp = evlat_master + dlat_cor * real(min_residual(2) - nlat_cor - 1, kind = fp)
     depth_tmp = evdp_master + dz_cor * real(min_residual(3) - nz_cor - 1, kind = fp)
-    !print *, min_residual(1) - nlon_cor - 1, min_residual(2) - nlat_cor - 1, min_residual(3) - nz_cor - 1
+    print *, min_residual(1) - nlon_cor - 1, min_residual(2) - nlat_cor - 1, min_residual(3) - nz_cor - 1
     print '(4(f8.4, 1x))', lon_tmp, lat_tmp, depth_tmp, data_residual(k)
     obsvector(1 : 4, k) &
     &  = obsvector_tmp(1 : 4, min_residual(1) - 1 - nlon_cor, min_residual(2) - 1 - nlat_cor, min_residual(3) - 1 - nz_cor)
