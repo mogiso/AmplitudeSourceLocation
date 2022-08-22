@@ -59,17 +59,19 @@ or when `-DAMP_TXT` is set,
 - The format of station parameter file is as follows:
  
 <pre>
-    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 0.0 1.0 0.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, and noise level of 1st station)
-    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.0 0.738 0.0 #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, and noise level of 2nd station)
-    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 0.0 2.213 0.0
-    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 0.0 1.487 0.0
-    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 0.0 2.761 0.0
+    143.9775 43.3797  -0.68 V.MEAB .true. 0.0 0.0 1.0 1.0 0.0    #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, variance of site amplificatino factor, and noise level of 1st station)
+    143.9867 43.3955  -0.74 V.MEAA .true. 0.0 0.0 0.738 1.0 0.0 #(longitude, latitude, depth, station name, use_flag, traveltime correction terms of P- and S-waves, site amplification factor, and noise level of 2nd station)
+    144.0017 43.3818  -1.27 V.PMNS .true. 0.0 0.0 2.213 1.0 0.0
+    144.0042 43.3903  -1.28 V.NSYM .true. 0.0 0.0 1.487 1.0 0.0
+    144.0160 43.3695  -1.10 V.MNDK .true. 0.0 0.0 2.761 1.0 0.0
 </pre>
 
 The number of stations is automatically determined from station parameter file. Use_flag is either ".true." or ".false.". If use_flag equals .false., the station will
 not use in the estimation of source locations.
 - If a travel time correction term is positive, it is added to a theoretical (calculated) travel time.
 - If noise level equals zero, all amplitude data will pass the check of signal-to-noise ratio.
+- Variance of site amplification factors are currently not used in any calculations.
+- This style of station parameter file is common among AmplitudeSourceLocation_PulseWidth.F90, AmplitudeSourceLocation_masterevent.F90, and TraveltimeSourceLocation_masterevent.F90.
 - When `-DSAC` is set, filename of each SAC file is set to be `trim(prefix of sac files) // "." // trim(station name) // "." // trim(component) // ".sac"`.
 Prefix of sac files and component are given in arguments while station name is given by the station parameter file.
 - When `-DAMP_TXT` is set, the format of amplitude file is as follows:
