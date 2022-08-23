@@ -30,7 +30,7 @@ program AmplitudeSourceLocation_PulseWidth
 
   implicit none
   integer,                parameter :: wavetype = 2           !!1 for P-wave, 2 for S-wave
-  integer,                parameter :: nsta_use_minimum = 6 
+  integer,                parameter :: nsta_use_minimum = 5 
   real(kind = dp),        parameter :: snratio_accept = 3.0_dp
   real(kind = fp),        parameter :: do_rayshooting_threshold = 300.0_fp
   real(kind = fp),        parameter :: conv_rayshooting_threshold = 0.1_fp
@@ -62,15 +62,15 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 135.0_fp, lon_e = 137.5_fp
-  real(kind = fp),        parameter :: lat_s = 32.5_fp, lat_n = 33.7_fp
-  real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 20.0_fp
-  real(kind = fp),        parameter :: dlon = 0.02_fp, dlat = 0.02_fp, dz = 2.0_fp
+  real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.04_fp
+  real(kind = fp),        parameter :: lat_s = 43.36_fp, lat_n = 43.41_fp
+  real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.0_fp
+  real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
   !!structure range
-  real(kind = fp),        parameter :: lon_str_w = 134.0_fp, lon_str_e = 138.0_fp
-  real(kind = fp),        parameter :: lat_str_s = 30.0_fp,  lat_str_n = 34.5_fp
-  real(kind = fp),        parameter :: z_str_min = 0.0_fp, z_str_max = 100.0_fp
-  real(kind = fp),        parameter :: dlon_str = 0.005_fp, dlat_str = 0.005_fp, dz_str = 0.1_fp
+  real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
+  real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
@@ -234,8 +234,7 @@ program AmplitudeSourceLocation_PulseWidth
   allocate(lon_sta(1 : nsta), lat_sta(1 : nsta), z_sta(1 : nsta), stname(1 : nsta), rms_amp_obs(1 : nsta), &
   &        ttime_cor(1 : nsta, 1 : 2), siteamp(1 : nsta), use_flag(1 : nsta), use_flag_tmp(1 : nsta), &
   &        hypodist(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), ttime_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), &
-  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta), &
-  &        rms_amp_ratio(1 : nstation_amp_freqrange, 1 : nsta), var_siteamp(1 : nsta))
+  &        width_min(1 : nsta, 1 : nlon, 1 : nlat, 1 : nz), rms_amp_obs_noise(1 : nsta), var_siteamp(1 : nsta))
   do i = 1, nsta
     read(40, *) lon_sta(i), lat_sta(i), z_sta(i), stname(i), use_flag(i), ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), &
     &           var_siteamp(i), rms_amp_obs_noise(i)
@@ -245,6 +244,7 @@ program AmplitudeSourceLocation_PulseWidth
     ttime_cor(i, 1) = 0.0_fp
     ttime_cor(i, 2) = 0.0_fp
     siteamp(i)   = 1.0_dp
+    rms_amp_obs_noise(i) = 0.0_dp
 #endif
 
   enddo
@@ -322,6 +322,8 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DWIN or -DSAC */
 
   !!remove offset
+#if defined (TESTDATA)
+#else
   write(0, '(a)') "Removing offset"
   do j = 1, nsta
     amp_avg = 0.0_dp
@@ -335,6 +337,7 @@ program AmplitudeSourceLocation_PulseWidth
       waveform_obs(i, j) = (waveform_obs(i, j) - amp_avg)
     enddo
   enddo
+#endif
 
 #if defined (TESTDATA)
 #else
@@ -352,7 +355,6 @@ program AmplitudeSourceLocation_PulseWidth
     waveform_obs(1 : npts(j), j) = waveform_tmp(1 : npts(j)) * gn
     deallocate(h, waveform_tmp)
   enddo
-
 #endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
@@ -682,7 +684,7 @@ program AmplitudeSourceLocation_PulseWidth
     !$omp&                amp_txt, time_count, &
 #endif
     !$omp&                rms_amp_obs_noise, rms_tw, hypodist, ttime_cor, use_flag, siteamp, width_min, residual, &
-    !$omp&                waveform_obs_ratio, lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname, &
+    !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, stname, &
     !$omp&                nearest_stationindex, var_source_amp, var_siteamp), &
     !$omp&         private(omp_thread, i, j, ii, jj, depth_grid, wave_index, rms_amp_obs, icount, residual_normalize, &
 #if defined (AMP_RATIO)
@@ -775,26 +777,26 @@ program AmplitudeSourceLocation_PulseWidth
               cycle
             endif
             !!check whether expected amplitude is large or not (Doi et al., 2020, SSJ meeting)
-            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-              use_flag_tmp(jj) = .true.
-              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-            else
-              rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
-              &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
-              if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
-                use_flag_tmp(jj) = .true.
-                nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
-              else
-                use_flag_tmp(jj) = .false.
-              endif
-            endif
-            !!just compare amplitude  of signal and noise
             !if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
             !  use_flag_tmp(jj) = .true.
             !  nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
             !else
-            !  use_flag_tmp(jj) = .false.
+            !  rms_amp_cal = source_amp(i, j, k) * siteamp(jj) &
+            !  &             / real(hypodist(jj, i, j, k), kind = dp) * real(exp(-pi * freq * width_min(jj, i, j, k)), kind = dp)
+            !  if(rms_amp_cal .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+            !    use_flag_tmp(jj) = .true.
+            !    nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            !  else
+            !    use_flag_tmp(jj) = .false.
+            !  endif
             !endif
+            !!just compare amplitude  of signal and noise
+            if(rms_amp_obs(jj) .gt. snratio_accept * rms_amp_obs_noise(jj)) then
+              use_flag_tmp(jj) = .true.
+              nsta_use_grid(i, j, k) = nsta_use_grid(i, j, k) + 1
+            else
+              use_flag_tmp(jj) = .false.
+            endif
           enddo
           if(nsta_use_grid(i, j, k) .lt. nsta_use_minimum) cycle lon_loop2
 
