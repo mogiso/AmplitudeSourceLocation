@@ -36,10 +36,10 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: snratio_accept = 0.1_fp
   real(kind = fp),    parameter :: interevent_dist_max = 5.0_fp
   real(kind = fp),    parameter :: delta_residual_max = 1.0e-5_fp
-  real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
+  real(kind = fp),    parameter :: constraint_weight_ini = 0.0_fp
   integer,            parameter :: nsta_use_min = 4
   integer,            parameter :: nconstraint = 4
-  integer,            parameter :: iter_loop_count_max = 200
+  integer,            parameter :: iter_loop_count_max = 100
   !!Range for velocity and attenuation structure
   !!whole Japan
   !real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -186,7 +186,11 @@ program AmplitudeSourceLocation_DoubleDifference
   &        event_index_rev(1 : nevent))
   read(10, *)
   do i = 1, nevent
-    read(10, *) evamp(i, 0), sigma_amp, evlon(i, 0), sigma_lon, evlat(i, 0), sigma_lat, evdp(i, 0), sigma_depth, evid(i)
+    !!output from AmplitudeSourceLocation_masterevent.F90
+    !read(10, *) evamp(i, 0), sigma_amp, evlon(i, 0), sigma_lon, evlat(i, 0), sigma_lat, evdp(i, 0), sigma_depth, evid(i)
+    !!output from AmplitudeSourceLocation_PulseWidth.F90
+    read(10, *) evid(i), evlon(i, 0), evlat(i, 0), evdp(i, 0), evamp(i, 0)
+
     evlon (i, 1 : nevent + 1) = evlon(i, 0)
     evlat (i, 1 : nevent + 1) = evlat(i, 0)
     evdp  (i, 1 : nevent + 1) = evdp (i, 0)
@@ -241,13 +245,13 @@ program AmplitudeSourceLocation_DoubleDifference
 
       nevent_est = 0
       !$omp parallel default(none), &
-      !$omp&         shared(obsamp_flag, nsta, evlon, evlat, evdp, stlon, stlat, stdp, hypodist, ray_azinc, &
+      !$omp&         shared(obsamp_flag, nsta, nevent, evlon, evlat, evdp, evamp, stlon, stlat, stdp, hypodist, ray_azinc, &
       !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, &
-      !$omp&                calamp, velocity, qinv, evflag, velocity_interpolate, qinv_interpolate), &
+      !$omp&                calamp, velocity, qinv, evflag, velocity_interpolate, qinv_interpolate, freq, mainloop_count), &
       !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
       !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, dist_min, inc_angle_tmp, &
       !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, ttime_tmp, width_tmp, &
-      !$omp&                 dist_tmp, lon_min, lat_min, depth_min, depth_max, depth_max_tmp, ttime_min, width_min, &
+      !$omp&                 dist_tmp, lon_min, lat_min, depth_min, ttime_min, width_min, &
       !$omp&                 dvdz, &
 #if defined (RAY_BENDING)
       !$omp&                 raypath_lon, raypath_lat, raypath_dep, nraypath, &
@@ -513,7 +517,8 @@ program AmplitudeSourceLocation_DoubleDifference
             interevent_dist = sqrt((r_earth - evdp(k, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
             &           - 2.0_fp * (r_earth - evdp(k, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
           endif
-          dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max ** 2))
+          !dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max ** 2))
+          dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max))
 
           if(interevent_dist .le. interevent_dist_max) then
             do i = 1, nsta
@@ -560,6 +565,9 @@ program AmplitudeSourceLocation_DoubleDifference
 
       !!constraints
       constraint_weight = constraint_weight_ini / real(iter_loop_count, kind = fp)
+      !constraint_weight = &
+      !&  constraint_weight_ini * (1.0_fp - real(iter_loop_count, kind = fp) / real(iter_loop_count_max, kind = fp))
+      !constraint_weight = constraint_weight_ini
       do j = 1, nconstraint
         obsvector(obsvector_count + (j - 1)) = 0.0_fp
         do i = 1, nevent_est
@@ -626,19 +634,18 @@ program AmplitudeSourceLocation_DoubleDifference
   write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
 
   do j = 1, nevent
+    sigma_amp = 0.0_fp
+    sigma_lat = 0.0_fp
+    sigma_lon = 0.0_fp
+    sigma_depth = 0.0_fp
 #if defined (WITHOUT_ERROR)
 #else
-
     !!calculate estimation errors
     icount = 0
     evlon_mean = 0.0_fp
     evlat_mean = 0.0_fp
     evdp_mean = 0.0_fp
     evamp_mean = 0.0_fp
-    sigma_amp = 0.0_fp
-    sigma_lat = 0.0_fp
-    sigma_lon = 0.0_fp
-    sigma_depth = 0.0_fp
     do i = 2, nevent + 1
       if(evflag(j, i) .eqv. .false.) cycle
       icount = icount + 1
