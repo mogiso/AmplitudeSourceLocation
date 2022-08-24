@@ -36,17 +36,21 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: snratio_accept = 0.1_fp
   real(kind = fp),    parameter :: interevent_dist_max = 5.0_fp
   real(kind = fp),    parameter :: delta_residual_max = 1.0e-5_fp
-  real(kind = fp),    parameter :: constraint_weight_ini = 0.1_fp
-  real(kind = fp),    parameter :: damp = 2.0_fp
+  real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
   integer,            parameter :: nsta_use_min = 4
   integer,            parameter :: nconstraint = 4
-  integer,            parameter :: iter_loop_count_max = 20
+  integer,            parameter :: iter_loop_count_max = 200
   !!Range for velocity and attenuation structure
   !!whole Japan
-  real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
-  real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
-  real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
+  !real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
+  !real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
+  !real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
+  !real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
+  !!Meakandake volcano
+  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
+  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
   integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,            parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
@@ -82,14 +86,15 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const_j, &
   &                                matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                siteamp_tmp, var_siteamp_tmp, interevent_dist, dist_weight, constraint_weight
+  &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, &
+  &                                siteamp_tmp, var_siteamp_tmp, interevent_dist, dist_weight, constraint_weight, damp
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, &
   &                                obsvector_count, irow_count, icol_count, nnonzero_elem, nonzero_elem_count, &
   &                                nevent_est, nobsamp_ratio, mainloop_count, event_count
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
-  character(len = 20)           :: cfmt, nsta_c
+  character(len = 20)           :: cfmt, nsta_c, damp_t
 
 #if defined (RAY_BENDING)
   integer,                parameter :: ndiv_raypath = 10
@@ -111,10 +116,10 @@ program AmplitudeSourceLocation_DoubleDifference
 
   icount = iargc()
 
-  if(icount .ne. 6) then
+  if(icount .ne. 7) then
     write(0, '(a)', advance="no") "usage: ./asl_dd "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (event_initial_location_file) (event_amplitude_file) "
-    write(0, '(a)')               "(frequency) (result_file)"
+    write(0, '(a)')               "(frequency) (damping factor) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -122,7 +127,8 @@ program AmplitudeSourceLocation_DoubleDifference
   call getarg(3, event_initloc_param)
   call getarg(4, event_amp_param)
   call getarg(5, freq_t); read(freq_t, *) freq
-  call getarg(6, resultfile)
+  call getarg(6, damp_t); read(damp_t, *) damp
+  call getarg(7, resultfile)
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -216,6 +222,7 @@ program AmplitudeSourceLocation_DoubleDifference
   call set_velocity(z_str_min, dz_str, velocity, qinv)
 
   !!Main loop: estimate \Delta_x, \Delta_y, \Delta_z, \Delta_amp until convergence
+  write(0, '(2a)') "Damping factor = ", trim(damp_t)
 #if defined (WITHOUT_ERROR)
   main_loop: do mainloop_count = 1, 1
 #else
@@ -226,9 +233,9 @@ program AmplitudeSourceLocation_DoubleDifference
     residual_old = huge
     iter_loop_count = 0
     iter_loop: do
-      if(iter_loop_count .gt. iter_loop_count_max) exit iter_loop
       iter_loop_count = iter_loop_count + 1   
-      write(0, '(a, i0)') "Iteration loop count = ", iter_loop_count
+      if(iter_loop_count .gt. iter_loop_count_max) exit iter_loop
+      write(0, '(2(a, i0))') "Mainloop count = ", mainloop_count, " Iteration loop count = ", iter_loop_count
       !!calculate ray length, pulse width, unit vector of ray incident
       write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for each event"
 
@@ -308,13 +315,13 @@ program AmplitudeSourceLocation_DoubleDifference
           &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
           &                    pulsewidth = width_min, ray_az = ray_azinc(1, i, j), ray_incangle = ray_azinc(2, i, j))
 
-          write(0, '(a, 4(f8.4, 1x))') "event lon, lat, depth, az_ini = ", &
-          &                            evlon(j, mainloop_count), evlat(j, mainloop_count), &
-          &                            evdp(j, mainloop_count), az_ini * rad2deg
-          write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(i), stlat(i), stdp(i)
-          write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
-          &                             ray_azinc(1, i, j) * rad2deg, ray_azinc(2, i, j) * rad2deg
-          write(0, '(a, f5.2)') "traveltime (s) = ", ttime_min
+          !write(0, '(a, 4(f8.4, 1x))') "event lon, lat, depth, az_ini = ", &
+          !&                            evlon(j, mainloop_count), evlat(j, mainloop_count), &
+          !&                            evdp(j, mainloop_count), az_ini * rad2deg
+          !write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(i), stlat(i), stdp(i)
+          !write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
+          !&                             ray_azinc(1, i, j) * rad2deg, ray_azinc(2, i, j) * rad2deg
+          !write(0, '(a, f5.2)') "traveltime (s) = ", ttime_min
 
 #else /* -DRAY_BENDING */
 
@@ -449,9 +456,7 @@ program AmplitudeSourceLocation_DoubleDifference
       !$omp end do
       !$omp end parallel
 
-      write(0, '(3(a, i0))') "mainloop_count = ", mainloop_count, &
-      &                      " iter_loop_count = ", iter_loop_count, &
-      &                      " nevent_est = ", nevent_est
+      write(0, '(a, i0)') "nevent_est = ", nevent_est
 
       event_count = 1
       do i = 1, nevent
@@ -582,7 +587,10 @@ program AmplitudeSourceLocation_DoubleDifference
       residual_sum = residual_sum / real(nobsamp_ratio, kind = fp)
       deallocate(residual_tmp)
       write(0, '(a, 2(e15.7, 1x))') "residual_old and residual_sum = ", residual_old, residual_sum
-      if(residual_old - residual_sum .lt. delta_residual_max) exit iter_loop
+      if(residual_old - residual_sum .lt. delta_residual_max) then
+        deallocate(irow, icol, nonzero_elem, obsvector, modelvector)
+        exit iter_loop
+      endif
       residual_old = residual_sum
 
       do i = 1, nevent_est
@@ -612,28 +620,62 @@ program AmplitudeSourceLocation_DoubleDifference
   enddo main_loop
 
 
-  !!calculate estimation errors
-  sigma_amp = 0.0_fp
-  sigma_lat = 0.0_fp
-  sigma_lon = 0.0_fp
-  sigma_depth = 0.0_fp
-#if defined (WITHOUT_ERROR)
-#else
-#endif
 
   !!output result
   open(unit = 10, file = trim(resultfile))
-  write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum nsta"
-  do i = 1, nevent
+  write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
 
-    write(10, '(8(e15.8, 1x))') &
-    &          evamp(i, 1), sigma_amp, evlon(i, 1), sigma_lon, evlat(i, 1), sigma_lat, evdp(i, 1), sigma_depth
+  do j = 1, nevent
+#if defined (WITHOUT_ERROR)
+#else
 
-    write(0, '(a, i0, 1x, a)')    "subevent index = ", i, evid(i)
-    write(0, '(a, 2(e14.7, 1x))') "amp_ratio and sigma_amp = ", evamp(i, 1), sigma_amp
-    write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evlon(i, 1), sigma_lon
-    write(0, '(a, 2(e14.7, 1x))') "latitude and sigma_lat = ",  evlat(i, 1), sigma_lat
-    write(0, '(a, 2(e14.7, 1x))') "depth and sigma_depth = ",   evdp(i, 1), sigma_depth
+    !!calculate estimation errors
+    icount = 0
+    evlon_mean = 0.0_fp
+    evlat_mean = 0.0_fp
+    evdp_mean = 0.0_fp
+    evamp_mean = 0.0_fp
+    sigma_amp = 0.0_fp
+    sigma_lat = 0.0_fp
+    sigma_lon = 0.0_fp
+    sigma_depth = 0.0_fp
+    do i = 2, nevent + 1
+      if(evflag(j, i) .eqv. .false.) cycle
+      icount = icount + 1
+      evlon_mean = evlon_mean + evlon(j, i)
+      evlat_mean = evlat_mean + evlat(j, i)
+      evdp_mean  = evdp_mean  + evdp(j, i)
+      evamp_mean = evamp_mean + log(evamp(j, i))
+    enddo
+    if(icount .ge. 1) then
+      evlon_mean = evlon_mean / real(icount, kind = fp)
+      evlat_mean = evlat_mean / real(icount, kind = fp)
+      evdp_mean  = evdp_mean  / real(icount, kind = fp)
+      evamp_mean = evamp_mean / real(icount, kind = fp)
+      do i = 2, nevent + 1
+        if(evflag(j, i) .eqv. .false.) cycle
+        sigma_lon   = sigma_lon   + (evlon_mean - evlon(j, i)) ** 2
+        sigma_lat   = sigma_lat   + (evlat_mean - evlat(j, i)) ** 2
+        sigma_depth = sigma_depth + (evdp_mean  - evdp(j, i)) ** 2
+        sigma_amp   = sigma_amp   + (evamp_mean - log(evamp(j, i))) ** 2
+      enddo
+      sigma_lon   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lon)
+      sigma_lat   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lat)
+      sigma_depth = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_depth)
+      sigma_amp   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_amp)
+    endif
+
+#endif
+
+    write(10, '(8(e15.8, 1x), l1, 1x, a)') &
+    &          evamp(j, 1), sigma_amp, evlon(j, 1), sigma_lon, evlat(j, 1), sigma_lat, evdp(j, 1), sigma_depth, &
+    &          evflag(j, 1), trim(evid(j))
+
+    write(0, '(a, i0, 1x, a, 1x, l1)') "subevent index = ", j, trim(evid(j)), evflag(j, 1)
+    write(0, '(a, 2(e14.7, 1x))')      "amp_ratio and sigma_amp = ", evamp(j, 1), sigma_amp
+    write(0, '(a, 2(e14.7, 1x))')      "longitude and sigma_lon = ", evlon(j, 1), sigma_lon
+    write(0, '(a, 2(e14.7, 1x))')      "latitude and sigma_lat = ",  evlat(j, 1), sigma_lat
+    write(0, '(a, 2(e14.7, 1x))')      "depth and sigma_depth = ",   evdp(j, 1), sigma_depth
   enddo
   close(10)
 
