@@ -60,7 +60,7 @@ program AmplitudeSourceLocation_masterevent
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
 #if defined (WIN) /* use win-format waveform file for input waveforms */
-  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+  real(kind = dp),    parameter   :: order = 1.0e+0_dp
   real(kind = fp),    allocatable :: sampling(:), begin(:), ttime(:)
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
@@ -921,6 +921,21 @@ program AmplitudeSourceLocation_masterevent
   enddo
   close(10)
 
+#if defined (OUT_AMPLITUDE)
+  open(unit = 10, file = "subevent_amplitude_masterevent.txt")
+  write(10, '(a)', advance = "no") "# "
+  cfmt = '(x(a, 1x))'
+  write(cfmt(2 : 2), '(i1)') nsta
+  write(10, cfmt) (trim(stname(i)), i = 1, nsta)
+  cfmt = '(x(e15.7, 1x), f7.1)'
+  write(cfmt(2 : 2), '(i1)') nsta
+  do j = 1, nsubevent
+    ot_tmp = ot_begin + ot_shift * real(j - 1, kind = fp)
+    write(10, cfmt) (obsamp_sub(i, j), i = 1, nsta), ot_tmp
+  enddo
+  close(10)
+#endif
+
 #else
 
   write(10, '(a)') "# amp_ratio sigma_ampratio longitude sigma_lon latitude sigma_lat depth sigma_depth residual_sum nsta"
@@ -950,6 +965,8 @@ program AmplitudeSourceLocation_masterevent
   close(10)
 
 #endif
+
+
     
 
   stop
