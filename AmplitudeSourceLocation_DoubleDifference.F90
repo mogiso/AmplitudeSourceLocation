@@ -79,7 +79,7 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
   real(kind = fp),  allocatable :: obsamp(:, :), calamp(:, :), obsamp_noise(:), hypodist(:, :), ray_azinc(:, :, :), &
   &                                evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), interevent_dist(:, :), &
-  &                                qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:)
+  &                                qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:), residual_min(:)
   real(kind = fp)               :: evlat_tmp, epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, ttime_tmp, width_tmp, &
   &                                dist_min, ttime_min, width_min, &
@@ -92,7 +92,7 @@ program AmplitudeSourceLocation_DoubleDifference
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, &
   &                                obsvector_count, irow_count, icol_count, nnonzero_elem, nonzero_elem_count, &
-  &                                nevent_est, nobsamp_ratio, mainloop_count, event_count
+  &                                nevent_est, nobsamp_ratio, mainloop_count, event_count, mainloop_count_max
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
   character(len = 20)           :: cfmt, nsta_c, interevent_dist_max_t, damp_t
 
@@ -226,16 +226,35 @@ program AmplitudeSourceLocation_DoubleDifference
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
 
-  !!Main loop: estimate \Delta_x, \Delta_y, \Delta_z, \Delta_amp until convergence
   write(0, '(2a)') "Damping factor = ", trim(damp_t)
+
 #if defined (WITHOUT_ERROR)
-  main_loop: do mainloop_count = 1, 1
+  mainloop_count_max = 1
 #else
-  main_loop: do mainloop_count = 1, nevent + 1
+  mainloop_count_max = nevent + 1
 #endif
+  allocate(residual_min(1 : mainloop_count_max))
+
+
+  !!Main loop: estimate \Delta_x, \Delta_y, \Delta_z, \Delta_amp until convergence
+  !$omp parallel default(none), &
+  !$omp&         shared(evflag, evamp, evlon, evlat, evdp, lon_topo, lat_topo, topography, obsamp_flag, stlat, stlon, stdp, &
+  !$omp&                nsta, nevent, dlon_topo, dlat_topo, qinv, velocity, residual_min, mainloop_count_max, freq, &
+  !$omp&                interevent_dist_max, obsamp, damp), &
+  !$omp&         private(i, j, k, jj, iter_loop_count, nevent_est, lon_index, lat_index, z_index, xgrid, ygrid, zgrid, &
+  !$omp&                 topography_interpolate, epdist, epdelta, az_ini, hypodist, ray_azinc, ttime_min, width_min, &
+  !$omp&                 raypath_lon, raypath_lat, raypath_dep, nraypath, calamp, val_2d, val_3d, velocity_interpolate, &
+  !$omp&                 qinv_interpolate, event_count, event_index, event_index_rev, nobsamp_ratio, interevent_dist, &
+  !$omp&                 nnonzero_elem, irow, icol, nonzero_elem, obsvector, modelvector, obsvector_count, dist_weight, &
+  !$omp&                 normal_vector_j, matrix_const_j, normal_vector_k, matrix_const_k, constraint_weight, istop, &
+  !$omp&                 residual_sum, residual_tmp, residual_old, delta_lat, delta_lon, delta_depth, evlat_tmp, solver)
+
+  !$omp do
+  main_loop: do mainloop_count = 1, mainloop_count_max
 
     if(mainloop_count .gt. 1) evflag(mainloop_count - 1, mainloop_count) = .false.
     residual_old = huge
+    residual_min(mainloop_count) = huge
     iter_loop_count = 0
     iter_loop: do
       iter_loop_count = iter_loop_count + 1   
@@ -245,25 +264,8 @@ program AmplitudeSourceLocation_DoubleDifference
       write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for each event"
 
       nevent_est = 0
-      !$omp parallel default(none), &
-      !$omp&         shared(obsamp_flag, nsta, nevent, evlon, evlat, evdp, evamp, stlon, stlat, stdp, hypodist, ray_azinc, &
-      !$omp&                lon_topo, lat_topo, dlon_topo, dlat_topo, topography, nlon_topo, nlat_topo, &
-      !$omp&                calamp, velocity, qinv, evflag, velocity_interpolate, qinv_interpolate, freq, mainloop_count), &
-      !$omp&         private(epdist, az_ini, epdelta, lon_index, lat_index, z_index, dinc_angle_org, dinc_angle, &
-      !$omp&                 inc_angle_ini_min, inc_angle_ini, lon_tmp, lat_tmp, depth_tmp, az_tmp, dist_min, inc_angle_tmp, &
-      !$omp&                 xgrid, ygrid, zgrid, val_1d, val_2d, val_3d, topography_interpolate, ttime_tmp, width_tmp, &
-      !$omp&                 dist_tmp, lon_min, lat_min, depth_min, ttime_min, width_min, &
-      !$omp&                 dvdz, &
-#if defined (RAY_BENDING)
-      !$omp&                 raypath_lon, raypath_lat, raypath_dep, nraypath, &
-#endif
-      !$omp&                 lon_new, lat_new, depth_new, az_new, inc_angle_new, i, ii, jj, kk, omp_thread), &
-      !$omp&         reduction(+: nevent_est)
-    
-      !$ omp_thread = omp_get_thread_num()
 
       !!calculate traveltime from each event location to stations
-      !$omp do
       event_loop: do j = 1, nevent
         !!check whether the depth of each event location is lower than the topo
         lon_index = int((evlon(j, mainloop_count) - lon_topo(1)) / dlon_topo) + 1
@@ -301,8 +303,6 @@ program AmplitudeSourceLocation_DoubleDifference
           ttime_min = hypodist(i, j) / velocity(lon_index, lat_index, z_index, wavetype)
           width_min = ttime_min * qinv(lon_index, lat_index, z_index, wavetype)
 #else
-
-#if defined (RAY_BENDING)
           !!do ray tracing with pseudobending scheme
           raypath_lon(1) = evlon(j, mainloop_count)
           raypath_lat(1) = evlat(j, mainloop_count)
@@ -330,113 +330,6 @@ program AmplitudeSourceLocation_DoubleDifference
           !&                             ray_azinc(1, i, j) * rad2deg, ray_azinc(2, i, j) * rad2deg
           !write(0, '(a, f5.2)') "traveltime (s) = ", ttime_min
 
-#else /* -DRAY_BENDING */
-
-          !!do ray shooting
-          dist_min = real(huge, kind = fp)
-          incangle_loop2: do jj = 1, nrayshoot
-            if(jj .eq. 1) then
-              dinc_angle_org = pi * 0.5_fp
-            else
-              dinc_angle_org = dinc_angle
-            endif
-            dinc_angle = 2.0_fp * dinc_angle_org / real(ninc_angle, kind = fp)
-            inc_angle_ini_min(0) = dinc_angle_org
-            !print *, "dinc_angle = ", dinc_angle * rad2deg, inc_angle_ini_min(kk - 1) * rad2deg
-
-            incangle_loop: do ii = 1, ninc_angle
-              inc_angle_ini = (inc_angle_ini_min(jj - 1) - dinc_angle_org) + real(ii, kind = fp) * dinc_angle
-              !print '(2(i0, 1x), a, e15.7)', ii, kk, "inc_angle_ini = ", inc_angle_ini * rad2deg
-                   
-              lon_tmp = evlon(j, mainloop_count)
-              lat_tmp = evlat(j, mainloop_count)
-              depth_tmp = evdp(j, mainloop_count)
-              az_tmp = az_ini
-              inc_angle_tmp = inc_angle_ini
-
-              !!loop until ray arrives at surface/boundary
-              ttime_tmp = 0.0_fp
-              width_tmp = 0.0_fp
-              shooting_loop: do
-
-                !!exit if ray approaches to the surface
-                lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
-                lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
-                !!exit if ray approaches to the boundary of the topography array
-                if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-                &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) exit shooting_loop
-
-                xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
-                ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
-                val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
-                call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
-                !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
-                if(depth_tmp .lt. topography_interpolate) exit shooting_loop
-
-                lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
-                lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
-                z_index   = int((depth_tmp - z_str_min) / dz_str) + 1
-
-                !!exit if ray approaches to the boundary
-                if(lon_index .lt. 1 .or. lon_index .gt. nlon_str - 1 .or. &
-                &  lat_index .lt. 1 .or. lat_index .gt. nlat_str - 1 .or. &
-                &  z_index   .lt. 1 .or. z_index   .gt. nz_str   - 1) exit shooting_loop
-
-                xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
-                ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
-                zgrid(1) = z_str_min + real(z_index   - 1, kind = fp) * dz_str  ; zgrid(2) = zgrid(1) + dz_str
-
-                !!calculate distance between ray and station
-                call greatcircle_dist(lat_tmp, lon_tmp, stlat(i), stlon(i), delta_out = epdelta)
-                dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - stdp(i)) ** 2 &
-                &              - 2.0_fp * (r_earth - depth_tmp) * (r_earth - stdp(i)) * cos(epdelta))
-                !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
-                !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
-
-                if(dist_tmp .lt. dist_min) then
-                  dist_min = dist_tmp
-                  lon_min = lon_tmp
-                  lat_min = lat_tmp
-                  depth_min = depth_tmp
-                  inc_angle_ini_min(jj) = inc_angle_ini
-                  ray_azinc(2, i, j) = inc_angle_ini
-                  ttime_min = ttime_tmp
-                  width_min = width_tmp
-                  !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", &
-                  !&                                       lon_min, lat_min, depth_min, dist_min
-                endif
-
-                !!shooting the ray
-                val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
-                call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate(j))
-                dvdz = (val_1d(2) - val_1d(1)) / dz_str
-                call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate(j), &
-                &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
-
-                val_3d(1 : 2, 1 : 2, 1 : 2) &
-                &  = qinv(lon_index : lon_index + 1, lat_index : lat_index + 1, z_index : z_index + 1, wavetype)
-                call block_interpolation_3d(lon_tmp, lat_tmp, depth_tmp, xgrid, ygrid, zgrid, val_3d, qinv_interpolate(j))
-
-                lon_tmp = lon_new
-                lat_tmp = lat_new
-                depth_tmp = depth_new
-                az_tmp = az_new
-                inc_angle_tmp = inc_angle_new
-                ttime_tmp = ttime_tmp + time_step
-                width_tmp = width_tmp + qinv_interpolate(j) * time_step
-              enddo shooting_loop
-
-            enddo incangle_loop
-          enddo incangle_loop2
-          write(0, '(a, 4(f8.4, 1x))') "event lon, lat, depth, az_ini = ", &
-          &                            evlon(j, mainloop_count), evlat(j, mainloop_count), evdp(j, mainloop_count), &
-          &                            az_ini * rad2deg
-          write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(i), stlat(i), stdp(i)
-          write(0, '(a, 4(f8.4, 1x))') "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min
-          write(0, '(a, 2(f8.4, 1x))') "inc_angle (deg) = ", inc_angle_ini_min(nrayshoot) * rad2deg
-          write(0, '(a, f5.2)') "traveltime (s) = ", ttime_min
-
-#endif /* -DRAY_BENDING */
 #endif /* -DV_CONST     */
 
           calamp(i, j) = evamp(j, mainloop_count) * exp(-pi * freq * width_min) / hypodist(i, j)
@@ -460,8 +353,6 @@ program AmplitudeSourceLocation_DoubleDifference
         &                           xgrid, ygrid, zgrid, val_3d, qinv_interpolate(j))
 
       enddo event_loop
-      !$omp end do
-      !$omp end parallel
 
       write(0, '(a, i0)') "nevent_est = ", nevent_est
 
@@ -593,6 +484,7 @@ program AmplitudeSourceLocation_DoubleDifference
       residual_sum = residual_sum / real(nobsamp_ratio, kind = fp)
       deallocate(residual_tmp)
       write(0, '(a, 2(e15.7, 1x))') "residual_old and residual_sum = ", residual_old, residual_sum
+      residual_min(mainloop_count) = min(residual_min(mainloop_count), residual_sum)
       if(residual_old - residual_sum .lt. delta_residual_max) then
         deallocate(irow, icol, nonzero_elem, obsvector, modelvector)
         exit iter_loop
@@ -614,23 +506,19 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
       deallocate(irow, icol, nonzero_elem, obsvector, modelvector)
 
-      !do i = 1, nevent
-      !  write(0, '(a)') "evid, Renewed evlon, evlat, evdp, evamp, evflag"
-      !  write(0, '(a, f9.4, 1x, f9.4, 1x, f6.2, 1x, e15.7, 1x, l1)') &
-      !  &     trim(evid(i)), evlon(i, mainloop_count), evlat(i, mainloop_count), evdp(i, mainloop_count), &
-      !  &     evamp(i, mainloop_count), evflag(i, mainloop_count)
-      !enddo
-
 
     enddo iter_loop
   enddo main_loop
+  !$omp end do
+  !$omp end parallel
 
 
 
   !!output result
   open(unit = 10, file = trim(resultfile))
   write(10, '(4a)', advance = "no") "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
-  write(10, '(a, e15.7)') " Residual_sum = ", min(residual_old, residual_sum)
+  write(10, '(a, f5.2)', advance = "no") " freq (Hz) = ", freq
+  write(10, '(a, e15.7)') " Residual_min = ", residual_min(1)
   write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
 
   do j = 1, nevent
@@ -678,11 +566,11 @@ program AmplitudeSourceLocation_DoubleDifference
     &          evamp(j, 1), sigma_amp, evlon(j, 1), sigma_lon, evlat(j, 1), sigma_lat, evdp(j, 1), sigma_depth, &
     &          evflag(j, 1), trim(evid(j))
 
-    write(0, '(a, i0, 1x, a, 1x, l1)') "subevent index = ", j, trim(evid(j)), evflag(j, 1)
-    write(0, '(a, 2(e14.7, 1x))')      "amp_ratio and sigma_amp = ", evamp(j, 1), sigma_amp
-    write(0, '(a, 2(e14.7, 1x))')      "longitude and sigma_lon = ", evlon(j, 1), sigma_lon
-    write(0, '(a, 2(e14.7, 1x))')      "latitude and sigma_lat = ",  evlat(j, 1), sigma_lat
-    write(0, '(a, 2(e14.7, 1x))')      "depth and sigma_depth = ",   evdp(j, 1), sigma_depth
+    !write(0, '(a, i0, 1x, a, 1x, l1)') "subevent index = ", j, trim(evid(j)), evflag(j, 1)
+    !write(0, '(a, 2(e14.7, 1x))')      "amp_ratio and sigma_amp = ", evamp(j, 1), sigma_amp
+    !write(0, '(a, 2(e14.7, 1x))')      "longitude and sigma_lon = ", evlon(j, 1), sigma_lon
+    !write(0, '(a, 2(e14.7, 1x))')      "latitude and sigma_lat = ",  evlat(j, 1), sigma_lat
+    !write(0, '(a, 2(e14.7, 1x))')      "depth and sigma_depth = ",   evdp(j, 1), sigma_depth
   enddo
   close(10)
 
