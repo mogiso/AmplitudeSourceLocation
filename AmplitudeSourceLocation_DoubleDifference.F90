@@ -34,23 +34,23 @@ program AmplitudeSourceLocation_DoubleDifference
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   real(kind = fp),    parameter :: snratio_accept = 0.1_fp
-  real(kind = fp),    parameter :: interevent_dist_max = 5.0_fp
   real(kind = fp),    parameter :: delta_residual_max = 1.0e-5_fp
-  real(kind = fp),    parameter :: constraint_weight_ini = 0.0_fp
+  real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
   integer,            parameter :: nsta_use_min = 4
   integer,            parameter :: nconstraint = 4
   integer,            parameter :: iter_loop_count_max = 100
   !!Range for velocity and attenuation structure
   !!whole Japan
-  !real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
-  !real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
-  !real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
-  !real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
+  real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
+  real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
+  real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
   !!Meakandake volcano
-  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
-  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  !real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  !real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
+  !real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  !real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+
   integer,            parameter :: nlon_str = int((lon_str_e - lon_str_w) / dlon_str) + 2
   integer,            parameter :: nlat_str = int((lat_str_n - lat_str_s) / dlat_str) + 2
   integer,            parameter :: nz_str = int((z_str_max - z_str_min) / dz_str) + 2
@@ -78,7 +78,7 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                normal_vector_j(1 : 3), normal_vector_k(1 : 3)
   real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
   real(kind = fp),  allocatable :: obsamp(:, :), calamp(:, :), obsamp_noise(:), hypodist(:, :), ray_azinc(:, :, :), &
-  &                                evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), &
+  &                                evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), interevent_dist(:, :), &
   &                                qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:)
   real(kind = fp)               :: evlat_tmp, epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, ttime_tmp, width_tmp, &
@@ -86,15 +86,15 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const_j, &
   &                                matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, &
-  &                                siteamp_tmp, var_siteamp_tmp, interevent_dist, dist_weight, constraint_weight, damp
+  &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, interevent_dist_max, &
+  &                                siteamp_tmp, var_siteamp_tmp, dist_weight, constraint_weight, damp
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, &
   &                                obsvector_count, irow_count, icol_count, nnonzero_elem, nonzero_elem_count, &
   &                                nevent_est, nobsamp_ratio, mainloop_count, event_count
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
-  character(len = 20)           :: cfmt, nsta_c, damp_t
+  character(len = 20)           :: cfmt, nsta_c, interevent_dist_max_t, damp_t
 
 #if defined (RAY_BENDING)
   integer,                parameter :: ndiv_raypath = 10
@@ -114,12 +114,12 @@ program AmplitudeSourceLocation_DoubleDifference
   !!OpenMP variable
   !$ integer                    :: omp_thread
 
-  icount = iargc()
+  icount = command_argument_count()
 
-  if(icount .ne. 7) then
+  if(icount .ne. 8) then
     write(0, '(a)', advance="no") "usage: ./asl_dd "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (event_initial_location_file) (event_amplitude_file) "
-    write(0, '(a)')               "(frequency) (damping factor) (result_file)"
+    write(0, '(a)')               "(frequency) (maximum interevent distance) (damping factor) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -127,8 +127,9 @@ program AmplitudeSourceLocation_DoubleDifference
   call getarg(3, event_initloc_param)
   call getarg(4, event_amp_param)
   call getarg(5, freq_t); read(freq_t, *) freq
-  call getarg(6, damp_t); read(damp_t, *) damp
-  call getarg(7, resultfile)
+  call getarg(6, interevent_dist_max_t); read(interevent_dist_max_t, *) interevent_dist_max
+  call getarg(7, damp_t); read(damp_t, *) damp
+  call getarg(8, resultfile)
 
   !!read topography file (netcdf grd format)
   call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -273,8 +274,10 @@ program AmplitudeSourceLocation_DoubleDifference
         call linear_interpolation_2d(evlon(j, mainloop_count), evlat(j, mainloop_count), xgrid, ygrid, val_2d, &
         &                            topography_interpolate)
 
-        if(evdp(j, mainloop_count) .lt. topography_interpolate) evflag(j, mainloop_count) = .false.
-        if(evflag(j, mainloop_count) .eqv. .false.) cycle
+        if(evdp(j, mainloop_count) .lt. topography_interpolate) then
+          evflag(j, mainloop_count) = .false.
+          cycle
+        endif
 
         nevent_est = nevent_est + 1
   
@@ -425,7 +428,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
             enddo incangle_loop
           enddo incangle_loop2
-          write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+          write(0, '(a, 4(f8.4, 1x))') "event lon, lat, depth, az_ini = ", &
           &                            evlon(j, mainloop_count), evlat(j, mainloop_count), evdp(j, mainloop_count), &
           &                            az_ini * rad2deg
           write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(i), stlat(i), stdp(i)
@@ -474,6 +477,8 @@ program AmplitudeSourceLocation_DoubleDifference
       !!Set up the observation vector and inversion matrix
       !!count number of amplitude ratio
       nobsamp_ratio = 0
+      allocate(interevent_dist(1 : nevent, 1 : nevent))
+      interevent_dist(1 : nevent, 1 : nevent) = huge
       do j = 1, nevent - 1
         if(evflag(j, mainloop_count) .eqv. .false.) cycle
         do i = j + 1, nevent 
@@ -483,14 +488,16 @@ program AmplitudeSourceLocation_DoubleDifference
           if(evlat(i, mainloop_count) .eq. evlat(j, mainloop_count) .and. &
           &  evlon(i, mainloop_count) .eq. evlon(j, mainloop_count) .and. &
           &  evdp(i, mainloop_count)  .eq. evdp(j, mainloop_count)) then
-            interevent_dist = 0.0_fp
+            interevent_dist(i, j) = 0.0_fp
           else
-            interevent_dist = sqrt((r_earth - evdp(i, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
+            interevent_dist(i, j) = sqrt((r_earth - evdp(i, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
             &           - 2.0_fp * (r_earth - evdp(i, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
           endif
-          if(interevent_dist .le. interevent_dist_max) then
+          if(interevent_dist(i, j) .le. interevent_dist_max) then
             do k = 1, nsta
-              if(obsamp_flag(k, i) .eqv. .true. .and. obsamp_flag(k, j) .eqv. .true.) nobsamp_ratio = nobsamp_ratio + 1
+              if(obsamp_flag(k, i) .eqv. .false.) cycle
+              if(obsamp_flag(k, j) .eqv. .false.) cycle
+              nobsamp_ratio = nobsamp_ratio + 1
             enddo
           endif
         enddo
@@ -502,66 +509,56 @@ program AmplitudeSourceLocation_DoubleDifference
       nnonzero_elem = 8 * nobsamp_ratio + nconstraint * nevent_est
       allocate(irow(nnonzero_elem), icol(nnonzero_elem), nonzero_elem(nnonzero_elem), &
       &        obsvector(nobsamp_ratio + nconstraint), modelvector(nevent_est * 4))
-      obsvector_count = 1
+      obsvector_count = 0
       do k = 1, nevent - 1
-        if(evflag(k, mainloop_count) .eqv. .false.) cycle
         do j = k + 1, nevent
-          if(evflag(j, mainloop_count) .eqv. .false.) cycle
-          call greatcircle_dist(evlat(j, mainloop_count), evlon(j, mainloop_count), &
-          &                     evlat(k, mainloop_count), evlon(k, mainloop_count), delta_out = epdelta)
-          if(evlat(j, mainloop_count) .eq. evlat(k, mainloop_count) .and. &
-          &  evlon(j, mainloop_count) .eq. evlon(k, mainloop_count) .and. &
-          &  evdp(j, mainloop_count)  .eq. evdp(k, mainloop_count)) then
-            interevent_dist = 0.0_fp
-          else
-            interevent_dist = sqrt((r_earth - evdp(k, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
-            &           - 2.0_fp * (r_earth - evdp(k, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
-          endif
-          !dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max ** 2))
-          dist_weight = exp(-(interevent_dist ** 2) / (interevent_dist_max))
 
-          if(interevent_dist .le. interevent_dist_max) then
+          if(interevent_dist(j, k) .le. interevent_dist_max) then
+            dist_weight = exp(-(interevent_dist(j, k) ** 2) / (interevent_dist_max ** 2))
+
             do i = 1, nsta
-              if(obsamp_flag(i, j) .eqv. .true. .and. obsamp_flag(i, k) .eqv. .true.) then
-                obsvector(obsvector_count) = log(obsamp(i, k) / calamp(i, k)) - log(obsamp(i, j) / calamp(i, j))
-                obsvector(obsvector_count) = obsvector(obsvector_count) * dist_weight
+              if(obsamp_flag(i, j) .eqv. .false.) cycle
+              if(obsamp_flag(i, k) .eqv. .false.) cycle
+              obsvector_count = obsvector_count + 1
 
-                normal_vector_j(1 : 3) = [sin(ray_azinc(2, i, j)) * cos(ray_azinc(1, i, j)), &
-                &                         sin(ray_azinc(2, i, j)) * sin(ray_azinc(1, i, j)), &
-                &                         cos(ray_azinc(2, i, j))]
-                matrix_const_j = pi * freq * qinv_interpolate(j) / velocity_interpolate(j) + 1.0_fp / hypodist(i, j)
-                normal_vector_k(1 : 3) = [sin(ray_azinc(2, i, k)) * cos(ray_azinc(1, i, k)), &
-                &                         sin(ray_azinc(2, i, k)) * sin(ray_azinc(1, i, k)), &
-                &                         cos(ray_azinc(2, i, k))]
-                matrix_const_k = pi * freq * qinv_interpolate(k) / velocity_interpolate(k) + 1.0_fp / hypodist(i, k)
+              obsvector(obsvector_count) = log(obsamp(i, k) / calamp(i, k)) - log(obsamp(i, j) / calamp(i, j))
+              obsvector(obsvector_count) = obsvector(obsvector_count) * dist_weight
 
-                irow(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) = obsvector_count
-                icol(8 * (obsvector_count - 1) + 1)         = 4 * (event_index(k) - 1) + 1  !log(As_k)
-                icol(8 * (obsvector_count - 1) + 2)         = 4 * (event_index(k) - 1) + 2  !Delta X_k
-                icol(8 * (obsvector_count - 1) + 3)         = 4 * (event_index(k) - 1) + 3  !Delta Y_k
-                icol(8 * (obsvector_count - 1) + 4)         = 4 * (event_index(k) - 1) + 4  !Delta Z_k
-                icol(8 * (obsvector_count - 1) + 5)         = 4 * (event_index(j) - 1) + 1  !log(As_j)
-                icol(8 * (obsvector_count - 1) + 6)         = 4 * (event_index(j) - 1) + 2  !Delta X_j
-                icol(8 * (obsvector_count - 1) + 7)         = 4 * (event_index(j) - 1) + 3  !Delta Y_j
-                icol(8 * (obsvector_count - 1) + 8)         = 4 * (event_index(j) - 1) + 4  !Delta Z_j
-                nonzero_elem(8 * (obsvector_count - 1) + 1) =  1.0                                 !log(As_k(true))
-                nonzero_elem(8 * (obsvector_count - 1) + 2) = -matrix_const_k * normal_vector_k(1) !Delta X_k
-                nonzero_elem(8 * (obsvector_count - 1) + 3) = -matrix_const_k * normal_vector_k(2) !Delta Y_k
-                nonzero_elem(8 * (obsvector_count - 1) + 4) = -matrix_const_k * normal_vector_k(3) !Delta Z_k
-                nonzero_elem(8 * (obsvector_count - 1) + 5) = -1.0                                 !log(As_j(true))
-                nonzero_elem(8 * (obsvector_count - 1) + 6) =  matrix_const_j * normal_vector_j(1) !Delta X_j
-                nonzero_elem(8 * (obsvector_count - 1) + 7) =  matrix_const_j * normal_vector_j(2) !Delta Y_j
-                nonzero_elem(8 * (obsvector_count - 1) + 8) =  matrix_const_j * normal_vector_j(3) !Delta Z_j
+              normal_vector_j(1 : 3) = [sin(ray_azinc(2, i, j)) * cos(ray_azinc(1, i, j)), &
+              &                         sin(ray_azinc(2, i, j)) * sin(ray_azinc(1, i, j)), &
+              &                         cos(ray_azinc(2, i, j))]
+              matrix_const_j = pi * freq * qinv_interpolate(j) / velocity_interpolate(j) + 1.0_fp / hypodist(i, j)
+              normal_vector_k(1 : 3) = [sin(ray_azinc(2, i, k)) * cos(ray_azinc(1, i, k)), &
+              &                         sin(ray_azinc(2, i, k)) * sin(ray_azinc(1, i, k)), &
+              &                         cos(ray_azinc(2, i, k))]
+              matrix_const_k = pi * freq * qinv_interpolate(k) / velocity_interpolate(k) + 1.0_fp / hypodist(i, k)
 
-                nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) &
-                &  = nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) * dist_weight
-              
-                obsvector_count = obsvector_count + 1
-              endif
+              irow(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) = obsvector_count
+              icol(8 * (obsvector_count - 1) + 1)         = 4 * (event_index(k) - 1) + 1  !log(As_k)
+              icol(8 * (obsvector_count - 1) + 2)         = 4 * (event_index(k) - 1) + 2  !Delta X_k
+              icol(8 * (obsvector_count - 1) + 3)         = 4 * (event_index(k) - 1) + 3  !Delta Y_k
+              icol(8 * (obsvector_count - 1) + 4)         = 4 * (event_index(k) - 1) + 4  !Delta Z_k
+              icol(8 * (obsvector_count - 1) + 5)         = 4 * (event_index(j) - 1) + 1  !log(As_j)
+              icol(8 * (obsvector_count - 1) + 6)         = 4 * (event_index(j) - 1) + 2  !Delta X_j
+              icol(8 * (obsvector_count - 1) + 7)         = 4 * (event_index(j) - 1) + 3  !Delta Y_j
+              icol(8 * (obsvector_count - 1) + 8)         = 4 * (event_index(j) - 1) + 4  !Delta Z_j
+              nonzero_elem(8 * (obsvector_count - 1) + 1) =  1.0                                 !log(As_k(true))
+              nonzero_elem(8 * (obsvector_count - 1) + 2) = -matrix_const_k * normal_vector_k(1) !Delta X_k
+              nonzero_elem(8 * (obsvector_count - 1) + 3) = -matrix_const_k * normal_vector_k(2) !Delta Y_k
+              nonzero_elem(8 * (obsvector_count - 1) + 4) = -matrix_const_k * normal_vector_k(3) !Delta Z_k
+              nonzero_elem(8 * (obsvector_count - 1) + 5) = -1.0                                 !log(As_j(true))
+              nonzero_elem(8 * (obsvector_count - 1) + 6) =  matrix_const_j * normal_vector_j(1) !Delta X_j
+              nonzero_elem(8 * (obsvector_count - 1) + 7) =  matrix_const_j * normal_vector_j(2) !Delta Y_j
+              nonzero_elem(8 * (obsvector_count - 1) + 8) =  matrix_const_j * normal_vector_j(3) !Delta Z_j
+
+              nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) &
+              &  = nonzero_elem(8 * (obsvector_count - 1) + 1 : 8 * (obsvector_count - 1) + 8) * dist_weight
+
             enddo
           endif
         enddo
       enddo
+      deallocate(interevent_dist)
 
       !!constraints
       constraint_weight = constraint_weight_ini / real(iter_loop_count, kind = fp)
@@ -569,11 +566,11 @@ program AmplitudeSourceLocation_DoubleDifference
       !&  constraint_weight_ini * (1.0_fp - real(iter_loop_count, kind = fp) / real(iter_loop_count_max, kind = fp))
       !constraint_weight = constraint_weight_ini
       do j = 1, nconstraint
-        obsvector(obsvector_count + (j - 1)) = 0.0_fp
+        obsvector(obsvector_count + j) = 0.0_fp
         do i = 1, nevent_est
-          irow(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = obsvector_count + (j - 1)
-          icol(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = 4 * (i - 1) + j
-          nonzero_elem(8 * (obsvector_count - 1) + nevent_est * (j - 1) + i) = 1.0_fp * constraint_weight
+          irow(8 * obsvector_count + nevent_est * (j - 1) + i) = obsvector_count + j
+          icol(8 * obsvector_count + nevent_est * (j - 1) + i) = 4 * (i - 1) + j
+          nonzero_elem(8 * obsvector_count + nevent_est * (j - 1) + i) = 1.0_fp * constraint_weight
         enddo
       enddo
 
@@ -587,6 +584,7 @@ program AmplitudeSourceLocation_DoubleDifference
       residual_sum = 0.0_fp
       residual_tmp(1 : nobsamp_ratio) = 0.0_fp
       do i = 1, 8 * nobsamp_ratio
+        !print *, i, irow(i), nobsamp_ratio
         residual_tmp(irow(i)) = residual_tmp(irow(i)) + nonzero_elem(i) * modelvector(icol(i))
       enddo
       do i = 1, nobsamp_ratio
@@ -616,12 +614,12 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
       deallocate(irow, icol, nonzero_elem, obsvector, modelvector)
 
-      do i = 1, nevent
-        write(0, '(a)') "evid, Renewed evlon, evlat, evdp, evamp, evflag"
-        write(0, '(a, f9.4, 1x, f9.4, 1x, f6.2, 1x, e15.7, 1x, l1)') &
-        &     trim(evid(i)), evlon(i, mainloop_count), evlat(i, mainloop_count), evdp(i, mainloop_count), &
-        &     evamp(i, mainloop_count), evflag(i, mainloop_count)
-      enddo
+      !do i = 1, nevent
+      !  write(0, '(a)') "evid, Renewed evlon, evlat, evdp, evamp, evflag"
+      !  write(0, '(a, f9.4, 1x, f9.4, 1x, f6.2, 1x, e15.7, 1x, l1)') &
+      !  &     trim(evid(i)), evlon(i, mainloop_count), evlat(i, mainloop_count), evdp(i, mainloop_count), &
+      !  &     evamp(i, mainloop_count), evflag(i, mainloop_count)
+      !enddo
 
 
     enddo iter_loop
@@ -631,6 +629,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
   !!output result
   open(unit = 10, file = trim(resultfile))
+  write(10, '(4a)') "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
   write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
 
   do j = 1, nevent
