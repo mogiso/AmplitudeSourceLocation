@@ -629,7 +629,8 @@ program AmplitudeSourceLocation_DoubleDifference
 
   !!output result
   open(unit = 10, file = trim(resultfile))
-  write(10, '(4a)') "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
+  write(10, '(4a)', advance = "no") "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
+  write(10, '(a, e15.7)') " Residual_sum = ", min(residual_old, residual_sum)
   write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
 
   do j = 1, nevent
