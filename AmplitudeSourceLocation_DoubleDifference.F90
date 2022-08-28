@@ -20,12 +20,6 @@ program AmplitudeSourceLocation_DoubleDifference
   use raybending,           only : pseudobending3D
 #endif
 
-#if defined (MKL)
-  use lapack95
-#else
-  use f95_lapack
-#endif
-
   use lsqr_kinds
   use lsqr_module,          only : lsqr_solver_ez
 
