@@ -246,16 +246,16 @@ program AmplitudeSourceLocation_DoubleDifference
 #endif
 #if defined (MPI)
   !!Topography
-  call mpi_bcast_int_1d(nlon_topo, 0)
-  call mpi_bcast_int_1d(nlat_topo, 0)
-  call mpi_bcast_fp_1d(dlon_topo, 0)
-  call mpi_bcast_fp_1d(dlat_topo, 0)
+  call mpi_bcast_int(nlon_topo, 0)
+  call mpi_bcast_int(nlat_topo, 0)
+  call mpi_bcast_fp(dlon_topo, 0)
+  call mpi_bcast_fp(dlat_topo, 0)
   if(mpi_rank .ne. 0) allocate(topography(1 : nlon_topo, 1 : nlat_topo), lon_topo(1 : nlon_topo), lat_topo(1 : nlat_topo))
   call mpi_bcast_dp_1d(lon_topo, 0)
   call mpi_bcast_dp_1d(lat_topo, 0)
   call mpi_bcast_dp_2d(topography, 0)
   !!station
-  call mpi_bcast_int_1d(nsta, 0)
+  call mpi_bcast_int(nsta, 0)
   if(mpi_rank .ne. 0) allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
   call mpi_bcast_fp_1d(stlon, 0)
   call mpi_bcast_fp_1d(stlat, 0)
@@ -282,6 +282,10 @@ program AmplitudeSourceLocation_DoubleDifference
   !!velocity and attenuation structure
   call mpi_bcast_fp_4d(velocity, 0)
   call mpi_bcast_fp_4d(qinv, 0)
+  !!calculation parameter
+  call mpi_bcast_fp(freq, 0)
+  call mpi_bcast_fp(interevent_dist_max, 0)
+  call mpi_bcast_fp(damp, 0)
 #endif
 
 
