@@ -15,7 +15,6 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                block_interpolation_3d
   use greatcircle,          only : greatcircle_dist, latctog, latgtoc
   use grdfile_io,           only : read_grdfile_2d
-  !$ use omp_lib
 
 #if defined (RAY_BENDING)
   use raybending,           only : pseudobending3D
@@ -29,6 +28,11 @@ program AmplitudeSourceLocation_DoubleDifference
 
   use lsqr_kinds
   use lsqr_module,          only : lsqr_solver_ez
+
+#if defined (MPI)
+  use mpi_module
+#endif
+
 
   implicit none
 
@@ -111,146 +115,220 @@ program AmplitudeSourceLocation_DoubleDifference
   integer,              allocatable :: irow(:), icol(:)
   integer                           :: istop
 
-  !!OpenMP variable
-  !$ integer                    :: omp_thread
-
-  icount = command_argument_count()
-
-  if(icount .ne. 8) then
-    write(0, '(a)', advance="no") "usage: ./asl_dd "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (event_initial_location_file) (event_amplitude_file) "
-    write(0, '(a)')               "(frequency) (maximum interevent distance) (damping factor) (result_file)"
-    error stop
-  endif
-  call getarg(1, topo_grd)
-  call getarg(2, station_param)
-  call getarg(3, event_initloc_param)
-  call getarg(4, event_amp_param)
-  call getarg(5, freq_t); read(freq_t, *) freq
-  call getarg(6, interevent_dist_max_t); read(interevent_dist_max_t, *) interevent_dist_max
-  call getarg(7, damp_t); read(damp_t, *) damp
-  call getarg(8, resultfile)
-
-  !!read topography file (netcdf grd format)
-  call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
-  nlon_topo = ubound(lon_topo, 1)
-  nlat_topo = ubound(lat_topo, 1)
-  dlon_topo = lon_topo(2) - lon_topo(1)
-  dlat_topo = lat_topo(2) - lat_topo(1)
-  topography(1 : nlon_topo, 1 : nlat_topo) = topography(1 : nlon_topo, 1 : nlat_topo) * alt_to_depth
-
-  !!read station parameter
-  open(unit = 10, file = station_param)
-  nsta = 0
-  do
-    read(10, *, iostat = ios)
-    if(ios .ne. 0) exit
-    nsta = nsta + 1
-  enddo
-  rewind(10)
-  allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
-  &        stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
-  do i = 1, nsta
-    read(10, *) stlon(i), stlat(i), stdp(i), stname(i), stuse_flag(i), &
-    &           ttime_cor(i, 1), ttime_cor(i, 2), siteamp_tmp, var_siteamp_tmp, obsamp_noise(i)
-    write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
-    &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), &
-    &     trim(stname(i)), stuse_flag(i)
-#if defined (TESTDATA)
-    obsamp_noise(i) = 1.0e-6_fp
+#if defined (MPI)
+  integer                           :: ierr
+  integer,              allocatable :: mainloop_count_begin(:), mainloop_count_end(:)
 #endif
-  enddo
-  close(10)
-  if(nsta .lt. nsta_use_min) then
-    close(10)
-    write(0, '(a, i0)') "Number of stations for calculation should be larger than ", nsta_use_min
-    error stop
-  endif
 
+#if defined (MPI)
+  call mpi_init_rank_size
+  call mpi_get_hostname
+#endif
 
-  !!read event initial locations
-  open(unit = 10, file = event_initloc_param)
-  nevent = 0
-  read(10, *)
-  do
-    read(10, *, iostat = ios)
-    if(ios .ne. 0) exit
-    nevent = nevent + 1
-  enddo    
-  rewind(10)
-  write(0, '(a, i0)') "nevent = ", nevent
-  allocate(evlon(1 : nevent, 0 : nevent + 1), evlat(1 : nevent, 0 : nevent + 1), evdp(1 : nevent, 0 : nevent + 1), &
-  &        evamp(1 : nevent, 0 : nevent + 1), evflag(1 : nevent, 0 : nevent + 1), evid(1 : nevent))
-  allocate(hypodist(1 : nsta, 1 : nevent), ray_azinc(1 : 2, 1 : nsta, 1 : nevent), obsamp_flag(1 : nsta, 1 : nevent), &
-  &        calamp(1 : nsta, 1 : nevent))
-  allocate(velocity_interpolate(1 : nevent), qinv_interpolate(1 : nevent), event_index(1 : nevent), &
-  &        event_index_rev(1 : nevent))
-  read(10, *)
-  do i = 1, nevent
-    !!output from AmplitudeSourceLocation_masterevent.F90
-    !read(10, *) evamp(i, 0), sigma_amp, evlon(i, 0), sigma_lon, evlat(i, 0), sigma_lat, evdp(i, 0), sigma_depth, evid(i)
-    !!output from AmplitudeSourceLocation_PulseWidth.F90
-    read(10, *) evid(i), evlon(i, 0), evlat(i, 0), evdp(i, 0), evamp(i, 0)
+#if defined (MPI)
+  if(mpi_rank .eq. 0) then
+#endif
+    icount = command_argument_count()
 
-    evlon (i, 1 : nevent + 1) = evlon(i, 0)
-    evlat (i, 1 : nevent + 1) = evlat(i, 0)
-    evdp  (i, 1 : nevent + 1) = evdp (i, 0)
-    evamp (i, 1 : nevent + 1) = evamp(i, 0)
-    evflag(i, 0 : nevent + 1) = .true.
-  enddo
-  close(10)
-    
-  open(unit = 10, file = event_amp_param)
-  allocate(obsamp(1 : nsta, 1 : nevent))
-  read(10, *)
-  do j = 1, nevent
-    obsamp_flag(1 : nsta, j) = .true.
-    read(10, *) (obsamp(i, j), i = 1, nsta)
-    nsta_use = 0
-    do i = 1, nsta
-      if(.not. (stuse_flag(i) .eqv. .true. &
-      &  .and.  obsamp(i, j)  .gt.  0.0_fp &
-      &  .and.  obsamp(i, j) / obsamp_noise(i) .gt. snratio_accept)) then
-        obsamp_flag(i, j) = .false.
-        cycle
-      endif
-      nsta_use = nsta_use + 1
-    enddo
-    if(nsta_use .lt. nsta_use_min) then
-      obsamp_flag(1 : nsta, j)  = .false.
-      evflag(j, 0 : nevent + 1) = .false.
+    if(icount .ne. 8) then
+      write(0, '(a)', advance="no") "usage: ./asl_dd "
+      write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (event_initial_location_file) (event_amplitude_file) "
+      write(0, '(a)')               "(frequency) (maximum interevent distance) (damping factor) (result_file)"
+#if defined (MPI)
+      call mpi_abort(mpi_comm_world, ierr)
+#endif
+      error stop
     endif
-  enddo
-  close(10)
+    call getarg(1, topo_grd)
+    call getarg(2, station_param)
+    call getarg(3, event_initloc_param)
+    call getarg(4, event_amp_param)
+    call getarg(5, freq_t); read(freq_t, *) freq
+    call getarg(6, interevent_dist_max_t); read(interevent_dist_max_t, *) interevent_dist_max
+    call getarg(7, damp_t); read(damp_t, *) damp
+    call getarg(8, resultfile)
 
-  !!set velocity/attenuation structure
-  call set_velocity(z_str_min, dz_str, velocity, qinv)
+    !!read topography file (netcdf grd format)
+    call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
+    nlon_topo = ubound(lon_topo, 1)
+    nlat_topo = ubound(lat_topo, 1)
+    dlon_topo = lon_topo(2) - lon_topo(1)
+    dlat_topo = lat_topo(2) - lat_topo(1)
+    topography(1 : nlon_topo, 1 : nlat_topo) = topography(1 : nlon_topo, 1 : nlat_topo) * alt_to_depth
 
-  write(0, '(2a)') "Damping factor = ", trim(damp_t)
+    !!read station parameter
+    open(unit = 10, file = station_param)
+    nsta = 0
+    do
+      read(10, *, iostat = ios)
+      if(ios .ne. 0) exit
+      nsta = nsta + 1
+    enddo
+    rewind(10)
+    allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
+    &        stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
+    do i = 1, nsta
+      read(10, *) stlon(i), stlat(i), stdp(i), stname(i), stuse_flag(i), &
+      &           ttime_cor(i, 1), ttime_cor(i, 2), siteamp_tmp, var_siteamp_tmp, obsamp_noise(i)
+      write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
+      &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), &
+      &     trim(stname(i)), stuse_flag(i)
+#if defined (TESTDATA)
+      obsamp_noise(i) = 1.0e-6_fp
+#endif
+    enddo
+    close(10)
+    if(nsta .lt. nsta_use_min) then
+      close(10)
+      write(0, '(a, i0)') "Number of stations for calculation should be larger than ", nsta_use_min
+#if defined (MPI)
+      call mpi_abort(mpi_comm_world, ierr)
+#endif
+      error stop
+    endif
+
+
+    !!read event initial locations
+    open(unit = 10, file = event_initloc_param)
+    nevent = 0
+    read(10, *)
+    do
+      read(10, *, iostat = ios)
+      if(ios .ne. 0) exit
+      nevent = nevent + 1
+    enddo    
+    rewind(10)
+    write(0, '(a, i0)') "nevent = ", nevent
+    allocate(evlon(1 : nevent, 0 : nevent + 1), evlat(1 : nevent, 0 : nevent + 1), evdp(1 : nevent, 0 : nevent + 1), &
+    &        evamp(1 : nevent, 0 : nevent + 1), evflag(1 : nevent, 0 : nevent + 1), evid(1 : nevent))
+    allocate(hypodist(1 : nsta, 1 : nevent), ray_azinc(1 : 2, 1 : nsta, 1 : nevent), obsamp_flag(1 : nsta, 1 : nevent), &
+    &        obsamp(1 : nsta, 1 : nevent), calamp(1 : nsta, 1 : nevent))
+    allocate(velocity_interpolate(1 : nevent), qinv_interpolate(1 : nevent), event_index(1 : nevent), &
+    &        event_index_rev(1 : nevent))
+    read(10, *)
+    do i = 1, nevent
+      !!output from AmplitudeSourceLocation_masterevent.F90
+      !read(10, *) evamp(i, 0), sigma_amp, evlon(i, 0), sigma_lon, evlat(i, 0), sigma_lat, evdp(i, 0), sigma_depth, evid(i)
+      !!output from AmplitudeSourceLocation_PulseWidth.F90
+      read(10, *) evid(i), evlon(i, 0), evlat(i, 0), evdp(i, 0), evamp(i, 0)
+
+      evlon (i, 1 : nevent + 1) = evlon(i, 0)
+      evlat (i, 1 : nevent + 1) = evlat(i, 0)
+      evdp  (i, 1 : nevent + 1) = evdp (i, 0)
+      evamp (i, 1 : nevent + 1) = evamp(i, 0)
+      evflag(i, 0 : nevent + 1) = .true.
+    enddo
+    close(10)
+    
+    open(unit = 10, file = event_amp_param)
+    read(10, *)
+    do j = 1, nevent
+      obsamp_flag(1 : nsta, j) = .true.
+      read(10, *) (obsamp(i, j), i = 1, nsta)
+      nsta_use = 0
+      do i = 1, nsta
+        if(.not. (stuse_flag(i) .eqv. .true. &
+        &  .and.  obsamp(i, j)  .gt.  0.0_fp &
+        &  .and.  obsamp(i, j) / obsamp_noise(i) .gt. snratio_accept)) then
+          obsamp_flag(i, j) = .false.
+          cycle
+        endif
+        nsta_use = nsta_use + 1
+      enddo
+      if(nsta_use .lt. nsta_use_min) then
+        obsamp_flag(1 : nsta, j)  = .false.
+        evflag(j, 0 : nevent + 1) = .false.
+      endif
+    enddo
+    close(10)
+
+    !!set velocity/attenuation structure
+    call set_velocity(z_str_min, dz_str, velocity, qinv)
+
+    write(0, '(2a)') "Damping factor = ", trim(damp_t)
+
+#if defined (MPI)
+  endif
+#endif
+#if defined (MPI)
+  !!Topography
+  call mpi_bcast_int_1d(nlon_topo, 0)
+  call mpi_bcast_int_1d(nlat_topo, 0)
+  call mpi_bcast_fp_1d(dlon_topo, 0)
+  call mpi_bcast_fp_1d(dlat_topo, 0)
+  if(mpi_rank .ne. 0) allocate(topography(1 : nlon_topo, 1 : nlat_topo), lon_topo(1 : nlon_topo), lat_topo(1 : nlat_topo))
+  call mpi_bcast_dp_1d(lon_topo, 0)
+  call mpi_bcast_dp_1d(lat_topo, 0)
+  call mpi_bcast_dp_2d(topography, 0)
+  !!station
+  call mpi_bcast_int_1d(nsta, 0)
+  if(mpi_rank .ne. 0) allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
+  call mpi_bcast_fp_1d(stlon, 0)
+  call mpi_bcast_fp_1d(stlat, 0)
+  call mpi_bcast_fp_1d(stdp, 0)
+  call mpi_bcast_logical_1d(stuse_flag, 0)
+  call mpi_bcast_fp_1d(obsamp_noise, 0)
+  !!event
+  call mpi_bcast_int_1d(nevent, 0)
+  if(mpi_rank .ne. 0) then
+    allocate(evlon(1 : nevent, 0 : nevent + 1), evlat(1 : nevent, 0 : nevent + 1), evdp(1 : nevent, 0 : nevent + 1), &
+    &        evamp(1 : nevent, 0 : nevent + 1), evflag(1 : nevent, 0 : nevent + 1), &
+    &        hypodist(1 : nsta, 1 : nevent), ray_azinc(1 : 2, 1 : nsta, 1 : nevent), obsamp_flag(1 : nsta, 1 : nevent), &
+    &        obsamp(1 : nsta, 1 : nevent), calamp(1 : nsta, 1 : nevent), &
+    &        velocity_interpolate(1 : nevent), qinv_interpolate(1 : nevent), event_index(1 : nevent), &
+    &        event_index_rev(1 : nevent))
+  endif
+  call mpi_bcast_fp_2d(evlon, 0)
+  call mpi_bcast_fp_2d(evlat, 0)
+  call mpi_bcast_fp_2d(evdp, 0)
+  call mpi_bcast_fp_2d(evamp, 0)
+  call mpi_bcast_logical_2d(evflag, 0)
+  call mpi_bcast_fp_2d(obsamp, 0)
+  call mpi_bcast_logical_2d(obsamp_flag, 0)
+  !!velocity and attenuation structure
+  call mpi_bcast_fp_4d(velocity, 0)
+  call mpi_bcast_fp_4d(qinv, 0)
+#endif
+
+
+  
 
 #if defined (WITHOUT_ERROR)
   mainloop_count_max = 1
 #else
   mainloop_count_max = nevent + 1
 #endif
+
   allocate(residual_min(1 : mainloop_count_max))
 
+#if defined (MPI)
+  allocate(mainloop_count_begin(0 : mpi_size - 1), mainloop_count_end(0 : mpi_size - 1))
+
+#if defined (WITHOUT_ERROR)
+  mainloop_count_begin(0 : mpi_size - 1) = 1
+  mainloop_count_end(0) = 1
+  mainloop_count_end(1 : mpi_size - 1) = 0
+#else
+  do i = 0, mpi_size - 1
+    mainloop_count_begin(i) = int(mainloop_count_max / mpi_size) * i + 1
+  enddo
+  do i = 0, mpi_size - 1
+    if(i .ne. mpi_size - 1) then
+      mainloop_count_end(i) = mainloop_count_begin(i + 1) - 1
+    else
+      mainloop_count_end(i) = mainloop_count_max
+    endif
+  enddo
+#endif
+
+#endif
 
   !!Main loop: estimate \Delta_x, \Delta_y, \Delta_z, \Delta_amp until convergence
-  !$omp parallel default(none), &
-  !$omp&         shared(evflag, evamp, evlon, evlat, evdp, lon_topo, lat_topo, topography, obsamp_flag, stlat, stlon, stdp, &
-  !$omp&                nsta, nevent, dlon_topo, dlat_topo, qinv, velocity, residual_min, mainloop_count_max, freq, &
-  !$omp&                interevent_dist_max, obsamp, damp), &
-  !$omp&         private(i, j, k, jj, iter_loop_count, nevent_est, lon_index, lat_index, z_index, xgrid, ygrid, zgrid, &
-  !$omp&                 topography_interpolate, epdist, epdelta, az_ini, hypodist, ray_azinc, ttime_min, width_min, &
-  !$omp&                 raypath_lon, raypath_lat, raypath_dep, nraypath, calamp, val_2d, val_3d, velocity_interpolate, &
-  !$omp&                 qinv_interpolate, event_count, event_index, event_index_rev, nobsamp_ratio, interevent_dist, &
-  !$omp&                 nnonzero_elem, irow, icol, nonzero_elem, obsvector, modelvector, obsvector_count, dist_weight, &
-  !$omp&                 normal_vector_j, matrix_const_j, normal_vector_k, matrix_const_k, constraint_weight, istop, &
-  !$omp&                 residual_sum, residual_tmp, residual_old, delta_lat, delta_lon, delta_depth, evlat_tmp, solver)
-
-  !$omp do
+#if defined (MPI)
+  main_loop: do mainloop_count = mainloop_count_begin(mpi_rank), mainloop_count_end(mpi_rank)
+#else
   main_loop: do mainloop_count = 1, mainloop_count_max
+#endif
 
     if(mainloop_count .gt. 1) evflag(mainloop_count - 1, mainloop_count) = .false.
     residual_old = huge
@@ -509,70 +587,91 @@ program AmplitudeSourceLocation_DoubleDifference
 
     enddo iter_loop
   enddo main_loop
-  !$omp end do
-  !$omp end parallel
 
-
-
-  !!output result
-  open(unit = 10, file = trim(resultfile))
-  write(10, '(4a)', advance = "no") "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
-  write(10, '(a, f5.2)', advance = "no") " freq (Hz) = ", freq
-  write(10, '(a, e15.7)') " Residual_min = ", residual_min(1)
-  write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
-
-  do j = 1, nevent
-    sigma_amp = 0.0_fp
-    sigma_lat = 0.0_fp
-    sigma_lon = 0.0_fp
-    sigma_depth = 0.0_fp
+#if defined (MPI)
+  !!send results to other processes
 #if defined (WITHOUT_ERROR)
 #else
-    !!calculate estimation errors
-    icount = 0
-    evlon_mean = 0.0_fp
-    evlat_mean = 0.0_fp
-    evdp_mean = 0.0_fp
-    evamp_mean = 0.0_fp
-    do i = 2, nevent + 1
-      if(evflag(j, i) .eqv. .false.) cycle
-      icount = icount + 1
-      evlon_mean = evlon_mean + evlon(j, i)
-      evlat_mean = evlat_mean + evlat(j, i)
-      evdp_mean  = evdp_mean  + evdp(j, i)
-      evamp_mean = evamp_mean + log(evamp(j, i))
-    enddo
-    if(icount .ge. 1) then
-      evlon_mean = evlon_mean / real(icount, kind = fp)
-      evlat_mean = evlat_mean / real(icount, kind = fp)
-      evdp_mean  = evdp_mean  / real(icount, kind = fp)
-      evamp_mean = evamp_mean / real(icount, kind = fp)
+  do i = 0, mpi_size - 1
+    call mpi_bcast_fp_2d(evlon(:, mainloop_count_begin(i) : mainloop_count_end(i)), i)
+    call mpi_bcast_fp_2d(evlat(:, mainloop_count_begin(i) : mainloop_count_end(i)), i)
+    call mpi_bcast_fp_2d(evdp(:, mainloop_count_begin(i) : mainloop_count_end(i)), i)
+    call mpi_bcast_fp_2d(evamp(:, mainloop_count_begin(i) : mainloop_count_end(i)), i)
+    call mpi_bcast_logical_2d(evflag(:, mainloop_count_begin(i) : mainloop_count_end(i)), i)
+    call mpi_brast_fp_1d(residual(mainloop_count_begin(i) : mainloop_count_end(i)), i)
+  enddo
+ 
+#endif
+
+  !!output result
+#if defined (MPI)
+  if(mpi_rank .eq. 0) then
+#endif
+    open(unit = 10, file = trim(resultfile))
+    write(10, '(4a)', advance = "no") "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
+    write(10, '(a, f5.2)', advance = "no") " freq (Hz) = ", freq
+    write(10, '(a, e15.7)') " Residual_min = ", residual_min(1)
+    write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
+
+    do j = 1, nevent
+      sigma_amp = 0.0_fp
+      sigma_lat = 0.0_fp
+      sigma_lon = 0.0_fp
+      sigma_depth = 0.0_fp
+#if defined (WITHOUT_ERROR)
+#else
+      !!calculate estimation errors
+      icount = 0
+      evlon_mean = 0.0_fp
+      evlat_mean = 0.0_fp
+      evdp_mean = 0.0_fp
+      evamp_mean = 0.0_fp
       do i = 2, nevent + 1
         if(evflag(j, i) .eqv. .false.) cycle
-        sigma_lon   = sigma_lon   + (evlon_mean - evlon(j, i)) ** 2
-        sigma_lat   = sigma_lat   + (evlat_mean - evlat(j, i)) ** 2
-        sigma_depth = sigma_depth + (evdp_mean  - evdp(j, i)) ** 2
-        sigma_amp   = sigma_amp   + (evamp_mean - log(evamp(j, i))) ** 2
+        icount = icount + 1
+        evlon_mean = evlon_mean + evlon(j, i)
+        evlat_mean = evlat_mean + evlat(j, i)
+        evdp_mean  = evdp_mean  + evdp(j, i)
+        evamp_mean = evamp_mean + log(evamp(j, i))
       enddo
-      sigma_lon   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lon)
-      sigma_lat   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lat)
-      sigma_depth = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_depth)
-      sigma_amp   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_amp)
-    endif
+      if(icount .ge. 1) then
+        evlon_mean = evlon_mean / real(icount, kind = fp)
+        evlat_mean = evlat_mean / real(icount, kind = fp)
+        evdp_mean  = evdp_mean  / real(icount, kind = fp)
+        evamp_mean = evamp_mean / real(icount, kind = fp)
+        do i = 2, nevent + 1
+          if(evflag(j, i) .eqv. .false.) cycle
+          sigma_lon   = sigma_lon   + (evlon_mean - evlon(j, i)) ** 2
+          sigma_lat   = sigma_lat   + (evlat_mean - evlat(j, i)) ** 2
+          sigma_depth = sigma_depth + (evdp_mean  - evdp(j, i)) ** 2
+          sigma_amp   = sigma_amp   + (evamp_mean - log(evamp(j, i))) ** 2
+        enddo
+        sigma_lon   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lon)
+        sigma_lat   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_lat)
+        sigma_depth = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_depth)
+        sigma_amp   = sqrt(real(icount - 1, kind = fp) / real(icount, kind = fp) * sigma_amp)
+      endif
 
 #endif
 
-    write(10, '(8(e15.8, 1x), l1, 1x, a)') &
-    &          evamp(j, 1), sigma_amp, evlon(j, 1), sigma_lon, evlat(j, 1), sigma_lat, evdp(j, 1), sigma_depth, &
-    &          evflag(j, 1), trim(evid(j))
+      write(10, '(8(e15.8, 1x), l1, 1x, a)') &
+      &          evamp(j, 1), sigma_amp, evlon(j, 1), sigma_lon, evlat(j, 1), sigma_lat, evdp(j, 1), sigma_depth, &
+      &          evflag(j, 1), trim(evid(j))
 
-    !write(0, '(a, i0, 1x, a, 1x, l1)') "subevent index = ", j, trim(evid(j)), evflag(j, 1)
-    !write(0, '(a, 2(e14.7, 1x))')      "amp_ratio and sigma_amp = ", evamp(j, 1), sigma_amp
-    !write(0, '(a, 2(e14.7, 1x))')      "longitude and sigma_lon = ", evlon(j, 1), sigma_lon
-    !write(0, '(a, 2(e14.7, 1x))')      "latitude and sigma_lat = ",  evlat(j, 1), sigma_lat
-    !write(0, '(a, 2(e14.7, 1x))')      "depth and sigma_depth = ",   evdp(j, 1), sigma_depth
-  enddo
-  close(10)
+      !write(0, '(a, i0, 1x, a, 1x, l1)') "subevent index = ", j, trim(evid(j)), evflag(j, 1)
+      !write(0, '(a, 2(e14.7, 1x))')      "amp_ratio and sigma_amp = ", evamp(j, 1), sigma_amp
+      !write(0, '(a, 2(e14.7, 1x))')      "longitude and sigma_lon = ", evlon(j, 1), sigma_lon
+      !write(0, '(a, 2(e14.7, 1x))')      "latitude and sigma_lat = ",  evlat(j, 1), sigma_lat
+      !write(0, '(a, 2(e14.7, 1x))')      "depth and sigma_depth = ",   evdp(j, 1), sigma_depth
+    enddo
+    close(10)
+#if defined (MPI)
+  endif
+#endif
+
+#if defined (MPI)
+  call mpi_fin
+#endif
 
   stop
 end program AmplitudeSourceLocation_DoubleDifference
