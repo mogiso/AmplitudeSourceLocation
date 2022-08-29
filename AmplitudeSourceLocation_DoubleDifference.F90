@@ -68,7 +68,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
   real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
   real(kind = fp),    parameter :: huge = 1.0e+6_fp
-  real(kind = fp),    parameter :: epsilon = 1.0e-10_fp
+  real(kind = fp),    parameter :: epsilon = 1.0e-6_fp
 
   real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
@@ -95,14 +95,13 @@ program AmplitudeSourceLocation_DoubleDifference
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
   character(len = 20)           :: cfmt, nsta_c, interevent_dist_max_t, damp_t
 
-#if defined (RAY_BENDING)
+  !!Psuedo ray bending
   integer,                parameter :: ndiv_raypath = 10
   integer,                parameter :: nraypath_ini = 4
   real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
   &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
   &                                    raypath_dep((nraypath_ini - 1) * 2 ** ndiv_raypath + 1)
   integer                           :: nraypath
-#endif
 
   !!LSQR variables
   type(lsqr_solver_ez)              :: solver
@@ -318,6 +317,9 @@ program AmplitudeSourceLocation_DoubleDifference
       mainloop_count_end(i) = mainloop_count_max
     endif
   enddo
+
+  write(0, '(a, i0)', advance = "no") "mpi_rank = ", mpi_rank
+  write(0, '(a, 2(i0, 1x))') " Mainloop_count_range = ", mainloop_count_begin(mpi_rank), mainloop_count_end(mpi_rank)
 #endif
 
 #endif
