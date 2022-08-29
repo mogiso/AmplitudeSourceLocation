@@ -1,7 +1,7 @@
 program AmplitudeSourceLocation_synthwave
   !!Making synthetic waveform using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!Copyright: (c) Masashi Ogiso 2020
+  !!Copyright: (c) Masashi Ogiso 2022
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
   use nrtype,               only : fp, sp, dp
@@ -13,16 +13,30 @@ program AmplitudeSourceLocation_synthwave
   use greatcircle,          only : greatcircle_dist
   use grdfile_io,           only : read_grdfile_2d
   use xorshift1024star
+#if defined (RAY_BENDING)
+  use raybending,           only : pseudobending3D
+#endif
+
+
+
   !$ use omp_lib
 
   implicit none
 
   integer,            parameter :: wavetype = 2      !!1 for P-wave, 2 for S-wave
   !!Structure range
-  real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
-  real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  !!Meakandake volcano
+  !real(kind = fp),    parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  !real(kind = fp),    parameter :: lat_str_s = 43.0_fp, lat_str_n = 43.5_fp
+  !real(kind = fp),    parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  !real(kind = fp),    parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  !!Whole Japan
+  real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
+  real(kind = fp),    parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
+  real(kind = fp),    parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
+  real(kind = fp),    parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
+
+
   !!Ray shooting
   real(kind = fp),    parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,            parameter :: ninc_angle = 200                         !!grid search in incident angle
@@ -77,6 +91,16 @@ program AmplitudeSourceLocation_synthwave
 
   !!random number
   type(xorshift1024star_state)  :: random_state
+
+#if defined (RAY_BENDING)
+  integer,                parameter :: ndiv_raypath = 10
+  integer,                parameter :: nraypath_ini = 4
+  real(kind = fp)                   :: raypath_lon((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_lat((nraypath_ini - 1) * 2 ** ndiv_raypath + 1), &
+  &                                    raypath_dep((nraypath_ini - 1) * 2 ** ndiv_raypath + 1)
+  integer                           :: nraypath
+#endif
+
   
   !!OpenMP variable
   !$ integer                    :: omp_thread
@@ -124,6 +148,9 @@ program AmplitudeSourceLocation_synthwave
   !$omp&                topography_interpolate, ttime_tmp, width_tmp, xgrid, ygrid, zgrid, dist_tmp, val_1d, &
   !$omp&                velocity_interpolate, val_3d, qinv_interpolate, dvdz, lon_new, lat_new, depth_new, &
   !$omp&                az_new, inc_angle_new, omp_thread, lon_min, lat_min, depth_min, dinc_angle, dinc_angle_org, &
+#if defined (RAY_BENDING)
+  !$omp&                raypath_lon, raypath_lat, raypath_dep, nraypath, &
+#endif
   !$omp&                inc_angle_ini, inc_angle_ini_min)
 
   !$ omp_thread = omp_get_thread_num()
@@ -162,8 +189,29 @@ program AmplitudeSourceLocation_synthwave
       lon_index = int((lon_hypo(i) - lon_str_w) / dlon_str) + 1
       lat_index = int((lat_hypo(i) - lat_str_s) / dlat_str) + 1
       z_index = int((depth_hypo(i) - depth_min) / dz_str) + 1
-      ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index)
-      width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index)
+      ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index, wavetype)
+      width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index, wavetype)
+
+#else
+#if defined (RAY_BENDING)
+          !!do ray tracing with pseudobending scheme
+          raypath_lon(1) = lon_hypo(i)
+          raypath_lat(1) = lat_hypo(i)
+          raypath_dep(1) = depth_hypo(i)
+          raypath_lon(nraypath_ini) = lon_sta(j)
+          raypath_lat(nraypath_ini) = lat_sta(j)
+          raypath_dep(nraypath_ini) = z_sta(j)
+          do jj = 2, nraypath_ini - 1
+            raypath_lon(jj) = raypath_lon(jj - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+            raypath_lat(jj) = raypath_lat(jj - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+            raypath_dep(jj) = raypath_dep(jj - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
+          enddo
+          nraypath = nraypath_ini
+          call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, velocity(:, :, :, wavetype), &
+          &                    lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, ttime_min(i, j), &
+          &                    qinv = qinv(:, :, :, wavetype), lon_w_qinv = lon_str_w, lat_s_qinv = lat_str_s, &
+          &                    dep_min_qinv = z_str_min, dlon_qinv = dlon_str, dlat_qinv = dlat_str, ddep_qinv = dz_str, &
+          &                    pulsewidth = width_min(i, j))
 
 #else
           
@@ -278,7 +326,9 @@ program AmplitudeSourceLocation_synthwave
         write(0, '(a, i0)') "rayshooting failed, hypo_index = ", i
         error stop
       endif
-#endif
+
+#endif /* -DRAY_BENDING */
+#endif /* -DV_CONST */
     enddo hypo_loop
   enddo station_loop
   !$omp end do
