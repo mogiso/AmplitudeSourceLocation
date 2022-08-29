@@ -24,10 +24,11 @@
 ## -DEACH_ERROR: estimate location errors separately in AmplitudeSourceLocation_masterevent.F90 and
 ##               TraveltimeSourceLocation_masterevent.F90
 
-FC = ifort
+#FC = ifort
+FC = mpif90
 FFLAGS = -g -traceback -assume byterecl -CB 
 #FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DAMP_TXT -DRAY_BENDING -DWITHOUT_ERROR
+DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DAMP_TXT -DRAY_BENDING -DMPI
 INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
 LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
 LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
@@ -53,7 +54,7 @@ SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_mastereve
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
 		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 calc_env_amplitude.F90 \
 		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90 read_shmdump.F90 \
-                  raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90
+                  raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90 mpi_module.F90
 OBJS		= $(patsubst %.F90,%.o,$(patsubst %.f90,%.o,$(SRCS)))
 MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
 
@@ -74,7 +75,7 @@ asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rays
 	read_sacfile.o raybending.o def_gridpoint.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
-asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
+asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o lsqr_kinds.o lsqrblas.o lsqr.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
@@ -110,7 +111,7 @@ AmplitudeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_ve
 					linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_winch.o m_util.o \
 					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o raybending.o def_gridpoint.o
 
-AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
+AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
                                         lsqr_kinds.o lsqrblas.o lsqr.o
 
@@ -136,6 +137,7 @@ calc_env_amplitude.o: nrtype.o constants.o calc_bpf_coef.o calc_bpf_order.o tand
 lsqr_kinds.o: nrtype.o
 lsqrblas.o: nrtype.o lsqr_kinds.o
 lsqr.o: nrtype.o lsqr_kinds.o lsqrblas.o
+mpi_module.o: nrtype.o
 
 
 
