@@ -1,6 +1,6 @@
 ##Makefile for AmplitudeSourceLocation_Pulsewidth.F90
 ##Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-##Copyright: (c) Masashi Ogiso 2020
+##Copyright: (c) Masashi Ogiso 2022
 ##License  : MIT License (https://opensource.org/licenses/MIT)
 
 ## -DDOUBLE: calculate in double precision (recommended)
@@ -25,28 +25,29 @@
 ##               TraveltimeSourceLocation_masterevent.F90
 
 #FC = ifort
-FC = mpif90
-FFLAGS = -g -traceback -assume byterecl -CB 
+FC = ifort
+FFLAGS = -g -traceback -assume byterecl -mcmodel=large -CB 
 #FFLAGS = -traceback -assume byterecl
-DEFS = -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DAMP_TXT -DRAY_BENDING -DMPI
-INCDIR = -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
-LIBDIR = -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
-LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
-OPTS = -O3 -xHOST -ipo -mcmodel=large
+OPTS = -O3 -xHOST -ipo
 
-#FC = gfortran
-#FFLAGS = -g -Wall -fbounds-check -fbacktrace
-#FFLAGS = -fbacktrace
-#DEFS = -DDOUBLE -DV_MEA1D -DWIN
-#INCDIR = -I/usr/include -I/usr/local/include
-#LIBDIR = 
-#LIBS = -lnetcdff -llapack95 -llapack -lblas
-#OPTS = -O3
-#OPTS = -O3 -fopenmp
-
-TARGET		= asl_pw asl_masterevent asl_synthwave ttime_masterevent asl_masterevent_shmdump \
+ifeq ($(FC), mpif90)
+  ##for asl_dd
+  DEFS		= -DDOUBLE -DV_OFFKII -DMPI
+  INCDIR	= -I${NETCDF_FORTRAN_INC} -I.
+  LIBDIR	= -L${NETCDF_FORTRAN_LIB}
+  LIBS		= -lnetcdff
+  TARGET	= asl_dd
+  SRCS		= AmplitudeSourceLocation_DoubleDifference.F90 nrtype.F90 linear_interpolation.F90 \
+		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 mpi_module.F90 \
+		  grdfile_io.F90 constants.F90 raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90
+else
+  DEFS		= -DDOUBLE -DMKL -DV_OFFKII -DEACH_ERROR -DOUT_AMPLITUDE -DAMP_TXT -DRAY_BENDING -DWITHOUT_ERROR
+  INCDIR	= -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I.
+  LIBDIR	= -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB}
+  LIBS = -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
+  TARGET	= asl_pw asl_masterevent asl_synthwave ttime_masterevent asl_masterevent_shmdump \
                   asl_masterevent_ttimecor asl_dd
-SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_masterevent.F90 \
+  SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_masterevent.F90 \
                   AmplitudeSourceLocation_synthwave.F90 TraveltimeSourceLocation_masterevent.F90 \
                   AmplitudeSourceLocation_masterevent_shmdump.F90 AmplitudeSourceLocation_masterevent_ttimecor.F90 \
                   AmplitudeSourceLocation_DoubleDifference.F90 \
@@ -54,7 +55,17 @@ SRCS		= AmplitudeSourceLocation_PulseWidth.F90 AmplitudeSourceLocation_mastereve
 		  greatcircle.f90 grdfile_io.F90 set_velocity_model.F90 m_win.f90 \
 		  m_winch.f90 calc_bpf_order.f90 calc_bpf_coef.f90 tandem.f90 calc_env_amplitude.F90 \
 		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90 read_shmdump.F90 \
-                  raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90 mpi_module.F90
+                  raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90
+endif
+
+#FC = gfortran
+#FFLAGS = -g -Wall -fbounds-check -fbacktrace
+#DEFS = -DDOUBLE -DV_MEA1D -DWIN
+#INCDIR = -I/usr/include -I/usr/local/include
+#LIBDIR = 
+#LIBS = -lnetcdff -llapack95 -llapack -lblas
+#OPTS = -O3
+
 OBJS		= $(patsubst %.F90,%.o,$(patsubst %.f90,%.o,$(SRCS)))
 MODS		= $(patsubst %.F90,%.mod,$(patsubst %.f90,%.mod,$(SRCS)))
 
@@ -75,9 +86,21 @@ asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rays
 	read_sacfile.o raybending.o def_gridpoint.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
 
+ifeq ($(FC), mpif90)
 asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o lsqr_kinds.o lsqrblas.o lsqr.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
+					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
+                                        lsqr_kinds.o lsqrblas.o lsqr.o
+else
+asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
+	linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o lsqr_kinds.o lsqrblas.o lsqr.o
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
+					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
+                                        lsqr_kinds.o lsqrblas.o lsqr.o
+endif
 
 asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
 		linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
@@ -110,10 +133,6 @@ AmplitudeSourceLocation_PulseWidth.o: nrtype.o constants.o rayshooting.o read_sa
 AmplitudeSourceLocation_masterevent.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_winch.o m_util.o \
 					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o raybending.o def_gridpoint.o
-
-AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
-					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
-                                        lsqr_kinds.o lsqrblas.o lsqr.o
 
 AmplitudeSourceLocation_synthwave.o: nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
