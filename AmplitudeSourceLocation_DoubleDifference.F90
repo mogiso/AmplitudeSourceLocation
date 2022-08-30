@@ -15,10 +15,7 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                block_interpolation_3d
   use greatcircle,          only : greatcircle_dist, latctog, latgtoc
   use grdfile_io,           only : read_grdfile_2d
-
-#if defined (RAY_BENDING)
   use raybending,           only : pseudobending3D
-#endif
 
   use lsqr_kinds
   use lsqr_module,          only : lsqr_solver_ez
@@ -34,7 +31,8 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: snratio_accept = 0.1_fp
   real(kind = fp),    parameter :: delta_residual_max = 1.0e-5_fp
   real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
-  integer,            parameter :: nsta_use_min = 4
+  real(kind = fp),    parameter :: neventpair_ratio_max = 0.5_fp
+  integer,            parameter :: nsta_use_min = 5
   integer,            parameter :: nconstraint = 4
   integer,            parameter :: iter_loop_count_max = 300
   !!Range for velocity and attenuation structure
@@ -59,41 +57,43 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: time_step = 0.005_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
 
+  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
+  real(kind = fp),    parameter :: huge = 1.0e+6_fp
+  real(kind = fp),    parameter :: epsilon = 1.0e-6_fp
+
   real(kind = fp),     allocatable :: stlon(:), stlat(:), stdp(:), ttime_cor(:, :)
+  real(kind = dp),     allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
+  real(kind = fp),     allocatable :: obsamp(:, :), calamp(:, :), obsamp_noise(:), hypodist(:, :), ray_azinc(:, :, :), &
+  &                                   evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), interevent_dist(:, :), &
+  &                                   interevent_dist_max(:, :), neventpair(:), &
+  &                                   qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:), residual_min(:)
   integer,             allocatable :: event_index(:), event_index_rev(:)
   character(len = 6),  allocatable :: stname(:)
   character(len = 30), allocatable :: evid(:)
   logical,             allocatable :: stuse_flag(:), evflag(:, :), obsamp_flag(:, :), obsamp_flag_ini(:, :)
   character(len = 10)              :: freq_t
 
-  real(kind = fp),    parameter :: alt_to_depth = -1.0e-3_fp
-  real(kind = fp),    parameter :: huge = 1.0e+6_fp
-  real(kind = fp),    parameter :: epsilon = 1.0e-6_fp
-
   real(kind = fp)               :: velocity(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                qinv(1 : nlon_str, 1 : nlat_str, 1 : nz_str, 1 : 2), &
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector_j(1 : 3), normal_vector_k(1 : 3)
-  real(kind = dp),  allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
-  real(kind = fp),  allocatable :: obsamp(:, :), calamp(:, :), obsamp_noise(:), hypodist(:, :), ray_azinc(:, :, :), &
-  &                                evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), interevent_dist(:, :), &
-  &                                qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:), residual_min(:)
   real(kind = fp)               :: evlat_tmp, epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, ttime_tmp, width_tmp, &
   &                                dist_min, ttime_min, width_min, &
   &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const_j, &
   &                                matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
   &                                residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
-  &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, interevent_dist_max, &
+  &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, interevent_dist_max1, &
+  &                                interevent_dist_max2, neventpair_maxval, &
   &                                siteamp_tmp, var_siteamp_tmp, dist_weight, constraint_weight, damp
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, &
+  &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, nampratio_each, &
   &                                obsvector_count, irow_count, icol_count, nnonzero_elem, nonzero_elem_count, &
   &                                nevent_est, nobsamp_ratio, mainloop_count, event_count, mainloop_count_max
   character(len = 129)          :: topo_grd, station_param, event_initloc_param, event_amp_param, resultfile
-  character(len = 20)           :: cfmt, nsta_c, interevent_dist_max_t, damp_t
+  character(len = 20)           :: cfmt, nsta_c, interevent_dist_max1_t, interevent_dist_max2_t, damp_t
 
   !!Psuedo ray bending
   integer,                parameter :: ndiv_raypath = 10
@@ -110,7 +110,6 @@ program AmplitudeSourceLocation_DoubleDifference
   integer                           :: istop
 
 #if defined (MPI)
-  integer                           :: ierr
   integer,              allocatable :: mainloop_count_begin(:), mainloop_count_end(:)
 #endif
 
@@ -124,10 +123,11 @@ program AmplitudeSourceLocation_DoubleDifference
 #endif
     icount = command_argument_count()
 
-    if(icount .ne. 8) then
+    if(icount .ne. 9) then
       write(0, '(a)', advance="no") "usage: ./asl_dd "
       write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (event_initial_location_file) (event_amplitude_file) "
-      write(0, '(a)')               "(frequency) (maximum interevent distance) (damping factor) (result_file)"
+      write(0, '(a)', advance="no") "(frequency) (maximum interevent distance1) (maximum_interevent_distance2) "
+      write(0, '(a)')               "(damping factor) (result_file)"
 #if defined (MPI)
       call mpiabort
 #endif
@@ -138,9 +138,10 @@ program AmplitudeSourceLocation_DoubleDifference
     call getarg(3, event_initloc_param)
     call getarg(4, event_amp_param)
     call getarg(5, freq_t); read(freq_t, *) freq
-    call getarg(6, interevent_dist_max_t); read(interevent_dist_max_t, *) interevent_dist_max
-    call getarg(7, damp_t); read(damp_t, *) damp
-    call getarg(8, resultfile)
+    call getarg(6, interevent_dist_max1_t); read(interevent_dist_max1_t, *) interevent_dist_max1
+    call getarg(7, interevent_dist_max2_t); read(interevent_dist_max2_t, *) interevent_dist_max2
+    call getarg(8, damp_t); read(damp_t, *) damp
+    call getarg(9, resultfile)
 
     !!read topography file (netcdf grd format)
     call read_grdfile_2d(topo_grd, lon_topo, lat_topo, topography)
@@ -198,7 +199,7 @@ program AmplitudeSourceLocation_DoubleDifference
     allocate(hypodist(1 : nsta, 1 : nevent), ray_azinc(1 : 2, 1 : nsta, 1 : nevent), obsamp_flag(1 : nsta, 1 : nevent), &
     &        obsamp_flag_ini(1 : nsta, 1 : nevent), obsamp(1 : nsta, 1 : nevent), calamp(1 : nsta, 1 : nevent))
     allocate(velocity_interpolate(1 : nevent), qinv_interpolate(1 : nevent), event_index(1 : nevent), &
-    &        event_index_rev(1 : nevent))
+    &        event_index_rev(1 : nevent), neventpair(1 : nevent))
     read(10, *)
     do i = 1, nevent
       !!output from AmplitudeSourceLocation_masterevent.F90
@@ -221,18 +222,19 @@ program AmplitudeSourceLocation_DoubleDifference
       read(10, *) (obsamp(i, j), i = 1, nsta)
       nsta_use = 0
       do i = 1, nsta
-        if(.not. (stuse_flag(i) .eqv. .true. &
-        &  .and.  obsamp(i, j)  .gt.  0.0_fp &
-        &  .and.  obsamp(i, j) / obsamp_noise(i) .gt. snratio_accept)) then
-          obsamp_flag_ini(i, j) = .false.
-          cycle
+        if(stuse_flag(i) .eqv. .true.) then
+          if(obsamp(i, j) / obsamp_noise(i) .ge. snratio_accept) then
+            nsta_use = nsta_use + 1
+            cycle
+          endif
         endif
-        nsta_use = nsta_use + 1
+        obsamp_flag_ini(i, j) = .false.
       enddo
       if(nsta_use .lt. nsta_use_min) then
         obsamp_flag_ini(1 : nsta, j)  = .false.
         evflag(j, 0 : nsta + 1) = .false.
       endif
+      !print *, j, evflag(j, 0), nsta_use
     enddo
     close(10)
 
@@ -362,10 +364,8 @@ program AmplitudeSourceLocation_DoubleDifference
         call linear_interpolation_2d(evlon(j, mainloop_count), evlat(j, mainloop_count), xgrid, ygrid, val_2d, &
         &                            topography_interpolate)
 
-        if(evdp(j, mainloop_count) .lt. topography_interpolate) then
-          evflag(j, mainloop_count) = .false.
-          cycle
-        endif
+        if(evdp(j, mainloop_count) .lt. topography_interpolate) evflag(j, mainloop_count) = .false.
+        if(evflag(j, mainloop_count) .eqv. .false.) cycle
 
         nevent_est = nevent_est + 1
   
@@ -452,25 +452,52 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
 
       !!Set up the observation vector and inversion matrix
-      !!count number of amplitude ratio
+      !!count number of amplitude ratio, event pairs
       nobsamp_ratio = 0
-      allocate(interevent_dist(1 : nevent, 1 : nevent))
+      neventpair(1 : nevent) = 0.0_fp
+      allocate(interevent_dist(1 : nevent, 1 : nevent), interevent_dist_max(1 : nevent, 1 : nevent))
       interevent_dist(1 : nevent, 1 : nevent) = huge
+      interevent_dist_max(1 : nevent, 1 : nevent) = interevent_dist_max2
       do j = 1, nevent - 1
         if(evflag(j, mainloop_count) .eqv. .false.) cycle
         do i = j + 1, nevent 
           if(evflag(i, mainloop_count) .eqv. .false.) cycle
           call greatcircle_dist(evlat(i, mainloop_count), evlon(i, mainloop_count), &
           &                     evlat(j, mainloop_count), evlon(j, mainloop_count), delta_out = epdelta)
-          if(evlat(i, mainloop_count) .eq. evlat(j, mainloop_count) .and. &
-          &  evlon(i, mainloop_count) .eq. evlon(j, mainloop_count) .and. &
-          &  evdp(i, mainloop_count)  .eq. evdp(j, mainloop_count)) then
-            interevent_dist(i, j) = 0.0_fp
-          else
+          !if(evlat(i, mainloop_count) .eq. evlat(j, mainloop_count) .and. &
+          !&  evlon(i, mainloop_count) .eq. evlon(j, mainloop_count) .and. &
+          !&  evdp(i, mainloop_count)  .eq. evdp(j, mainloop_count)) then
+          !  interevent_dist(i, j) = 0.0_fp
+          !else
             interevent_dist(i, j) = sqrt((r_earth - evdp(i, mainloop_count)) ** 2 + (r_earth - evdp(j, mainloop_count)) ** 2 &
             &           - 2.0_fp * (r_earth - evdp(i, mainloop_count)) * (r_earth - evdp(j, mainloop_count)) * cos(epdelta))
+          !endif
+          if(interevent_dist(i, j) .le. interevent_dist_max(i, j)) then
+            neventpair(i) = neventpair(i) + 1.0_fp
+            neventpair(j) = neventpair(j) + 1.0_fp
+            do k = 1, nsta
+              if(obsamp_flag(k, i) .eqv. .false.) cycle
+              if(obsamp_flag(k, j) .eqv. .false.) cycle
+              nobsamp_ratio = nobsamp_ratio + 1
+            enddo
           endif
-          if(interevent_dist(i, j) .le. interevent_dist_max) then
+        enddo
+      enddo
+      write(0, '(a, i0)') "number of obsamp_ratio (within interevent_dist_max2) = ", nobsamp_ratio
+      neventpair_maxval = maxval(neventpair)
+
+      !!recount amplitude ratio, event pairs
+      nobsamp_ratio = 0
+      do j = 1, nevent - 1
+        if(evflag(j, mainloop_count) .eqv. .false.) cycle
+        do i = j + 1, nevent 
+          if(evflag(i, mainloop_count) .eqv. .false.) cycle
+
+          if(neventpair(i) / neventpair_maxval .ge. neventpair_ratio_max .or. &
+          &  neventpair(j) / neventpair_maxval .ge. neventpair_ratio_max) &
+          &  interevent_dist_max(i, j) = interevent_dist_max1
+
+          if(interevent_dist(i, j) .le. interevent_dist_max(i, j)) then
             do k = 1, nsta
               if(obsamp_flag(k, i) .eqv. .false.) cycle
               if(obsamp_flag(k, j) .eqv. .false.) cycle
@@ -487,11 +514,13 @@ program AmplitudeSourceLocation_DoubleDifference
       allocate(irow(nnonzero_elem), icol(nnonzero_elem), nonzero_elem(nnonzero_elem), &
       &        obsvector(nobsamp_ratio + nconstraint), modelvector(nevent_est * 4))
       obsvector_count = 0
+      obsvector(1 : nobsamp_ratio + nconstraint) = 0.0_fp
+      modelvector(1 : nevent_est * 4) = 0
       do k = 1, nevent - 1
         do j = k + 1, nevent
 
-          if(interevent_dist(j, k) .le. interevent_dist_max) then
-            dist_weight = exp(-(interevent_dist(j, k) ** 2) / (interevent_dist_max ** 2))
+          if(interevent_dist(j, k) .le. interevent_dist_max(j, k)) then
+            dist_weight = exp(-(interevent_dist(j, k) ** 2) / (interevent_dist_max2 ** 2))
 
             do i = 1, nsta
               if(obsamp_flag(i, j) .eqv. .false.) cycle
@@ -535,7 +564,7 @@ program AmplitudeSourceLocation_DoubleDifference
           endif
         enddo
       enddo
-      deallocate(interevent_dist)
+      deallocate(interevent_dist, interevent_dist_max)
 
       !!constraints
       constraint_weight = constraint_weight_ini / real(iter_loop_count, kind = fp)
@@ -555,6 +584,13 @@ program AmplitudeSourceLocation_DoubleDifference
       call solver%initialize(nobsamp_ratio + nconstraint, 4 * nevent_est, nonzero_elem, irow, icol)
       call solver%solve(obsvector, damp, modelvector, istop)
       write(0, '(a, i0)') "LSQR istop = ", istop
+      if(istop .eq. 5) then
+        write(0, '(a)') "LSQR did not convergenced, dumping factor should be changed"
+#ifdef MPI
+        call mpiabort
+#endif
+        error stop
+      endif
 
       !!calculate residual
       allocate(residual_tmp(1 : nobsamp_ratio))
@@ -617,7 +653,8 @@ program AmplitudeSourceLocation_DoubleDifference
 #endif
 
     open(unit = 10, file = trim(resultfile))
-    write(10, '(4a)', advance = "no") "# intereven_dist_max = ", trim(interevent_dist_max_t), " damping factor = ", trim(damp_t)
+    write(10, '(4a)', advance = "no") "# intereven_dist_max1 = ", trim(interevent_dist_max1_t)
+    write(10, '(4a)', advance = "no") " intereven_dist_max2 = ", trim(interevent_dist_max2_t), " damping factor = ", trim(damp_t)
     write(10, '(a, f5.2)', advance = "no") " freq (Hz) = ", freq
     write(10, '(a, e15.7)') " Residual_min = ", residual_min(1)
     write(10, '(a)') "# amp sigma_amp(in log scale) longitude sigma_lon latitude sigma_lat depth sigma_depth evflag evid"
