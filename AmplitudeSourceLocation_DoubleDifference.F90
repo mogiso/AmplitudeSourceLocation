@@ -29,7 +29,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   real(kind = fp),    parameter :: snratio_accept = 0.1_fp
-  real(kind = fp),    parameter :: delta_residual_max = 1.0e-5_fp
+  real(kind = fp),    parameter :: delta_residual_max = 1.0e-6_fp
   real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
   real(kind = fp),    parameter :: neventpair_ratio_max = 0.5_fp
   integer,            parameter :: nsta_use_min = 5
@@ -65,7 +65,7 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = dp),     allocatable :: topography(:, :), lon_topo(:), lat_topo(:)
   real(kind = fp),     allocatable :: obsamp(:, :), calamp(:, :), obsamp_noise(:), hypodist(:, :), ray_azinc(:, :, :), &
   &                                   evlon(:, :), evlat(:, :), evdp(:, :), evamp(:, :), interevent_dist(:, :), &
-  &                                   interevent_dist_max(:, :), neventpair(:), &
+  &                                   interevent_dist_max(:, :), neventpair(:), siteamp(:), &
   &                                   qinv_interpolate(:), velocity_interpolate(:), residual_tmp(:), residual_min(:)
   integer,             allocatable :: event_index(:), event_index_rev(:)
   character(len = 6),  allocatable :: stname(:)
@@ -78,15 +78,13 @@ program AmplitudeSourceLocation_DoubleDifference
   &                                val_1d(1 : 2), val_2d(1 : 2, 1 : 2), val_3d(1 : 2, 1 : 2, 1 : 2), &
   &                                xgrid(1 : 2), ygrid(1 : 2), zgrid(1 : 2), inc_angle_ini_min(0 : nrayshoot), &
   &                                normal_vector_j(1 : 3), normal_vector_k(1 : 3)
-  real(kind = fp)               :: evlat_tmp, epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
+  real(kind = fp)               :: damp, evlat_tmp, epdist, epdelta, az_ini, dinc_angle_org, dinc_angle, inc_angle_ini, &
   &                                lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, dist_tmp, ttime_tmp, width_tmp, &
-  &                                dist_min, ttime_min, width_min, &
-  &                                dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, matrix_const_j, &
-  &                                matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, delta_lat, &
-  &                                residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
+  &                                dist_min, ttime_min, width_min, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new, &
+  &                                matrix_const_j, matrix_const_k, lon_min, lat_min, depth_min, delta_depth, delta_lon, &
+  &                                delta_lat, residual_sum, residual_old, sigma_lon, sigma_lat, sigma_depth, sigma_amp, &
   &                                evlon_mean, evlat_mean, evdp_mean, evamp_mean, interevent_dist_max1, &
-  &                                interevent_dist_max2, neventpair_maxval, &
-  &                                siteamp_tmp, var_siteamp_tmp, dist_weight, constraint_weight, damp
+  &                                interevent_dist_max2, neventpair_maxval, var_siteamp_tmp, dist_weight, constraint_weight
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nevent, lon_index, lat_index, z_index, &
   &                                i, j, k, ii, jj, kk, iter_loop_count, icount, nsta_use, ios, nampratio_each, &
@@ -161,10 +159,10 @@ program AmplitudeSourceLocation_DoubleDifference
     enddo
     rewind(10)
     allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stname(1 : nsta), ttime_cor(1 : nsta, 1 : 2), &
-    &        stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
+    &        stuse_flag(1 : nsta), obsamp_noise(1 : nsta), siteamp(1 : nsta))
     do i = 1, nsta
       read(10, *) stlon(i), stlat(i), stdp(i), stname(i), stuse_flag(i), &
-      &           ttime_cor(i, 1), ttime_cor(i, 2), siteamp_tmp, var_siteamp_tmp, obsamp_noise(i)
+      &           ttime_cor(i, 1), ttime_cor(i, 2), siteamp(i), var_siteamp_tmp, obsamp_noise(i)
       write(0, '(a, i0, a, f9.4, a, f8.4, a, f6.3, 1x, a7, l2)') &
       &     "station(", i, ") lon(deg) = ", stlon(i), " lat(deg) = ", stlat(i), " depth(km) = ", stdp(i), &
       &     trim(stname(i)), stuse_flag(i)
@@ -206,6 +204,9 @@ program AmplitudeSourceLocation_DoubleDifference
       !read(10, *) evamp(i, 0), sigma_amp, evlon(i, 0), sigma_lon, evlat(i, 0), sigma_lat, evdp(i, 0), sigma_depth, evid(i)
       !!output from AmplitudeSourceLocation_PulseWidth.F90
       read(10, *) evid(i), evlon(i, 0), evlat(i, 0), evdp(i, 0), evamp(i, 0)
+      evdp(i, 0) = 6.0_fp
+      evlon(i, 0) = 136.85_fp
+      evlat(i, 0) = 33.25_fp
 
       evlon (i, 1 : nsta + 1) = evlon(i, 0)
       evlat (i, 1 : nsta + 1) = evlat(i, 0)
@@ -258,11 +259,13 @@ program AmplitudeSourceLocation_DoubleDifference
   call mpi_bcast_dp_2d(topography, 0)
   !!station
   call mpi_bcast_int(nsta, 0)
-  if(mpi_rank .ne. 0) allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), stuse_flag(1 : nsta), obsamp_noise(1 : nsta))
+  if(mpi_rank .ne. 0) allocate(stlon(1 : nsta), stlat(1 : nsta), stdp(1 : nsta), siteamp(1 : nsta), stuse_flag(1 : nsta), &
+  &                            obsamp_noise(1 : nsta))
   call mpi_bcast_fp_1d(stlon, 0)
   call mpi_bcast_fp_1d(stlat, 0)
   call mpi_bcast_fp_1d(stdp, 0)
   call mpi_bcast_logical_1d(stuse_flag, 0)
+  call mpi_bcast_fp_1d(siteamp, 0)
   call mpi_bcast_fp_1d(obsamp_noise, 0)
   !!event
   call mpi_bcast_int(nevent, 0)
@@ -418,7 +421,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
 #endif /* -DV_CONST     */
 
-          calamp(i, j) = evamp(j, mainloop_count) * exp(-pi * freq * width_min) / hypodist(i, j)
+          calamp(i, j) = evamp(j, mainloop_count) * exp(-pi * freq * width_min) / hypodist(i, j) * siteamp(i)
 
         enddo station_loop
 
@@ -585,7 +588,7 @@ program AmplitudeSourceLocation_DoubleDifference
       call solver%solve(obsvector, damp, modelvector, istop)
       write(0, '(a, i0)') "LSQR istop = ", istop
       if(istop .eq. 5) then
-        write(0, '(a)') "LSQR did not convergenced, dumping factor should be changed"
+        write(0, '(a)') "LSQR did not converge, dumping factor should be changed"
 #ifdef MPI
         call mpiabort
 #endif
