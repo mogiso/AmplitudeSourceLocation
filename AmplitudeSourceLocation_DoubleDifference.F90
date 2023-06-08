@@ -34,7 +34,8 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: neventpair_ratio_max = 0.5_fp
   integer,            parameter :: nsta_use_min = 5
   integer,            parameter :: nconstraint = 4
-  integer,            parameter :: iter_loop_count_max = 500
+  !integer,            parameter :: iter_loop_count_max = 500
+  integer,            parameter :: iter_loop_count_max = 3
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -208,28 +209,29 @@ program AmplitudeSourceLocation_DoubleDifference
       !!output from AmplitudeSourceLocation_PulseWidth.F90
       read(10, *) evid(i), evlon(i, 0), evlat(i, 0), evdp(i, 0), evamp(i, 0)
 
-      evlon (i, 1 : nsta + 1) = evlon(i, 0)
-      evlat (i, 1 : nsta + 1) = evlat(i, 0)
-      evdp  (i, 1 : nsta + 1) = evdp (i, 0)
-      evamp (i, 1 : nsta + 1) = evamp(i, 0)
-      evflag(i, 0 : nsta + 1) = .true.
+      do j = 1, nsta + 1
+        evlon (i, j) = evlon(i, 0)
+        evlat (i, j) = evlat(i, 0)
+        evdp  (i, j) = evdp (i, 0)
+        evamp (i, j) = evamp(i, 0)
+        evflag(i, j) = .true.
+      enddo
     enddo
     close(10)
     
     open(unit = 10, file = event_amp_param)
     read(10, *)
     do j = 1, nevent
-      obsamp_flag_ini(1 : nsta, j) = .true.
+      obsamp_flag_ini(1 : nsta, j) = .false.
       read(10, *) (obsamp(i, j), i = 1, nsta)
       nsta_use = 0
       do i = 1, nsta
         if(stuse_flag(i) .eqv. .true.) then
           if(obsamp(i, j) / obsamp_noise(i) .ge. snratio_accept) then
             nsta_use = nsta_use + 1
-            cycle
+            obsamp_flag_ini(i, j) = .true.
           endif
         endif
-        obsamp_flag_ini(i, j) = .false.
       enddo
       if(nsta_use .lt. nsta_use_min) then
         obsamp_flag_ini(1 : nsta, j)  = .false.
@@ -275,7 +277,7 @@ program AmplitudeSourceLocation_DoubleDifference
     &        hypodist(1 : nsta, 1 : nevent), ray_azinc(1 : 2, 1 : nsta, 1 : nevent), obsamp_flag_ini(1 : nsta, 1 : nevent), &
     &        obsamp_flag(1 : nsta, 1 : nevent), obsamp(1 : nsta, 1 : nevent), calamp(1 : nsta, 1 : nevent), &
     &        velocity_interpolate(1 : nevent), qinv_interpolate(1 : nevent), event_index(1 : nevent), &
-    &        event_index_rev(1 : nevent))
+    &        event_index_rev(1 : nevent), neventpair(1 : nevent))
   endif
   call mpi_bcast_fp_2d(evlon, 0)
   call mpi_bcast_fp_2d(evlat, 0)
@@ -289,9 +291,10 @@ program AmplitudeSourceLocation_DoubleDifference
   call mpi_bcast_fp_4d(qinv, 0)
   !!calculation parameter
   call mpi_bcast_fp(freq, 0)
-  call mpi_bcast_fp(interevent_dist_max, 0)
   call mpi_bcast_fp(damp, 0)
-
+  call mpi_bcast_fp(baz_diff_max, 0)
+  call mpi_bcast_fp(interevent_dist_max1, 0)
+  call mpi_bcast_fp(interevent_dist_max2, 0)
 #endif
 
   
@@ -333,6 +336,7 @@ program AmplitudeSourceLocation_DoubleDifference
 #if defined (MPI)
   main_loop: do mainloop_count = mainloop_count_begin(mpi_rank), mainloop_count_end(mpi_rank)
 #else
+  !main_loop: do mainloop_count = 1, mainloop_count_max
   main_loop: do mainloop_count = 1, mainloop_count_max
 #endif
 
@@ -350,6 +354,9 @@ program AmplitudeSourceLocation_DoubleDifference
     iter_loop: do
       iter_loop_count = iter_loop_count + 1   
       if(iter_loop_count .gt. iter_loop_count_max) exit iter_loop
+#if defined (MPI)
+      write(0, '(a, i0, a)', advance = "no") "mpi_rank = ", mpi_rank, " "
+#endif
       write(0, '(2(a, i0))') "Mainloop count = ", mainloop_count, " Iteration loop count = ", iter_loop_count
       !!calculate ray length, pulse width, unit vector of ray incident
       write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for each event"
@@ -380,8 +387,6 @@ program AmplitudeSourceLocation_DoubleDifference
           lon_index = int((stlon(i) - lon_str_w) / dlon_str) + 1
           lat_index = int((stlat(i) - lat_str_s) / dlat_str) + 1
           z_index   = int((stdp(i) - z_str_min) / dz_str) + 1
-          !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
-          !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
           hypodist(i, j) = sqrt((r_earth - evdp(j, mainloop_count)) ** 2 + (r_earth - stdp(i)) ** 2 &
           &                    - 2.0_fp * (r_earth - evdp(j, mainloop_count)) * (r_earth - stdp(i)) * cos(epdelta))
           ray_azinc(1, i, j) = az_ini
@@ -435,6 +440,9 @@ program AmplitudeSourceLocation_DoubleDifference
 
       enddo event_loop
 
+#if defined (MPI)
+      write(0, '(a, i0, a)', advance = "no") "mpi_rank = ", mpi_rank, " "
+#endif
       write(0, '(a, i0)') "nevent_est = ", nevent_est
 
       event_count = 1
@@ -480,7 +488,10 @@ program AmplitudeSourceLocation_DoubleDifference
           endif
         enddo
       enddo
-      write(0, '(a, i0)') "number of obsamp_ratio (within interevent_dist_max2) = ", nobsamp_ratio
+#if defined (MPI)
+      write(0, '(a, i0, a)', advance = "no") "mpi_rank = ", mpi_rank, " "
+#endif
+      write(0, '(a, i0)') "Number of obsamp_ratio (within interevent_dist_max2) = ", nobsamp_ratio
       neventpair_maxval = maxval(neventpair)
 
       !!recount amplitude ratio, event pairs
@@ -490,8 +501,8 @@ program AmplitudeSourceLocation_DoubleDifference
         do i = j + 1, nevent 
           if(evflag(i, mainloop_count) .eqv. .false.) cycle
 
-          if(neventpair(i) / neventpair_maxval .ge. neventpair_ratio_max .or. &
-          &  neventpair(j) / neventpair_maxval .ge. neventpair_ratio_max) &
+          if(.not. (neventpair(i) / neventpair_maxval .lt. neventpair_ratio_max .and. &
+          &         neventpair(j) / neventpair_maxval .lt. neventpair_ratio_max)) &
           &  interevent_dist_max(i, j) = interevent_dist_max1
 
           if(interevent_dist(i, j) .le. interevent_dist_max(i, j)) then
@@ -507,6 +518,9 @@ program AmplitudeSourceLocation_DoubleDifference
         enddo
       enddo
 
+#if defined (MPI)
+      write(0, '(a, i0, a)', advance = "no") "mpi_rank = ", mpi_rank, " "
+#endif
       write(0, '(a, i0)') "number of obsamp_ratio = ", nobsamp_ratio
 
       !!set up matrix G
@@ -531,8 +545,7 @@ program AmplitudeSourceLocation_DoubleDifference
 
               obsvector_count = obsvector_count + 1
 
-              obsvector(obsvector_count) = log(obsamp(i, k) / calamp(i, k)) - log(obsamp(i, j) / calamp(i, j))
-              obsvector(obsvector_count) = obsvector(obsvector_count) * dist_weight
+              obsvector(obsvector_count) = (log(obsamp(i, k) / calamp(i, k)) - log(obsamp(i, j) / calamp(i, j))) * dist_weight
 
               normal_vector_j(1 : 3) = [sin(ray_azinc(2, i, j)) * cos(ray_azinc(1, i, j)), &
               &                         sin(ray_azinc(2, i, j)) * sin(ray_azinc(1, i, j)), &
@@ -583,6 +596,14 @@ program AmplitudeSourceLocation_DoubleDifference
         enddo
       enddo
 
+      if(mpi_rank .eq. 7) then
+        open(unit = 10, file = "log")
+        do i = 1, size(obsvector)
+          write(10, *) obsvector(i)
+        enddo
+        close(10)
+      endif
+
       !!call LSQR
       call solver%initialize(nobsamp_ratio + nconstraint, 4 * nevent_est, nonzero_elem, irow, icol)
       call solver%solve(obsvector, damp, modelvector, istop)
@@ -607,6 +628,9 @@ program AmplitudeSourceLocation_DoubleDifference
       enddo
       residual_sum = residual_sum / real(nobsamp_ratio, kind = fp)
       deallocate(residual_tmp)
+#if defined (MPI)
+      write(0, '(a, i0, a)', advance = "no") "mpi_rank = ", mpi_rank, " "
+#endif
       write(0, '(a, 2(e15.7, 1x))') "residual_old and residual_sum = ", residual_old, residual_sum
       residual_min(mainloop_count) = min(residual_min(mainloop_count), residual_sum)
       if(residual_old - residual_sum .lt. delta_residual_max) then
