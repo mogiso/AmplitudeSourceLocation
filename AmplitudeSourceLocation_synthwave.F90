@@ -191,7 +191,11 @@ program AmplitudeSourceLocation_synthwave
       z_index = int((depth_hypo(i) - depth_min) / dz_str) + 1
       ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index, wavetype)
       width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index, wavetype)
-
+#ifdef SURFACE
+      hypodist(i, j) = epdelta * r_earth
+      ttime_min(i, j) = hypodist(i, j) / velocity(lon_index, lat_index, z_index, wavetype)
+      width_min(i, j) = ttime_min(i, j) * qinv(lon_index, lat_index, z_index, wavetype)
+#endif
 #else
 #if defined (RAY_BENDING)
           !!do ray tracing with pseudobending scheme
@@ -346,11 +350,19 @@ program AmplitudeSourceLocation_synthwave
       wave_index = int((origintime(i) + ttime_min(i, j)) / real(sampling, kind = fp) + 0.5_fp) + 1
       do ii = 1, npts_wavelet
         if(wave_index + ii - 1 .le. npts_waveform) then
+#ifdef SURFACE
+          waveform(wave_index + ii - 1) = wavelet(ii) / sqrt(hypodist(i, j)) * exp(-pi * asl_freq * width_min(i, j))
+#else
           waveform(wave_index + ii - 1) = wavelet(ii) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j))
+#endif
         endif
       enddo
       write(0, '(a, i0, a, 2(e15.7, 1x))') "hypo index = ", i, " theo. amp. and travel time = ", &
+#ifdef SURFACE
+      &                             amp_hypo(i) / sqrt(hypodist(i, j)) * exp(-pi * asl_freq * width_min(i, j)), &
+#else
       &                             amp_hypo(i) / hypodist(i, j) * exp(-pi * asl_freq * width_min(i, j)), &
+#endif
       &                             ttime_min(i, j)
     enddo
 
