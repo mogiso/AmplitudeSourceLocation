@@ -34,8 +34,7 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: neventpair_ratio_max = 0.5_fp
   integer,            parameter :: nsta_use_min = 5
   integer,            parameter :: nconstraint = 4
-  !integer,            parameter :: iter_loop_count_max = 500
-  integer,            parameter :: iter_loop_count_max = 3
+  integer,            parameter :: iter_loop_count_max = 500
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
