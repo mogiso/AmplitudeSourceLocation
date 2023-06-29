@@ -20,7 +20,7 @@ contains
 
     real(fp), intent(in) :: lon_in, lat_in, az_in        !!longitude (deg), latitude(deg), azimuth (rad)
     real(fp), intent(in) :: dtime_step                   !!time step (s) 
-    !!velocity at current location (km/s) and derivatives (lon, lat) dvdlat should calculate colatitude
+    !!velocity at current location (km/s) and derivatives (lon, lat, [km/s]/[rad]) dvdlat should calculate colatitude
     real(fp), intent(in) :: velocity, dvdlon, dvdlat
     !!new longitude (deg), new latitude (deg), new azimuth (rad)
     real(fp), intent(out), optional :: lon_out, lat_out, az_out
@@ -72,7 +72,8 @@ contains
     real(fp), intent(in) :: az_in, inc_angle_in             !!azimuth (rad), incident angle measured from depth direction (rad)
     real(fp), intent(in) :: dtime_step                      !!time step (s)
     real(fp), intent(in) :: velocity, dvdlon, dvdlat, dvdz  !!velocity at current location (km/s) and derivatives
-                                                            !!(lon, lat, depth)
+                                                            !!(lon, lat, depth, [km/s]/[rad] or [km/s]/[km]
+                                                            !!dvdlat should be calculated in colatitude
     real(fp), intent(out) :: lon_out, lat_out, z_out        !!new longitude (deg), new geographical latitude (deg),
                                                             !!new depth from surface (km)
     real(fp), intent(out) :: az_out, inc_angle_out          !!new azimuth (rad), new incident angle(rad)
@@ -99,7 +100,7 @@ contains
     delta_ztmp   = -velocity * dtime_step   * cos_inc
 
     dinc_angle = (dvdz + velocity * inv_loc_ztmp) * sin_inc &
-    &          -  cos_inc * (dvdlat * inv_loc_ztmp * cos_az + dvdlon * inv_loc_ztmp * inv_sin_lat * sin_az)
+    &          -  cos_inc * (-dvdlat * inv_loc_ztmp * cos_az + dvdlon * inv_loc_ztmp * inv_sin_lat * sin_az)
     daz = (-dvdlat * inv_loc_ztmp * sin_az - dvdlon * inv_loc_ztmp * inv_sin_lat * cos_az) / sin_inc &
     &   +   velocity * inv_loc_ztmp * sin_inc * sin_az * cos(loc_lattmp) * inv_sin_lat
 
