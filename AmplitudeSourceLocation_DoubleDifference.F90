@@ -33,7 +33,7 @@ program AmplitudeSourceLocation_DoubleDifference
   real(kind = fp),    parameter :: constraint_weight_ini = 1.0_fp
   real(kind = fp),    parameter :: neventpair_ratio_max = 0.5_fp
   integer,            parameter :: nsta_use_min = 5
-  integer,            parameter :: nconstraint = 4
+  integer,            parameter :: nconstraint = 0
   integer,            parameter :: iter_loop_count_max = 500
   !!Range for velocity and attenuation structure
   !!whole Japan
@@ -523,11 +523,11 @@ program AmplitudeSourceLocation_DoubleDifference
       write(0, '(a, i0)') "number of obsamp_ratio = ", nobsamp_ratio
 
       !!set up matrix G
-      nnonzero_elem = 8 * nobsamp_ratio + nconstraint * nevent_est
+      nnonzero_elem = 8 * nobsamp_ratio + nconstraint * nevent_est + nevent_est * 4
       allocate(irow(nnonzero_elem), icol(nnonzero_elem), nonzero_elem(nnonzero_elem), &
-      &        obsvector(nobsamp_ratio + nconstraint), modelvector(nevent_est * 4))
+      &        obsvector(nobsamp_ratio + nconstraint + nevent_est * 4), modelvector(nevent_est * 4))
       obsvector_count = 0
-      obsvector(1 : nobsamp_ratio + nconstraint) = 0.0_fp
+      obsvector(1 : nobsamp_ratio + nconstraint + nevent_est * 4) = 0.0_fp
       modelvector(1 : nevent_est * 4) = 0
       do k = 1, nevent - 1
         do j = k + 1, nevent
@@ -584,28 +584,38 @@ program AmplitudeSourceLocation_DoubleDifference
 
       !!constraints
       !constraint_weight = constraint_weight_ini / real(iter_loop_count, kind = fp)
-      constraint_weight = &
-      &  constraint_weight_ini * (1.0_fp - real(iter_loop_count, kind = fp) / real(iter_loop_count_max, kind = fp))
-      do j = 1, nconstraint
-        obsvector(obsvector_count + j) = 0.0_fp
-        do i = 1, nevent_est
-          irow(8 * obsvector_count + nevent_est * (j - 1) + i) = obsvector_count + j
-          icol(8 * obsvector_count + nevent_est * (j - 1) + i) = 4 * (i - 1) + j
-          nonzero_elem(8 * obsvector_count + nevent_est * (j - 1) + i) = 1.0_fp * constraint_weight
+      if(nconstraint .gt. 0) then
+        constraint_weight = &
+        &  constraint_weight_ini * (1.0_fp - real(iter_loop_count, kind = fp) / real(iter_loop_count_max, kind = fp))
+        do j = 1, nconstraint
+          obsvector(obsvector_count + j) = 0.0_fp
+          do i = 1, nevent_est
+            irow(8 * obsvector_count + nevent_est * (j - 1) + i) = obsvector_count + j
+            icol(8 * obsvector_count + nevent_est * (j - 1) + i) = 4 * (i - 1) + j
+            nonzero_elem(8 * obsvector_count + nevent_est * (j - 1) + i) = 1.0_fp * constraint_weight
+          enddo
         enddo
-      enddo
-
-      if(mpi_rank .eq. 7) then
-        open(unit = 10, file = "log")
-        do i = 1, size(obsvector)
-          write(10, *) obsvector(i)
-        enddo
-        close(10)
       endif
 
+      !!damping matrix
+      do i = 1, 4 * nevent_est
+        irow(8 * obsvector_count + nevent_est * nconstraint + i) = i
+        icol(8 * obsvector_count + nevent_est * nconstraint + i) = i
+        nonzero_elem(8 * obsvector_count + nevent_est * nconstraint + i) = damp
+      enddo
+      
+
+      !if(mpi_rank .eq. 7) then
+      !  open(unit = 10, file = "log")
+      !  do i = 1, size(obsvector)
+      !    write(10, *) obsvector(i)
+      !  enddo
+      !  close(10)
+      !endif
+
       !!call LSQR
-      call solver%initialize(nobsamp_ratio + nconstraint, 4 * nevent_est, nonzero_elem, irow, icol)
-      call solver%solve(obsvector, damp, modelvector, istop)
+      call solver%initialize(nobsamp_ratio + nconstraint + 4 * nevent_est, 4 * nevent_est, nonzero_elem, irow, icol)
+      call solver%solve(obsvector, 0.0_fp, modelvector, istop)
       write(0, '(a, i0)') "LSQR istop = ", istop
       if(istop .eq. 5) then
         write(0, '(a)') "LSQR did not converge, damping factor should be changed"
