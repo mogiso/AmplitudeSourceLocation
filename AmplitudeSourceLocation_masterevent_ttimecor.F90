@@ -266,16 +266,28 @@ program AmplitudeSourceLocation_masterevent
 
 
   !!read masterevent parameter
-  allocate(obsamp_master(nsta))
   open(unit = 10, file = masterevent_param)
+  nev_master = 0
+  read(10. *)
+  do
+    read(10, *, iostat = ios)
+    if(ios .ne. 0) exit
+    nev_master = nev_master + 1
+  enddo
+  nev_master = nev_master / 2
+  allocate(evlon_master(1 : nev_master), evlat_master(1 : nev_master), evdp_master(1 : nev_master))
+  allocate(obsamp_master(1 : nsta, 1 : nev_master))
+  rewind(10)
   read(10, *)
-  read(10, *) evlon_master, evlat_master, evdp_master
-  read(10, *) (obsamp_master(i), i = 1, nsta)
+  do j = 1, nev_master
+    read(10, *) evlon_master(j), evlat_master(j), evdp_master(j)
+    read(10, *) (obsamp_master(i, j), i = 1, nsta)
+  enddo
   close(10)
 
 #if defined (WIN) || defined (SAC)
   allocate(sampling(1 : nsta), npts(1 : nsta), begin(1 : nsta), ttime(1 : nsta))
-  allocate(ttime_loc_cor(1 : nsta, -nlon_cor : nlon_cor, -nlon_cor : nlon_cor, -nz_cor : nz_cor))
+  allocate(ttime_loc_cor(1 : nsta, 1 : nev_master, -nlon_cor : nlon_cor, -nlon_cor : nlon_cor, -nz_cor : nz_cor))
 
 #if defined (WIN)
   allocate(st_winch(nsta), sampling_int(1 : nsta))
@@ -384,16 +396,18 @@ program AmplitudeSourceLocation_masterevent
   write(0, '(a)') "calculate ray length, pulse width, and ray incident vector for master event"
 
   !!check whether the depth of master event location is lower than the topo
-  lon_index = int((evlon_master - lon_topo(1)) / dlon_topo) + 1
-  lat_index = int((evlat_master - lat_topo(1)) / dlat_topo) + 1
-  xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
-  ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
-  val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
-  call linear_interpolation_2d(evlon_master, evlat_master, xgrid, ygrid, val_2d, topography_interpolate)
-  if(evdp_master .lt. topography_interpolate) then
-    write(0, '(a, f5.2, a)') "Depth of master event ", evdp_master, " is higher than the altitude there."
-    error stop
-  endif
+  do i = 1, nev_master
+    lon_index = int((evlon_master(i) - lon_topo(1)) / dlon_topo) + 1
+    lat_index = int((evlat_master(i) - lat_topo(1)) / dlat_topo) + 1
+    xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
+    ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
+    val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
+    call linear_interpolation_2d(evlon_master(i), evlat_master(i), xgrid, ygrid, val_2d, topography_interpolate)
+    if(evdp_master(i) .lt. topography_interpolate) then
+      write(0, '(a, f5.2, a)') "Depth of master event ", evdp_master(i), " is higher than the altitude there."
+      error stop
+    endif
+  enddo
 
   allocate(hypodist(1 : nsta), ray_azinc(1 : 2, 1 : nsta), dist_min(1 : nsta))
   
@@ -417,41 +431,42 @@ program AmplitudeSourceLocation_masterevent
 
   !!calculate traveltime to station        
 !  !$omp do
-  station_loop: do jj = 1, nsta
-    !!calculate azimuth and hypocentral distance
-    call greatcircle_dist(evlat_master, evlon_master, stlat(jj), stlon(jj), &
-    &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)
-    lon_index = int((stlon(jj) - lon_str_w) / dlon_str) + 1
-    lat_index = int((stlat(jj) - lat_str_s) / dlat_str) + 1
-    z_index   = int((stdp(jj) - z_str_min) / dz_str) + 1
-    !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
-    !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
-    hypodist(jj) = sqrt((r_earth - evdp_master) ** 2 + (r_earth - stdp(jj)) ** 2 &
-    &            - 2.0_fp * (r_earth - evdp_master) * (r_earth - stdp(jj)) * cos(epdelta))
-    ray_azinc(1, jj) = az_ini
+  masterevent_loop: do kk = 1, nev_master
+    station_loop: do jj = 1, nsta
+      !!calculate azimuth and hypocentral distance
+      call greatcircle_dist(evlat_master(kk), evlon_master(kk), stlat(jj), stlon(jj), &
+      &                     distance = epdist, azimuth = az_ini, delta_out = epdelta)
+      lon_index = int((stlon(jj) - lon_str_w) / dlon_str) + 1
+      lat_index = int((stlat(jj) - lat_str_s) / dlat_str) + 1
+      z_index   = int((stdp(jj) - z_str_min) / dz_str) + 1
+      !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
+      !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
+      hypodist(jj) = sqrt((r_earth - evdp_master(kk)) ** 2 + (r_earth - stdp(jj)) ** 2 &
+      &            - 2.0_fp * (r_earth - evdp_master(kk)) * (r_earth - stdp(jj)) * cos(epdelta))
+      ray_azinc(1, jj) = az_ini
 
 #if defined (V_CONST)
-    !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
-    ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
+      !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
+      ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
 #else
 
-/* #if defined (RAY_BENDING) */
-!    !!do ray tracing with pseudobending scheme
-!    raypath_lon(1) = evlon_master
-!    raypath_lat(1) = evlat_master
-!    raypath_dep(1) = evdp_master
-!    raypath_lon(nraypath_ini) = stlon(jj)
-!    raypath_lat(nraypath_ini) = stlat(jj)
-!    raypath_dep(nraypath_ini) = stdp(jj)
-!    do i = 2, nraypath_ini - 1
-!      raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
-!      raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
-!      raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
-!    enddo
-!    nraypath = nraypath_ini
-!    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
-!    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
-!    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
+#if defined (RAY_BENDING)
+      !!do ray tracing with pseudobending scheme
+      raypath_lon(1) = evlon_master(kk)
+      raypath_lat(1) = evlat_master(kk)
+      raypath_dep(1) = evdp_master(kk)
+      raypath_lon(nraypath_ini) = stlon(jj)
+      raypath_lat(nraypath_ini) = stlat(jj)
+      raypath_dep(nraypath_ini) = stdp(jj)
+      do i = 2, nraypath_ini - 1
+        raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
+        raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
+        raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
+    enddo
+    nraypath = nraypath_ini
+    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
 
 #if defined (WIN) || defined (SAC)
 !    ttime(jj) = ttime_tmp
@@ -467,9 +482,9 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
 /* #else */
-    !!do ray shooting
-    dist_min(jj) = real(huge, kind = fp)
-    incangle_loop2: do kk = 1, nrayshoot
+      !!do ray shooting
+      dist_min(jj) = real(huge, kind = fp)
+      incangle_loop2: do kk = 1, nrayshoot
       if(kk .eq. 1) then
         dinc_angle_org = pi / 2.0_fp
       else
