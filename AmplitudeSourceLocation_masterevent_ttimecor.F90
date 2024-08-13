@@ -368,7 +368,7 @@ program AmplitudeSourceLocation_masterevent
 #endif
 
 #else /* !(-DWIN) && !(-DSAC) */
-  !!read subevent paramter
+  !!read amplitudes of subevents
   open(unit = 10, file = subevent_param)
   read(10, *)
   nsubevent = 0
@@ -441,13 +441,13 @@ program AmplitudeSourceLocation_masterevent
       z_index   = int((stdp(jj) - z_str_min) / dz_str) + 1
       !print *, lon_sta(jj), lon_w + real(lon_index - 1) * dlon
       !print *, lat_sta(jj), lat_s + real(lat_index - 1) * dlat
-      hypodist(jj) = sqrt((r_earth - evdp_master(kk)) ** 2 + (r_earth - stdp(jj)) ** 2 &
-      &            - 2.0_fp * (r_earth - evdp_master(kk)) * (r_earth - stdp(jj)) * cos(epdelta))
-      ray_azinc(1, jj) = az_ini
+      hypodist(jj, kk) = sqrt((r_earth - evdp_master(kk)) ** 2 + (r_earth - stdp(jj)) ** 2 &
+      &                       - 2.0_fp * (r_earth - evdp_master(kk)) * (r_earth - stdp(jj)) * cos(epdelta))
+      ray_azinc(1, jj, kk) = az_ini
 
 #if defined (V_CONST)
       !!homogeneous structure: ray incident angle is calculated using cosine function (assuming cartesian coordinate)
-      ray_azinc(2, jj) = acos(epdist / hypodist(jj)) + pi / 2.0_fp
+      ray_azinc(2, jj, kk) = acos(epdist / hypodist(jj, kk)) + pi / 2.0_fp
 #else
 
 #if defined (RAY_BENDING)
@@ -462,138 +462,138 @@ program AmplitudeSourceLocation_masterevent
         raypath_lon(i) = raypath_lon(i - 1) + (raypath_lon(nraypath_ini) - raypath_lon(1)) / real(nraypath_ini, kind = fp)
         raypath_lat(i) = raypath_lat(i - 1) + (raypath_lat(nraypath_ini) - raypath_lat(1)) / real(nraypath_ini, kind = fp)
         raypath_dep(i) = raypath_dep(i - 1) + (raypath_dep(nraypath_ini) - raypath_dep(1)) / real(nraypath_ini, kind = fp)
-    enddo
-    nraypath = nraypath_ini
-    call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
-    &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
-    &                    ttime_tmp, ray_az = ray_azinc(1, jj), ray_incangle = ray_azinc(2, jj))
+      enddo
+      nraypath = nraypath_ini
+      call pseudobending3D(raypath_lon, raypath_lat, raypath_dep, nraypath, ndiv_raypath, &
+      &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
+      &                    ttime_tmp, ray_az = ray_azinc(1, jj, kk), ray_incangle = ray_azinc(2, jj, kk))
 
 #if defined (WIN) || defined (SAC)
-!    ttime(jj) = ttime_tmp
+!      ttime(jj) = ttime_tmp
 #endif
 
-!    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
-!    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
-!    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
-!    write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
-!    &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
+!      write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+!      &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
+!      write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+!      write(0, '(a, 2(f8.4, 1x))') "ray azimuth and inc_angle (deg) = ", &
+!      &                             ray_azinc(1, jj) * rad2deg, ray_azinc(2, jj) * rad2deg
 #if defined (WIN) || defined (SAC)
-!    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
+!      write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
 /* #else */
       !!do ray shooting
-      dist_min(jj) = real(huge, kind = fp)
-      incangle_loop2: do kk = 1, nrayshoot
-      if(kk .eq. 1) then
-        dinc_angle_org = pi / 2.0_fp
-      else
-        dinc_angle_org = dinc_angle
-      endif
-      dinc_angle = 2.0_fp * dinc_angle_org / real(ninc_angle, kind = fp)
-      inc_angle_ini_min(0) = dinc_angle_org
-      !print *, "dinc_angle = ", dinc_angle * rad2deg, inc_angle_ini_min(kk - 1) * rad2deg
+      dist_min(jj, kk) = real(huge, kind = fp)
+      incangle_loop2: do k2 = 1, nrayshoot
+        if(k2 .eq. 1) then
+          dinc_angle_org = pi / 2.0_fp
+        else
+          dinc_angle_org = dinc_angle
+        endif
+        dinc_angle = 2.0_fp * dinc_angle_org / real(ninc_angle, kind = fp)
+        inc_angle_ini_min(0) = dinc_angle_org
+        !print *, "dinc_angle = ", dinc_angle * rad2deg, inc_angle_ini_min(kk - 1) * rad2deg
 
-      depth_max_tmp = evdp_master
-      incangle_loop: do ii = 1, ninc_angle
-        inc_angle_ini = (inc_angle_ini_min(kk - 1) - dinc_angle_org) + real(ii, kind = fp) * dinc_angle
-        !print '(2(i0, 1x), a, e15.7)', ii, kk, "inc_angle_ini = ", inc_angle_ini * rad2deg
+        depth_max_tmp = evdp_master(kk)
+        incangle_loop: do ii = 1, ninc_angle
+          inc_angle_ini = (inc_angle_ini_min(k2 - 1) - dinc_angle_org) + real(ii, kind = fp) * dinc_angle
+          !print '(2(i0, 1x), a, e15.7)', ii, kk, "inc_angle_ini = ", inc_angle_ini * rad2deg
                
-        lon_tmp = evlon_master
-        lat_tmp = evlat_master
-        depth_tmp = evdp_master
-        az_tmp = az_ini
-        inc_angle_tmp = inc_angle_ini
+          lon_tmp = evlon_master(kk)
+          lat_tmp = evlat_master(kk)
+          depth_tmp = evdp_master(kk)
+          az_tmp = az_ini
+          inc_angle_tmp = inc_angle_ini
 
-        !!loop until ray arrives at surface/boundary
-        ttime_tmp = 0.0_fp
-        shooting_loop: do
+          !!loop until ray arrives at surface/boundary
+          ttime_tmp = 0.0_fp
+          shooting_loop: do
 
-          !!exit if ray approaches to the surface
-          lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
-          lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
-          !!exit if ray approaches to the boundary of the topography array
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
-            exit shooting_loop
-          endif
+            !!exit if ray approaches to the surface
+            lon_index = int((lon_tmp - lon_topo(1)) / dlon_topo) + 1
+            lat_index = int((lat_tmp - lat_topo(1)) / dlat_topo) + 1
+            !!exit if ray approaches to the boundary of the topography array
+            if(     lon_index .lt. 1 .or. lon_index .gt. nlon_topo - 1      &
+            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_topo - 1) then
+              exit shooting_loop
+            endif
 
-          xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
-          ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
-          val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
-          call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
-          if(depth_tmp .lt. topography_interpolate) then
-            !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
-            exit shooting_loop
-          endif
+            xgrid(1 : 2) = [lon_topo(lon_index), lon_topo(lon_index + 1)]
+            ygrid(1 : 2) = [lat_topo(lat_index), lat_topo(lat_index + 1)]
+            val_2d(1 : 2, 1 : 2) = topography(lon_index : lon_index + 1, lat_index : lat_index + 1)
+            call linear_interpolation_2d(lon_tmp, lat_tmp, xgrid, ygrid, val_2d, topography_interpolate)
+            if(depth_tmp .lt. topography_interpolate) then
+              !print '(a, 3(f9.4, 1x))', "ray surface arrived, lon/lat = ", lon_tmp, lat_tmp, depth_tmp
+              exit shooting_loop
+            endif
 
-          lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
-          lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
-          z_index   = int((depth_tmp - z_str_min) / dz_str) + 1
+            lon_index = int((lon_tmp - lon_str_w) / dlon_str) + 1
+            lat_index = int((lat_tmp - lat_str_s) / dlat_str) + 1
+            z_index   = int((depth_tmp - z_str_min) / dz_str) + 1
 
-          !!exit if ray approaches to the boundary
-          if(lon_index .lt. 1 .or. lon_index .gt. nlon_str - 1      &
-          &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_str - 1 &
-          &  .or. z_index .lt. 1 .or. z_index .gt. nz_str - 1) then
-            exit shooting_loop
-          endif
+            !!exit if ray approaches to the boundary
+            if(lon_index .lt. 1 .or. lon_index .gt. nlon_str - 1      &
+            &  .or. lat_index .lt. 1 .or. lat_index .gt. nlat_str - 1 &
+            &  .or. z_index .lt. 1 .or. z_index .gt. nz_str - 1) then
+              exit shooting_loop
+            endif
 
-          xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
-          ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
-          zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
+            xgrid(1) = lon_str_w + real(lon_index - 1, kind = fp) * dlon_str; xgrid(2) = xgrid(1) + dlon_str
+            ygrid(1) = lat_str_s + real(lat_index - 1, kind = fp) * dlat_str; ygrid(2) = ygrid(1) + dlat_str
+            zgrid(1) = z_str_min + real(z_index - 1, kind = fp) * dz_str;     zgrid(2) = zgrid(1) + dz_str
 
-          !!calculate distance between ray and station
-          call greatcircle_dist(lat_tmp, lon_tmp, stlat(jj), stlon(jj), delta_out = epdelta)
-          dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - stdp(jj)) ** 2 &
-          &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - stdp(jj)) * cos(epdelta))
-          !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
-          !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
+            !!calculate distance between ray and station
+            call greatcircle_dist(lat_tmp, lon_tmp, stlat(jj), stlon(jj), delta_out = epdelta)
+            dist_tmp = sqrt((r_earth - depth_tmp) ** 2 + (r_earth - stdp(jj)) ** 2 &
+            &        - 2.0_fp * (r_earth - depth_tmp) * (r_earth - stdp(jj)) * cos(epdelta))
+            !print *, real(ii, kind = fp) * dinc_angle, lat_tmp, lon_tmp, depth_tmp
+            !print *, jj, lat_sta(jj), lon_sta(jj), z_sta(jj), dist_tmp
 
-          if(dist_tmp .lt. dist_min(jj)) then
-            dist_min(jj) = dist_tmp
-            lon_min = lon_tmp
-            lat_min = lat_tmp
-            depth_min = depth_tmp
-            inc_angle_ini_min(kk) = inc_angle_ini
-            ray_azinc(2, jj) = inc_angle_ini
-            depth_max = depth_max_tmp
+            if(dist_tmp .lt. dist_min(jj, kk)) then
+              dist_min(jj, kk) = dist_tmp
+              lon_min = lon_tmp
+              lat_min = lat_tmp
+              depth_min = depth_tmp
+              inc_angle_ini_min(k2) = inc_angle_ini
+              ray_azinc(2, jj, kk) = inc_angle_ini
+              depth_max = depth_max_tmp
 
 #if defined (WIN) || defined (SAC)
-            ttime(jj) = ttime_tmp
+              ttime(jj, kk) = ttime_tmp
 #endif
-            !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
-            !&                                                                      dist_min
-          endif
+              !print '(a, 4(f8.4, 1x))', "rayshoot_tmp lon, lat, depth, dist_min = ", lon_min, lat_min, depth_min, &
+              !&                                                                      dist_min
+            endif
 
-          !!shooting the ray
-          val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
-          call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
-          dvdz = (val_1d(2) - val_1d(1)) / dz_str
-          call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
-          &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
+            !!shooting the ray
+            val_1d(1 : 2) = velocity(lon_index, lat_index, z_index : z_index + 1, wavetype)
+            call linear_interpolation_1d(depth_tmp, zgrid, val_1d, velocity_interpolate)
+            dvdz = (val_1d(2) - val_1d(1)) / dz_str
+            call rayshooting3D(lon_tmp, lat_tmp, depth_tmp, az_tmp, inc_angle_tmp, time_step, velocity_interpolate, &
+            &                  dvdlon, dvdlat, dvdz, lon_new, lat_new, depth_new, az_new, inc_angle_new)
 
-          lon_tmp = lon_new
-          lat_tmp = lat_new
-          depth_tmp = depth_new
-          az_tmp = az_new
-          inc_angle_tmp = inc_angle_new
-          ttime_tmp = ttime_tmp + time_step
-          if(depth_tmp .ge. depth_max_tmp) depth_max_tmp = depth_tmp
-        enddo shooting_loop
+            lon_tmp = lon_new
+            lat_tmp = lat_new
+            depth_tmp = depth_new
+            az_tmp = az_new
+            inc_angle_tmp = inc_angle_new
+            ttime_tmp = ttime_tmp + time_step
+            if(depth_tmp .ge. depth_max_tmp) depth_max_tmp = depth_tmp
+          enddo shooting_loop
 
-      enddo incangle_loop
-    enddo incangle_loop2
-    write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
-    &                            evlon_master, evlat_master, evdp_master, az_ini * rad2deg
-    write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
-    write(0, '(a, 4(f8.4, 1x))') "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
-    write(0, '(a, 2(f8.4, 1x))') "inc_angle (deg), ray turning depth (km) = ", &
-    &                             inc_angle_ini_min(nrayshoot) * rad2deg, depth_max
+        enddo incangle_loop
+      enddo incangle_loop2
+      write(0, '(a, 4(f8.4, 1x))') "masterevent lon, lat, depth, az_ini = ", &
+      &                            evlon_master(kk), evlat_master(kk), evdp_master(kk), az_ini * rad2deg
+      write(0, '(a, 3(f8.4, 1x))') "station lon, lat, depth = ", stlon(jj), stlat(jj), stdp(jj)
+      write(0, '(a, 4(f8.4, 1x))') "rayshoot lon, lat, depth, dist = ", lon_min, lat_min, depth_min, dist_min(jj)
+      write(0, '(a, 2(f8.4, 1x))') "inc_angle (deg), ray turning depth (km) = ", &
+      &                             inc_angle_ini_min(nrayshoot) * rad2deg, depth_max
 #if defined (WIN) || defined (SAC)
-    write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
+      write(0, '(a, f5.2)') "traveltime (s) = ", ttime(jj)
 #endif
 
-/* #endif */ /* -DRAY_BENDING or not */
+#endif /* -DRAY_BENDING or not */
 #endif /* -DV_CONST or not */
 
   enddo station_loop
@@ -635,19 +635,19 @@ program AmplitudeSourceLocation_masterevent
 
 !  !$omp end parallel
 
-  open(unit = 10, file = "ttime_cor_table.txt")
-  do kk = -nz_cor, nz_cor
-    depth_tmp = evdp_master + dz_cor * real(kk, kind = fp)
-    do jj = -nlat_cor, nlat_cor
-      lat_tmp = evlat_master + dlat_cor * real(jj, kind = fp)
-      do ii = -nlon_cor, nlon_cor
-        lon_tmp = evlon_master + dlon_cor * real(ii, kind = fp)
-        write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
-      enddo
-      write(10, *) ""
-    enddo
-  enddo
-  close(10)
+!  open(unit = 10, file = "ttime_cor_table.txt")
+!  do kk = -nz_cor, nz_cor
+!    depth_tmp = evdp_master + dz_cor * real(kk, kind = fp)
+!    do jj = -nlat_cor, nlat_cor
+!      lat_tmp = evlat_master + dlat_cor * real(jj, kind = fp)
+!      do ii = -nlon_cor, nlon_cor
+!        lon_tmp = evlon_master + dlon_cor * real(ii, kind = fp)
+!        write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
+!      enddo
+!      write(10, *) ""
+!    enddo
+!  enddo
+!  close(10)
   !stop
 
 
