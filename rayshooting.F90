@@ -13,38 +13,51 @@ module rayshooting
 contains
 
   subroutine rayshooting2D(lon_in, lat_in, az_in, dtime_step, velocity, dvdlon, dvdlat, &
-  &                        lon_out, lat_out, az_out)
+  &                        lon_out, lat_out, az_out, delta_lon, delta_lat, delta_az)
     use nrtype, only : fp
     use constants, only : pi, r_earth, deg2rad, rad2deg
     use greatcircle, only : latctog, latgtoc
 
     real(fp), intent(in) :: lon_in, lat_in, az_in        !!longitude (deg), latitude(deg), azimuth (rad)
     real(fp), intent(in) :: dtime_step                   !!time step (s) 
-    real(fp), intent(in) :: velocity, dvdlon, dvdlat     !!velocity at current location (km/s) and derivatives (lon, lat)
-    real(fp), intent(out) :: lon_out, lat_out, az_out    !!new longitude (deg), new latitude (deg), new azimuth (rad)
+    !!velocity at current location (km/s) and derivatives (lon, lat, [km/s]/[rad]) dvdlat should calculate colatitude
+    real(fp), intent(in) :: velocity, dvdlon, dvdlat
+    !!new longitude (deg), new latitude (deg), new azimuth (rad)
+    real(fp), intent(out), optional :: lon_out, lat_out, az_out
+    !!delta longitude (rad), delta colatitude (rad), delta az (rad)
+    real(fp), intent(out), optional :: delta_lon, delta_lat, delta_az
 
-    real(fp) :: loc_lontmp, loc_lattmp
+    real(fp) :: loc_lontmp, loc_lattmp, sin_az, cos_az
     real(fp) :: delta_lattmp, delta_lontmp, daz
 
     loc_lontmp = lon_in * deg2rad
     call latgtoc(lat_in, loc_lattmp)
     loc_lattmp = pi * 0.5_fp - loc_lattmp       !!from latitude to co-latitude
+    sin_az = sin(az_in)
+    cos_az = cos(az_in)
 
     !!Koketsu (1991) eq. (33) with incident ancle = pi/2, depth = earth surface
-    delta_lattmp = -velocity / r_earth * (cos(az_in) * dtime_step)
-    delta_lontmp = velocity / (r_earth * sin(loc_lattmp)) * sin(az_in) * dtime_step
-    daz = (dvdlat / r_earth * sin(az_in) &
-    &  - dvdlon / (r_earth * sin(loc_lattmp)) * cos(az_in)) &
-    &  + velocity / r_earth * sin(az_in) / tan(loc_lattmp)
-    az_out = az_in + daz * dtime_step
-    if(az_out .ge. 2.0_fp * pi) az_out = az_out - 2.0_fp * pi
-    if(az_out .lt. 0.0_fp) az_out = az_out + 2.0_fp * pi
+    delta_lattmp = -velocity /  r_earth * cos_az
+    delta_lontmp =  velocity / (r_earth * sin(loc_lattmp)) * sin_az
+    daz = (-dvdlat  / r_earth * sin_az - dvdlon / (r_earth * sin(loc_lattmp)) * cos_az) &
+    &    + velocity / r_earth * sin_az / tan(loc_lattmp)
+    if(present(delta_lon) .and. present(delta_lat) .and. present(delta_az)) then
+      delta_lon = delta_lontmp
+      delta_lat = delta_lattmp
+      delta_az = daz
+    endif
 
-    lon_out = (loc_lontmp + delta_lontmp) * rad2deg
-    if(lon_out .gt. 180.0_fp) lon_out = lon_out - 360.0_fp
-    if(lon_out .le. -180.0_fp) lon_out = lon_out + 360.0_fp
-    loc_lattmp = 90.0_fp - (loc_lattmp + delta_lattmp) * rad2deg
-    call latctog(loc_lattmp, lat_out)
+    if(present(lon_out) .and. present(lat_out) .and. present(az_out)) then
+      az_out = az_in + daz * dtime_step
+      if(az_out .ge.  pi) az_out = az_out - 2.0_fp * pi
+      if(az_out .lt. -pi) az_out = az_out + 2.0_fp * pi
+
+      lon_out = (loc_lontmp + delta_lontmp * dtime_step) * rad2deg
+      if(lon_out .gt.  180.0_fp) lon_out = lon_out - 360.0_fp
+      if(lon_out .le. -180.0_fp) lon_out = lon_out + 360.0_fp
+      loc_lattmp = pi * 0.5_fp - (loc_lattmp + delta_lattmp * dtime_step)
+      call latctog(loc_lattmp, lat_out)
+    endif
 
     return
   end subroutine rayshooting2D
@@ -59,7 +72,8 @@ contains
     real(fp), intent(in) :: az_in, inc_angle_in             !!azimuth (rad), incident angle measured from depth direction (rad)
     real(fp), intent(in) :: dtime_step                      !!time step (s)
     real(fp), intent(in) :: velocity, dvdlon, dvdlat, dvdz  !!velocity at current location (km/s) and derivatives
-                                                            !!(lon, lat, depth)
+                                                            !!(lon, lat, depth, [km/s]/[rad] or [km/s]/[km]
+                                                            !!dvdlat should be calculated in colatitude
     real(fp), intent(out) :: lon_out, lat_out, z_out        !!new longitude (deg), new geographical latitude (deg),
                                                             !!new depth from surface (km)
     real(fp), intent(out) :: az_out, inc_angle_out          !!new azimuth (rad), new incident angle(rad)
@@ -81,21 +95,14 @@ contains
     inv_loc_ztmp =  1.0_fp / loc_ztmp
 
     !!Koketsu (1991) eq. (33)
-    !delta_lattmp = -velocity / loc_ztmp * sin(inc_angle_in) * cos(az_in) * dtime_step
-    !delta_lontmp = velocity / (loc_ztmp * sin(loc_lattmp)) * sin(inc_angle_in) * sin(az_in) * dtime_step
-    !delta_ztmp = -velocity * dtime_step * cos(inc_angle_in)
     delta_lattmp = -velocity * inv_loc_ztmp * sin_inc     * cos_az  * dtime_step
     delta_lontmp =  velocity * inv_loc_ztmp * inv_sin_lat * sin_inc * sin_az * dtime_step
     delta_ztmp   = -velocity * dtime_step   * cos_inc
 
-    !dinc_angle = (dvdz + velocity / loc_ztmp) * sin(inc_angle_in) &
-    !&  - cos(inc_angle_in) * (dvdlat / loc_ztmp * cos(az_in) + dvdlon / (loc_ztmp * sin(loc_lattmp)) * sin(az_in))
-    !daz = (dvdlat / loc_ztmp * sin(az_in) - dvdlon / (loc_ztmp * sin(loc_lattmp)) * cos(az_in)) / sin(inc_angle_in) &
-    !&  + velocity / loc_ztmp * sin(inc_angle_in) * sin(az_in) / tan(loc_lattmp)
     dinc_angle = (dvdz + velocity * inv_loc_ztmp) * sin_inc &
-    &  - cos_inc * (dvdlat * inv_loc_ztmp * cos_az + dvdlon * inv_loc_ztmp * inv_sin_lat * sin_az)
-    daz = (dvdlat * inv_loc_ztmp * sin_az - dvdlon * inv_loc_ztmp * inv_sin_lat * cos_az) / sin_inc &
-    &  + velocity * inv_loc_ztmp * sin_inc * sin_az * cos(loc_lattmp) * inv_sin_lat
+    &          -  cos_inc * (-dvdlat * inv_loc_ztmp * cos_az + dvdlon * inv_loc_ztmp * inv_sin_lat * sin_az)
+    daz = (-dvdlat * inv_loc_ztmp * sin_az - dvdlon * inv_loc_ztmp * inv_sin_lat * cos_az) / sin_inc &
+    &   +   velocity * inv_loc_ztmp * sin_inc * sin_az * cos(loc_lattmp) * inv_sin_lat
 
     inc_angle_out = inc_angle_in + dinc_angle * dtime_step
     az_out = az_in + daz * dtime_step
@@ -108,7 +115,6 @@ contains
     loc_lattmp = pi * 0.5_fp - (loc_lattmp + delta_lattmp)
     call latctog(loc_lattmp, lat_out)
     z_out = r_earth - (loc_ztmp + delta_ztmp)
-
 
     return
   end subroutine rayshooting3D

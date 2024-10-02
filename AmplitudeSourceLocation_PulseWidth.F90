@@ -62,15 +62,28 @@ program AmplitudeSourceLocation_PulseWidth
 #endif
 
   !!Search range
-  real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.04_fp
-  real(kind = fp),        parameter :: lat_s = 43.36_fp, lat_n = 43.41_fp
-  real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.0_fp
-  real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!Meakandake volcano
+  !real(kind = fp),        parameter :: lon_w = 143.98_fp, lon_e = 144.04_fp
+  !real(kind = fp),        parameter :: lat_s = 43.36_fp, lat_n = 43.41_fp
+  !real(kind = fp),        parameter :: z_min = -1.5_fp, z_max = 3.0_fp
+  !real(kind = fp),        parameter :: dlon = 0.001_fp, dlat = 0.001_fp, dz = 0.1_fp
+  !!SE Off Kii Peninsula
+  real(kind = fp),        parameter :: lon_w = 136.5_fp, lon_e = 137.2_fp
+  real(kind = fp),        parameter :: lat_s = 32.9_fp, lat_n = 33.5_fp
+  real(kind = fp),        parameter :: z_min = 0.0_fp, z_max = 10.0_fp
+  real(kind = fp),        parameter :: dlon = 0.005_fp, dlat = 0.005_fp, dz = 0.1_fp
   !!structure range
-  real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
-  real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
-  real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
-  real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  !!Meakandake volcano
+  !real(kind = fp),        parameter :: lon_str_w = 143.5_fp, lon_str_e = 144.1_fp
+  !real(kind = fp),        parameter :: lat_str_s = 43.0_fp,  lat_str_n = 43.5_fp
+  !real(kind = fp),        parameter :: z_str_min = -1.5_fp, z_str_max = 10.0_fp
+  !real(kind = fp),        parameter :: dlon_str = 0.001_fp, dlat_str = 0.001_fp, dz_str = 0.1_fp
+  !!whole Japan
+  real(kind = fp),        parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
+  real(kind = fp),        parameter :: lat_str_s = 23.0_fp, lat_str_n = 46.0_fp
+  real(kind = fp),        parameter :: z_str_min = -3.0_fp, z_str_max = 50.0_fp
+  real(kind = fp),        parameter :: dlon_str = 0.1_fp, dlat_str = 0.1_fp, dz_str = 0.1_fp
+
   !!Ray shooting
   real(kind = fp),        parameter :: dvdlon = 0.0_fp, dvdlat = 0.0_fp         !!assume 1D structure
   integer,                parameter :: ninc_angle = 180                         !!grid search in incident angle
@@ -321,9 +334,9 @@ program AmplitudeSourceLocation_PulseWidth
   enddo
 #endif   /* -DWIN or -DSAC */
 
-  !!remove offset
 #if defined (TESTDATA)
 #else
+  !!remove offset
   write(0, '(a)') "Removing offset"
   do j = 1, nsta
     amp_avg = 0.0_dp
@@ -337,10 +350,7 @@ program AmplitudeSourceLocation_PulseWidth
       waveform_obs(i, j) = (waveform_obs(i, j) - amp_avg)
     enddo
   enddo
-#endif
 
-#if defined (TESTDATA)
-#else
   !!bandpass filter
   write(0, '(a, 3(f5.2, a))') "Applying bandpass filter fl = ", fl, " (Hz), fh = ", fh, " (Hz), fs = ", fs, " (Hz)"
   do j = 1, nsta
@@ -358,24 +368,6 @@ program AmplitudeSourceLocation_PulseWidth
 #endif   /* -DTESTDATA */  
 
 #endif   /* -DAMP_TXT */
-
-  !!calculate noise level
-  !allocate(rms_amp_obs_noise(1 : nsta))
-#if defined (AMP_TXT)
-  !rms_amp_obs_noise(1 : nsta) = 1.0_dp / real(huge, kind = dp)
-#else
-  !do j = 1, nsta
-  !  icount = 0
-  !  rms_amp_obs_noise(j) = 0.0_dp
-  !  if(use_flag(j) .eqv. .false.) cycle
-  !  do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2
-  !    rms_amp_obs_noise(j) = rms_amp_obs_noise(j) + waveform_obs(i, j) ** 2
-  !    icount = icount + 1
-  !  enddo
-  !  rms_amp_obs_noise(j) = sqrt(rms_amp_obs_noise(j) / real(icount, kind = dp))
-  !enddo
-#endif
-
 
   !!station list
   do i = 1, nsta

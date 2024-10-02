@@ -76,8 +76,11 @@ program calc_env_amplitude
 
   date_loop: do j = 1, ndate
     station_loop: do i = 1, nsta
-      !infile_sac = trim(infile(j)) // "." // trim(stname(i)) // "." // trim(cmpnm) // ".sac"
+#ifdef TESTDATA
       infile_sac = trim(infile(j)) // "_" // trim(stname(i)) // "_env_cal.sac"
+#else
+      infile_sac = trim(infile(j)) // "." // trim(stname(i)) // "." // trim(cmpnm) // ".sac"
+#endif
 
       write(0, *) "infile_sac = ", trim(infile_sac)
 
