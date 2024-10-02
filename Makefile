@@ -24,7 +24,7 @@
 ## -DEACH_ERROR: estimate location errors separately in AmplitudeSourceLocation_masterevent.F90 and
 ##               TraveltimeSourceLocation_masterevent.F90
 
-FC = ifort
+FC = gfortran
 
 ifeq ($(FC), mpif90)
   ##for only asl_dd, assuming Intel Fortran
@@ -58,11 +58,12 @@ else
     LIBDIR	= -L/usr/local/lib
     LIBS	= -lnetcdff -llapack95 -llapack -lblas
   else  ##Intel Fortran
-    FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -qopenmp
-    OPTS	= -O3 -xHOST -ipo
-    DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DAMP_RATIO -DRAY_BENDING -DWITHOUT_ERROR -DMKL
-    INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
-    LIBDIR	= -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB} -L${HDF5_LIB}
+    FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -qmkl -warn all
+    #OPTS	= -O3 -xHOST -ipo
+    OPTS	= 
+    DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DAMP_RATIO -DRAY_BENDING -DWITHOUT_ERROR -DMKL -DSAC
+    INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I/usr/local/intel/include
+    LIBDIR	= -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB} -L${HDF5_LIB} -L/usr/local/intel/lib
     LIBS	= -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
   endif
 endif
@@ -144,9 +145,10 @@ AmplitudeSourceLocation_masterevent_shmdump.o: nrtype.o constants.o rayshooting.
 					linear_interpolation.o greatcircle.o grdfile_io.o m_winch.o m_util.o \
 					calc_bpf_order.o calc_bpf_coef.o tandem.o read_shmdump.o
 
-AmplitudeSourceLocation_masterevent_ttimecor.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
-					linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_winch.o m_util.o \
-					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o raybending.o def_gridpoint.o
+AmplitudeSourceLocation_masterevent_ttimecor.o: nrtype.o constants.o set_velocity_model.o \
+					linear_interpolation.o greatcircle.o raybending.o \
+					grdfile_io.o m_win.o m_winch.o m_util.o \
+					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o def_gridpoint.o
 
 rayshooting.o: nrtype.o constants.o greatcircle.o
 raybending.o: nrtype.o constants.o def_gridpoint.o greatcircle.o 
