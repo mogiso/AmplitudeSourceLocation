@@ -1,4 +1,4 @@
-program AmplitudeSourceLocation_masterevent
+program AmplitudeSourceLocation_masterevent_ttimecor
   !!Relative amplitude source location (master event)
   !!using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
@@ -15,7 +15,6 @@ program AmplitudeSourceLocation_masterevent
 
   use nrtype,               only : fp, dp
   use constants,            only : rad2deg, deg2rad, pi, r_earth
-  use rayshooting,          only : rayshooting3D
   use set_velocity_model,   only : set_velocity
   use linear_interpolation, only : linear_interpolation_1d, linear_interpolation_2d, linear_interpolation_3d, &
   &                                block_interpolation_3d
@@ -74,7 +73,7 @@ program AmplitudeSourceLocation_masterevent
   integer,            allocatable :: ikey(:), sampling_int(:), waveform_obs_int(:, :), npts_win(:, :), npts(:)
   character(len = 4), allocatable :: st_winch(:)
   type(winch__hdr),   allocatable :: chtbl(:)
-  integer                         :: nsec, tim, time_index
+  integer                         :: nsec, tim
   character(len = 129)            :: win_filename, win_chfilename
   character(len = 10)             :: cmpnm
 #endif
@@ -86,7 +85,6 @@ program AmplitudeSourceLocation_masterevent
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), sampling(:), stime(:)
   integer,            allocatable :: npts(:)
-  integer                         :: time_index
   character(len = 129)            :: sacfile, sacfile_index
   character(len = 10)             :: cmpnm
 #endif
@@ -129,9 +127,8 @@ program AmplitudeSourceLocation_masterevent
   &                                data_residual(:), sigma_residual(:), mean_residual(:), &
   &                                error_matrix(:, :), error_matrix_sub(:, :)
   integer,          allocatable :: ipiv(:), nsta_use_tmp(:), evindex_master(:, :, :, :)
-  real(kind = fp)               :: epdist, epdelta, &
-  &                                mean_lon, mean_lat, mean_depth, lon_tmp, lat_tmp, depth_tmp,  dist_tmp, &
-  &                                ttime_tmp, matrix_const, &
+  real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, lon_tmp, lat_tmp, depth_tmp,  dist_tmp, &
+  &                                ttime_tmp, ttime_maxval, matrix_const, &
   &                                siteamp_tmp, residual_tmp, sigma_amp, sigma_lat, sigma_lon, sigma_depth
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nev_master_max, nsubevent, lon_index, lat_index, z_index, &
@@ -547,16 +544,11 @@ program AmplitudeSourceLocation_masterevent
   !!count nsubevent
   nsubevent = 0
   ot_tmp = ot_begin
-  ttime_maxval(i) = 0.0_fp
-  do j = 1, nev_master_max
-    do i = 1, nsta
-      if(ttime_maxval(i) .lt. ttime(i, j)) ttime_maxval(i) = ttime(i, j)
-    enddo
-  enddo
+  ttime_maxval = maxval(ttime) + maxval(ttime_loc_cor)
   count_loop: do
     if(ot_tmp .gt. ot_end) exit
     do i = 1, nsta
-      if(int((ot_tmp - begin(i) + ttime_maxval(i) + rms_tw) / sampling(i) + 0.5_fp) .gt. npts(i)) then
+      if(int((ot_tmp - begin(i) + ttime_maxval + rms_tw) / sampling(i) + 0.5_fp) .gt. npts(i)) then
         exit count_loop
       endif
     enddo
@@ -816,5 +808,5 @@ program AmplitudeSourceLocation_masterevent
     
 
   stop
-end program AmplitudeSourceLocation_masterevent
+end program AmplitudeSourceLocation_masterevent_ttimecor
 
