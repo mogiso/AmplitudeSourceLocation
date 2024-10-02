@@ -30,13 +30,15 @@ program AmplitudeSourceLocation_synthwave
   real(kind = fp),    parameter :: time_step = 0.01_fp
   real(kind = fp),    parameter :: rayshoot_dist_thr = 0.05_fp
   !!assumed hypocenter
-  integer,            parameter :: nhypo = 3
-  real(kind = fp),    parameter :: origintime(1 : nhypo) = [2.0_fp, 7.0_fp, 12.0_fp]
-  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0060_fp, 144.0040_fp, 144.0020_fp]
-  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3900_fp, 43.3930_fp, 43.3960_fp]
-  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [-1.2_fp, -1.1_fp, -0.9_fp]
-  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [5.0_dp, 3.0_dp, 2.5_fp]
-  real(kind = dp),    parameter :: characteristicfreq    = 0.1_dp
+  integer,            parameter :: nhypo = 6
+  real(kind = fp),    parameter :: origintime(1 : nhypo) = [2.0_fp, 17.0_fp, 32.0_fp, 47.0_fp, 62.0_fp, 77.0_fp]
+  real(kind = fp),    parameter :: lon_hypo(1 : nhypo)   = [144.0060_fp, 144.0040_fp, 144.0020_fp, &
+  &                                                         144.0080_fp, 144.0100_fp, 144.0120_fp]
+  real(kind = fp),    parameter :: lat_hypo(1 : nhypo)   = [43.3900_fp, 43.3890_fp, 43.3880_fp, &
+  &                                                         43.3870_fp, 43.3860_fp, 43.3850_fp]
+  real(kind = fp),    parameter :: depth_hypo(1 : nhypo) = [-1.2_fp, -1.1_fp, -0.9_fp, 0.7_fp, 0.35_fp, -0.1_fp]
+  real(kind = dp),    parameter :: amp_hypo(1 : nhypo)   = [5.0_dp, 3.0_dp, 2.5_fp, 10.0_fp, 4.0_fp, 1.0_fp]
+  real(kind = dp),    parameter :: characteristicfreq    = 0.2_dp
   real(kind = dp),    parameter :: asl_freq              = 7.5_dp
 
   !!assumed data length, sampling frequency (s)
