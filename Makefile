@@ -24,7 +24,12 @@
 ## -DEACH_ERROR: estimate location errors separately in AmplitudeSourceLocation_masterevent.F90 and
 ##               TraveltimeSourceLocation_masterevent.F90
 
-FC = gfortran
+FC = ifx
+
+NETCDF_FORTRAN_INC = /usr/local/intel/include
+NETCDF_FORTRAN_LIB = /usr/local/intel/lib
+LAPACK_INC = /usr/local/include
+LAPACK_LIB = /usr/local/lib
 
 ifeq ($(FC), mpif90)
   ##for only asl_dd, assuming Intel Fortran
@@ -54,17 +59,17 @@ else
     FFLAGS	= -g -Wall -fbounds-check -fbacktrace
     OPTS	= -O3
     DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DRAY_BENDING -DWITHOUT_ERROR
-    INCDIR	= -I. -I/usr/include -I/usr/local/include
-    LIBDIR	= -L/usr/local/lib
+    INCDIR	= -I. -I${LAPACK_INC} -I${LAPACK95_INC} -I${NETCDF_FORTRAN_INC}
+    LIBDIR	= -L${LAPACK_LIB} -L${LAPACK95_LIB} -L${NETCDF_FORTRAN_LIB}
     LIBS	= -lnetcdff -llapack95 -llapack -lblas
   else  ##Intel Fortran
-    FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -qmkl -warn all
+    FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -warn all
     #OPTS	= -O3 -xHOST -ipo
     OPTS	= 
     DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DAMP_RATIO -DRAY_BENDING -DWITHOUT_ERROR -DMKL -DSAC
-    INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64 -I/usr/local/intel/include
-    LIBDIR	= -L${MKLROOT}/lib/intel64 -L${NETCDF_FORTRAN_LIB} -L${HDF5_LIB} -L/usr/local/intel/lib
-    LIBS	= -lnetcdff -liomp5 -lpthread -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread
+    INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
+    LIBDIR	= -L${NETCDF_FORTRAN_LIB} -L${MKLROOT}/lib
+    LIBS	= -lnetcdff -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread -liomp5 -lpthread -lm -ldl
   endif
 endif
 
@@ -80,24 +85,24 @@ all: $(TARGET)
 asl_pw: AmplitudeSourceLocation_PulseWidth.o nrtype.o constants.o rayshooting.o read_sacfile.o \
 	set_velocity_model.o linear_interpolation.o itoa.o grdfile_io.o m_win.o m_util.o m_winch.o \
         calc_bpf_order.o calc_bpf_coef.o tandem.o greatcircle.o raybending.o def_gridpoint.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 asl_masterevent: AmplitudeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
 	read_sacfile.o raybending.o def_gridpoint.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 ifeq ($(FC), mpif90)
 asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o lsqr_kinds.o lsqrblas.o lsqr.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o mpi_module.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
                                         lsqr_kinds.o lsqrblas.o lsqr.o
 else
 asl_dd: AmplitudeSourceLocation_DoubleDifference.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o lsqr_kinds.o lsqrblas.o lsqr.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 AmplitudeSourceLocation_DoubleDifference.o: nrtype.o constants.o rayshooting.o set_velocity_model.o \
 					linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o \
                                         lsqr_kinds.o lsqrblas.o lsqr.o
@@ -105,24 +110,24 @@ endif
 
 asl_synthwave: AmplitudeSourceLocation_synthwave.o nrtype.o constants.o rayshooting.o read_sacfile.o set_velocity_model.o \
 		linear_interpolation.o greatcircle.o grdfile_io.o xorshift1024star.o wavelet.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 ttime_masterevent: TraveltimeSourceLocation_masterevent.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
 		linear_interpolation.o greatcircle.o grdfile_io.o raybending.o def_gridpoint.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 asl_masterevent_shmdump: AmplitudeSourceLocation_masterevent_shmdump.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
 	read_shmdump.o greatcircle.o linear_interpolation.o grdfile_io.o m_win.o m_util.o m_winch.o \
         calc_bpf_order.o calc_bpf_coef.o tandem.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 asl_masterevent_ttimecor: AmplitudeSourceLocation_masterevent_ttimecor.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
 	read_sacfile.o raybending.o def_gridpoint.o
-	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS)
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
 
