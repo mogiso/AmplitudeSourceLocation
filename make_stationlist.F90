@@ -11,12 +11,10 @@ program make_stationlist
   
 
   nfile = iargc()
-  nfile = nfile - 1
 
   allocate(sacfile(1 : nfile))
-  call getarg(1, outfile)
-  do i = 2, nfile + 1
-    call getarg(i, sacfile(i - 1))
+  do i = 1, nfile
+    call getarg(i, sacfile(i))
   enddo
 
   allocate(stname(1 : nfile), stlon(1 : nfile), stlat(1 : nfile), stdp(1 : nfile), &
@@ -40,7 +38,7 @@ program make_stationlist
   enddo
 
   do i = 1, nfile
-    print '(2(f9.4, 1x), f5.2, 1x, a8 , 1x, l1, 1x, 5(f3.1, 1x))', &
+    print '(2(f0.4, 1x), f5.2, 1x, a8 , 1x, l1, 1x, 5(f3.1, 1x))', &
     &     stlon(i), stlat(i), stdp(i), stname(i), &
     &     use_flag(i), ttime_cor(1 : 2, i), siteamp(1 : 2, i), noiseamp(i)
   enddo
