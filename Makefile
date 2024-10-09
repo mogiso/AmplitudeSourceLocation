@@ -24,12 +24,14 @@
 ## -DEACH_ERROR: estimate location errors separately in AmplitudeSourceLocation_masterevent.F90 and
 ##               TraveltimeSourceLocation_masterevent.F90
 
-FC = ifx
+FC = gfortran
 
-NETCDF_FORTRAN_INC = /usr/local/intel/include
-NETCDF_FORTRAN_LIB = /usr/local/intel/lib
-LAPACK_INC = /usr/local/include
-LAPACK_LIB = /usr/local/lib
+NETCDF_FORTRAN_INC = /usr/include
+NETCDF_FORTRAN_LIB = /usr/lib
+LAPACK_INC = /usr/include
+LAPACK_LIB = /usr/lib
+LAPACK95_INC = /usr/local/include
+LAPACK95_LIB = /usr/local/lib
 
 ifeq ($(FC), mpif90)
   ##for only asl_dd, assuming Intel Fortran
@@ -57,8 +59,8 @@ else
                   raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90
   ifeq ($(FC), gfortran)
     FFLAGS	= -g -Wall -fbounds-check -fbacktrace
-    OPTS	= -O3
-    DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DRAY_BENDING -DWITHOUT_ERROR
+    OPTS	= -O0
+    DEFS	= -DDOUBLE -DJMA2001 -DTESTDATA -DDAMPED
     INCDIR	= -I. -I${LAPACK_INC} -I${LAPACK95_INC} -I${NETCDF_FORTRAN_INC}
     LIBDIR	= -L${LAPACK_LIB} -L${LAPACK95_LIB} -L${NETCDF_FORTRAN_LIB}
     LIBS	= -lnetcdff -llapack95 -llapack -lblas
@@ -66,7 +68,7 @@ else
     FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -warn all
     #OPTS	= -O3 -xHOST -ipo
     OPTS	= 
-    DEFS	= -DDOUBLE -DV_OFFKII -DEACH_ERROR -DAMP_TXT -DAMP_RATIO -DRAY_BENDING -DWITHOUT_ERROR -DMKL -DSAC
+    DEFS	= -DDOUBLE -DJMA2001 -DMKL -DTESTDATA
     INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
     LIBDIR	= -L${NETCDF_FORTRAN_LIB} -L${MKLROOT}/lib
     LIBS	= -lnetcdff -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread -liomp5 -lpthread -lm -ldl
