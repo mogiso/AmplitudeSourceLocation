@@ -15,7 +15,7 @@ program calc_env_amplitude
   integer :: iarg, nsta, ndate, npts, i, j, k, ios, icount_p, icount_s, ptime_index, stime_index, buf_i
   real(kind = fp) :: sample, avg_offset, stlon, stlat, stdp
   real(kind = fp), allocatable :: wavedata(:), mean_amp_p(:), mean_amp_s(:)
-  real(kind = sp) :: buf, ptime, begin, end, stime
+  real(kind = sp) :: buf, ptime, begin, stime
   real(kind = fp) :: amp_p, amp_timewindow
   character(len = 128) :: stationlist, infile_sac, outfile_p, outfile_s
   character(len = 128), allocatable :: infile(:) 
@@ -57,12 +57,13 @@ program calc_env_amplitude
     if(ios .ne. 0) exit
     nsta = nsta + 1
   enddo
-  rewind(10)
   allocate(stname(nsta), mean_amp_p(nsta), mean_amp_s(nsta))
+  rewind(10)
   do i = 1, nsta
     read(10, *) stlon, stlat, stdp, stname(i)
   enddo
   close(10)
+  print *, "nsta = ", nsta
 
   write(nsta_c, '(i0)') nsta
   cfmt = "(a, " // trim(nsta_c) // "(a, 1x))"
@@ -76,8 +77,9 @@ program calc_env_amplitude
 
   date_loop: do j = 1, ndate
     station_loop: do i = 1, nsta
+      print *, i
 #ifdef TESTDATA
-      infile_sac = trim(infile(j)) // "_" // trim(stname(i)) // "_env_cal.sac"
+      infile_sac = trim(infile(j)) // "." // trim(stname(i)) // ".env_cal.sac"
 #else
       infile_sac = trim(infile(j)) // "." // trim(stname(i)) // "." // trim(cmpnm) // ".sac"
 #endif
@@ -103,20 +105,14 @@ program calc_env_amplitude
         cycle date_loop
       endif
 
+      read(12, rec = 11, iostat = ios) stime
+      if(stime .eq. -12345.0) then
+        close(12)
+        cycle date_loop
+      endif
       read(12, rec = 9, iostat = ios) ptime
-      if(ptime .lt. 0.0 .or. ios .ne. 0) then
-        close(12)
-        cycle date_loop
-      endif
-      read(12, rec = 11) stime
-      if(ptime .eq. -12345.0 .or. stime .eq. -12345.0) then
-        close(12)
-        cycle date_loop
-      endif
       if(ptime .eq. -12345.0) then
         ptime = stime
-      elseif(stime .eq. -12345.0) then
-        stime = stime
       endif
       ptime_index = int((ptime - begin) / real(sample) + 0.5) + 1
       stime_index = int((stime - begin) / real(sample) + 0.5) + 1
