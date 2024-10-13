@@ -1,6 +1,6 @@
 ##Makefile for AmplitudeSourceLocation_Pulsewidth.F90
 ##Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-##Copyright: (c) Masashi Ogiso 2022
+##Copyright: (c) Masashi Ogiso 2024
 ##License  : MIT License (https://opensource.org/licenses/MIT)
 
 ## -DDOUBLE: calculate in double precision (recommended)
@@ -60,7 +60,7 @@ else
   ifeq ($(FC), gfortran)
     FFLAGS	= -g -Wall -fbounds-check -fbacktrace
     OPTS	= -O0
-    DEFS	= -DDOUBLE -DJMA2001 -DTESTDATA -DDAMPED
+    DEFS	= -DDOUBLE -DJMA2001 -DTESTDATA
     INCDIR	= -I. -I${LAPACK_INC} -I${LAPACK95_INC} -I${NETCDF_FORTRAN_INC}
     LIBDIR	= -L${LAPACK_LIB} -L${LAPACK95_LIB} -L${NETCDF_FORTRAN_LIB}
     LIBS	= -lnetcdff -llapack95 -llapack -lblas
@@ -126,9 +126,13 @@ asl_masterevent_shmdump: AmplitudeSourceLocation_masterevent_shmdump.o nrtype.o 
         calc_bpf_order.o calc_bpf_coef.o tandem.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
-asl_masterevent_ttimecor: AmplitudeSourceLocation_masterevent_ttimecor.o nrtype.o constants.o rayshooting.o set_velocity_model.o \
+asl_masterevent_ttimecor: AmplitudeSourceLocation_masterevent_ttimecor.o nrtype.o constants.o set_velocity_model.o \
 	linear_interpolation.o greatcircle.o grdfile_io.o m_win.o m_util.o m_winch.o calc_bpf_order.o calc_bpf_coef.o tandem.o \
 	read_sacfile.o raybending.o def_gridpoint.o
+	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
+
+asl_masterevent_sourceamp: AmplitudeSourceLocation_masterevent_sourceamp.o nrtype.o constants.o set_velocity_model.o \
+	linear_interpolation.o greatcircle.o raybending.o grdfile_io.o geompack3.o def_gridpoint.o
 	$(FC) -o $@ $^ $(OPTS) $(LIBDIR) $(LIBS) $(FFLAGS) $(INCDIR)
 
 calc_env_amplitude: calc_env_amplitude.o nrtype.o constants.o calc_bpf_order.o calc_bpf_coef.o tandem.o
@@ -157,6 +161,10 @@ AmplitudeSourceLocation_masterevent_ttimecor.o: nrtype.o constants.o set_velocit
 					grdfile_io.o m_win.o m_winch.o m_util.o \
 					calc_bpf_order.o calc_bpf_coef.o tandem.o read_sacfile.o def_gridpoint.o
 
+AmplitudeSourceLocation_masterevent_sourceamp.o: nrtype.o constants.o set_velocity_model.o \
+					linear_interpolation.o greatcircle.o raybending.o \
+					grdfile_io.o def_gridpoint.o geompack3.o
+
 rayshooting.o: nrtype.o constants.o greatcircle.o
 raybending.o: nrtype.o constants.o def_gridpoint.o greatcircle.o 
 m_win.o: m_util.o
@@ -166,6 +174,7 @@ lsqr_kinds.o: nrtype.o
 lsqrblas.o: nrtype.o lsqr_kinds.o
 lsqr.o: nrtype.o lsqr_kinds.o lsqrblas.o
 mpi_module.o: nrtype.o
+geompack3.o: nrtype.o
 
 
 
