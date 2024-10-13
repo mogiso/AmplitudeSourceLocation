@@ -73,7 +73,7 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   logical,          allocatable :: eventpair(:, :)
   real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, dist_tmp, freq, vel_mean, qinv_mean, &
   &                                ttime_tmp, matrix_const, siteamp_tmp, mean_residual, sigma_residual, attenuationcoef, &
-  &                                sigma_attenuationcoef
+  &                                sigma_attenuationcoef, mean_vel
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo
   integer                       :: nlon_topo, nlat_topo, nsta, lon_index, lat_index, z_index, i, j, k, ii, jj, kk, &
   &                                icount, nsta_use, ios, ref_evindex, nev_master, neventpair, neventpair_max
@@ -339,7 +339,8 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 
           inversion_matrix(icount, vm(fc(ii, kk))) =  1.0_fp
           inversion_matrix(icount, vm(fc(jj, kk))) = -1.0_fp
-          inversion_matrix(icount, nev_master + 1) = -matrix_const
+          mean_vel = (evloc_master(vm(fc(jj, kk)))%vel + evloc_master(vm(fc(ii, kk)))%vel) * 0.5_fp
+          inversion_matrix(icount, nev_master + 1) = -matrix_const * pi * freq / mean_vel
           obsvector(icount) = log(obsamp_master(i, vm(fc(ii, kk))) / obsamp_master(i, vm(fc(jj, kk)))) &
           &                 + matrix_const / hypodist(i, vm(fc(jj, kk))) 
           icount = icount + 1
