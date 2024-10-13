@@ -72,7 +72,8 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   integer,          allocatable :: ipiv(:)
   logical,          allocatable :: eventpair(:, :)
   real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, dist_tmp, freq, vel_mean, qinv_mean, &
-  &                                ttime_tmp, matrix_const, siteamp_tmp, mean_residual, sigma_residual
+  &                                ttime_tmp, matrix_const, siteamp_tmp, mean_residual, sigma_residual, attenuationcoef, &
+  &                                sigma_attenuationcoef
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo
   integer                       :: nlon_topo, nlat_topo, nsta, lon_index, lat_index, z_index, i, j, k, ii, jj, kk, &
   &                                icount, nsta_use, ios, ref_evindex, nev_master, neventpair, neventpair_max
@@ -306,7 +307,7 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   print *, "neventpair_max = ", neventpair_max, " neventpair = ", neventpair
 
   !!Set up the observation vector and inversion matrix
-  allocate(inversion_matrix(1 : nsta_use * neventpair + 1, 1 : nev_master), obsvector(1 : nsta_use * neventpair + 1))
+  allocate(inversion_matrix(1 : nsta_use * neventpair + 1, 1 : nev_master + 1), obsvector(1 : nsta_use * neventpair + 1))
   allocate(inversion_matrix_org(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)), &
   &        obsvector_org(1 : ubound(obsvector, 1)))
   allocate(evsourceamp(1 : nev_master))
@@ -336,12 +337,11 @@ program AmplitudeSourceLocation_masterevent_sourceamp
           &            + (evloc_master(vm(fc(jj, kk)))%xeast  - evloc_master(vm(fc(ii, kk)))%xeast ) * normal_vector(2) &
           &            + (evloc_master(vm(fc(jj, kk)))%depth  - evloc_master(vm(fc(ii, kk)))%depth ) * normal_vector(3)
 
-          inversion_matrix(icount, vm(fc(ii, kk))) = 1.0_fp
+          inversion_matrix(icount, vm(fc(ii, kk))) =  1.0_fp
           inversion_matrix(icount, vm(fc(jj, kk))) = -1.0_fp
-          vel_mean = (evloc_master(vm(fc(jj, kk)))%vel + evloc_master(vm(fc(ii, kk)))%vel) * 0.5_fp
-          qinv_mean = (evloc_master(vm(fc(jj, kk)))%qinv + evloc_master(vm(fc(ii, kk)))%qinv) * 0.5_fp
+          inversion_matrix(icount, nev_master + 1) = -matrix_const
           obsvector(icount) = log(obsamp_master(i, vm(fc(ii, kk))) / obsamp_master(i, vm(fc(jj, kk)))) &
-          &                 + matrix_const * (1.0_fp / hypodist(i, vm(fc(jj, kk))) + pi * freq * qinv_mean / vel_mean)
+          &                 + matrix_const / hypodist(i, vm(fc(jj, kk))) 
           icount = icount + 1
         enddo
       enddo
@@ -367,19 +367,19 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   mean_residual = 0.0_fp
   do i = 1, nsta_use * neventpair
     mean_residual = mean_residual + obsvector_org(i) &
-    &             - dot_product(inversion_matrix_org(i, 1 : nev_master), obsvector(1 : nev_master))
+    &             - dot_product(inversion_matrix_org(i, 1 : nev_master + 1), obsvector(1 : nev_master + 1))
   enddo
-  mean_residual = mean_residual / real(nsta_use * nev_master, kind = fp)
+  mean_residual = mean_residual / real(nsta_use * neventpair, kind = fp)
   sigma_residual = 0.0_fp
   do i = 1, nsta_use * neventpair
     sigma_residual = sigma_residual &
     &  + (obsvector_org(i) &
-    &  - dot_product(inversion_matrix_org(i, 1 : nev_master), obsvector(1 : nev_master)) &
+    &  - dot_product(inversion_matrix_org(i, 1 : nev_master + 1), obsvector(1 : nev_master + 1)) &
     &  - mean_residual) ** 2
   enddo
   sigma_residual = sigma_residual / real(nsta_use * neventpair - 1, kind = fp)
    
-  allocate(error_matrix(1 : nev_master, 1 : nev_master))
+  allocate(error_matrix(1 : nev_master + 1, 1 : nev_master + 1))
   allocate(ipiv(1 : ubound(error_matrix, 1)))
   error_matrix(:, :) = matmul(transpose(inversion_matrix_org), inversion_matrix_org)
 #if defined (MKL)
@@ -394,10 +394,13 @@ program AmplitudeSourceLocation_masterevent_sourceamp
     evsourceamp(i)%sourceamp = exp(obsvector(i))
     evsourceamp(i)%sigma_sourceamp = sigma_residual * error_matrix(i, i)
   enddo
+  attenuationcoef = obsvector(nev_master + 1)
+  sigma_attenuationcoef = sigma_residual * error_matrix(nev_master + 1, nev_master + 1)
 
   !!output result
   outfile = trim(resultfile) // "_sourceamp.txt"
   open(unit = 10, file = outfile)
+  write(10, '(a, 2(e15.7, 1x))') "Attenuation param = ", attenuationcoef, sigma_attenuationcoef
   do i = 1, nev_master
     write(10, '(i0, 2(1x, e15.7))') i, evsourceamp(i)%sourceamp, evsourceamp(i)%sigma_sourceamp
   enddo
