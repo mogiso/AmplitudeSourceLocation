@@ -1,14 +1,13 @@
 program AmplitudeSourceLocation_masterevent_ttimecor
-  !!Relative amplitude source location (master event)
+  !!Relative amplitude source location (master event) method using multiple reference events
   !!using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
-  !!Copyright: (c) Masashi Ogiso 2020
+  !!Copyright: (c) Masashi Ogiso 2024
   !!License  : MIT License (https://opensource.org/licenses/MIT)
 
   !!-DWIN: use win-formatted waveform file for input
   !!-DSAC: use sac-formatted(binary) waveform file  for input
   !!default: txt format
-  !!-DWITHOUT_ERROR: do not calculate estimation errors
 
   !!calculate traveltime correction table for determining events which
   !interevent distance are long
@@ -727,7 +726,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
             data_residual(k) = residual_sum
             inversion_matrix_min(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) &
             &  = inversion_matrix_org(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2))
-            obsvector_min(1 : ubound(obsvector, 1)) = obsvector_org(1 : ubound(obsvector, 1))
+            obsvector_min(1 : ubound(obsvector, 1)) = obsvector(1 : ubound(obsvector, 1))
             evloc_sub(k)%ynorth = obsvector(1)
             evloc_sub(k)%xeast  = obsvector(2)
             evloc_sub(k)%depth  = obsvector(3)
@@ -748,15 +747,15 @@ program AmplitudeSourceLocation_masterevent_ttimecor
     !!calculate residual and its variance
     mean_residual = 0.0_fp
     do i = 1, nsta_use_tmp(k) * nev_master
-      mean_residual = mean_residual + obsvector_min(i) &
+      mean_residual = mean_residual + obsvector_org(i) &
       &             - dot_product(inversion_matrix_min(i, 1 : 3 + nev_master), obsvector_min(1 : 3 + nev_master))
     enddo
     mean_residual = mean_residual / real(nsta_use_tmp(k) * nev_master, kind = fp)
     sigma_residual = 0.0_fp
     do i = 1, nsta_use_tmp(k) * nev_master
       sigma_residual = sigma_residual &
-      &                 + (dot_product(inversion_matrix_min(i, 1 : 3 + nev_master), obsvector_min(1 : 3 + nev_master)) &
-      &                 - mean_residual) ** 2
+      &  + (obsvector_org(i) - dot_product(inversion_matrix_min(i, 1 : 3 + nev_master), obsvector_min(1 : 3 + nev_master)) &
+      &  - mean_residual) ** 2
     enddo
     sigma_residual = sigma_residual / real(nsta_use_tmp(k) * nev_master - 1, kind = fp)
    
