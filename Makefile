@@ -60,7 +60,7 @@ else
   ifeq ($(FC), gfortran)
     FFLAGS	= -g -Wall -fbounds-check -fbacktrace
     OPTS	= -O0
-    DEFS	= -DDOUBLE -DJMA2001 -DTESTDATA
+    DEFS	= -DDOUBLE -DJMA2001 -DSAC -DDAMPED
     INCDIR	= -I. -I${LAPACK_INC} -I${LAPACK95_INC} -I${NETCDF_FORTRAN_INC}
     LIBDIR	= -L${LAPACK_LIB} -L${LAPACK95_LIB} -L${NETCDF_FORTRAN_LIB}
     LIBS	= -lnetcdff -llapack95 -llapack -lblas
@@ -68,7 +68,7 @@ else
     FFLAGS 	= -g -traceback -assume byterecl -mcmodel=large -CB -warn all
     #OPTS	= -O3 -xHOST -ipo
     OPTS	= 
-    DEFS	= -DDOUBLE -DJMA2001 -DMKL -DTESTDATA
+    DEFS	= -DDOUBLE -DJMA2001 -DMKL -DTESTDATA -DDAMPED
     INCDIR	= -I. -I${NETCDF_FORTRAN_INC} -I${MKLROOT}/include/intel64/lp64
     LIBDIR	= -L${NETCDF_FORTRAN_LIB} -L${MKLROOT}/lib
     LIBS	= -lnetcdff -lmkl_core -lmkl_intel_lp64 -lmkl_lapack95_lp64 -lmkl_intel_thread -liomp5 -lpthread -lm -ldl
