@@ -62,7 +62,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   !!traveltime correction table
   real(kind = fp),    parameter :: lon_cor_w = 130.4_fp, lon_cor_e = 131.7_fp
   real(kind = fp),    parameter :: lat_cor_s = 32.4_fp,  lat_cor_n = 33.2_fp
-  real(kind = fp),    parameter :: z_cor_min = 5.0_fp,   z_cor_max = 10.0_fp
+  real(kind = fp),    parameter :: z_cor_min = 3.0_fp,   z_cor_max = 20.0_fp
   real(kind = fp),    parameter :: dlon_cor = 0.05_fp, dlat_cor = 0.05_fp, dz_cor = 1.0_fp
   integer,            parameter :: nlon_cor = int((lon_cor_e - lon_cor_w) / dlon_cor) + 1
   integer,            parameter :: nlat_cor = int((lat_cor_n - lat_cor_s) / dlat_cor) + 1
@@ -81,8 +81,11 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 #endif
 
 #if defined (SAC) /* use sac-format wavefome files (NVHDR=6) */
-  !real(kind = dp),    parameter   :: order = 1.0e+6_dp
+#if defined (TESTDATA)
   real(kind = dp),    parameter   :: order = 1.0_dp
+#else
+  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+#endif
   character(len = 3), parameter   :: sacfile_extension = "sac"
   real(kind = dp),    allocatable :: waveform_obs(:, :)
   real(kind = fp),    allocatable :: begin(:), sampling(:), stime(:)
@@ -124,13 +127,13 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   &                                obsvector(:), obsvector_org(:), obsvector_min(:), &
   &                                inversion_matrix(:, :), inversion_matrix_org(:, :), inversion_matrix_min(:, :), &
   &                                data_residual(:), error_matrix(:, :)
-  integer,          allocatable :: ipiv(:), nsta_use_tmp(:), evindex_master(:, :, :, :)
+  integer,          allocatable :: ipiv(:), nsta_use_min(:), evindex_master(:, :, :, :)
   real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, lon_tmp, lat_tmp, depth_tmp, dist_tmp, &
   &                                ttime_tmp, ttime_maxval, matrix_const, &
   &                                siteamp_tmp, residual_sum, mean_residual, sigma_residual, sigma_lat, sigma_lon
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nev_master_max, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata
+  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata, nsta_use_tmp
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile, resultfile_tmp
   character(len = 20)           :: cfmt, nsta_c
   character(len = 3)            :: nev_master_t
@@ -350,23 +353,16 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   !!read waveform data from sac
   allocate(stime(1 : nsta))
   do i = 1, nsta
-#if defined (TESTDATA)
-    sacfile = trim(sacfile_index) // trim(stname(i)) // ".env_cal." // sacfile_extension
-#else
     sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
-#endif
     call read_sachdr(sacfile, delta=sampling(i), npts=npts(i), begin=begin(i), t0=stime(i))
   enddo
   allocate(waveform_obs(maxval(npts), nsta))
   do i = 1, nsta
-#if defined (TESTDATA)
-    sacfile = trim(sacfile_index) // trim(stname(i)) // ".env_cal." // sacfile_extension
-#else
     sacfile = trim(sacfile_index) // "." // trim(stname(i)) // "." // trim(cmpnm) // "." // sacfile_extension
-#endif
     call read_sacdata(sacfile, npts(i), waveform_obs(:, i))
     waveform_obs(1 : npts(i), i) = waveform_obs(1 : npts(i), i) * order
   enddo
+
 #endif
 
 #if defined (TESTDATA)
@@ -558,12 +554,13 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   enddo count_loop
   write(0, '(a, i0)') "nsubevent = ", nsubevent
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
-  allocate(data_residual(1 : nsubevent), nsta_use_tmp(1 : nsubevent))
+  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent))
   do j = 1, nsta
     obsamp_noise(j) = 0.0_fp
     icount = 0
     do i = int(rms_tw / sampling(j)) + 1, int(rms_tw / sampling(j)) * 2 
       obsamp_noise(j) = obsamp_noise(j) + waveform_obs(i, j) ** 2
+      icount = icount + 1
     enddo
     obsamp_noise(j) = sqrt(obsamp_noise(j) / real(icount, kind = fp))
   enddo
@@ -581,7 +578,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   rewind(10)
   read(10, *)
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
-  allocate(data_residual(1 : nsubevent), nsta_use_tmp(1 : nsubevent))
+  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
@@ -606,17 +603,19 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
   do k = 1, nsubevent
     data_residual(k) = huge
+    nsta_use_min(k) = 0
 
+    write(0, '(a, i0)') "k = ", k
 !!loop for location
     do kk = 1, nz_cor
       do jj = 1, nlat_cor
         do ii = 1, nlon_cor
  
 #if defined (WIN) || defined (SAC)
-          ot_tmp = ot_begin + ot_shift * real(k - 1, kind = fp)
           do j = 1, nsta
             obsamp_sub(j, k) = 0.0_dp
             icount = 0
+            ot_tmp = ot_begin + ot_shift * real(k - 1, kind = fp)
             do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
               time_index = int((ot_tmp - begin(j) &
               &               + ttime(j, evindex_master(1, ii, jj, kk)) &
@@ -632,8 +631,6 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
           !!check sn ratio
           use_flag_tmp(1 : nsta) = .false.
-          nsta_use_tmp(k) = 0
-
           icount = 0
           do i = 1, nsta
             if(use_flag(i) .eqv. .false.) then
@@ -653,30 +650,31 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           inversion_matrix(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) = 0.0_fp
           obsvector(1 : ubound(obsvector, 1)) = 0.0_fp
           icount = 1
-          do i = 1, nsta
-            if(use_flag(i) .eqv. .false.) cycle
-            nsta_use_tmp(k) = nsta_use_tmp(k) + 1
+          nsta_use_tmp = 0
+          do j = 1, nsta
+            if(use_flag(j) .eqv. .false.) cycle
+            nsta_use_tmp = nsta_use_tmp + 1
 
-            if(use_flag_tmp(i) .eqv. .true.) then
-              do k2 = 1, nev_master
-                normal_vector(1 : 3) = [sin(ray_azinc(2, i, evindex_master(k2, ii, jj, kk)))  &
-                &                     * cos(ray_azinc(1, i, evindex_master(k2, ii, jj, kk))), &  !!latitude (ynorth)
-                &                       sin(ray_azinc(2, i, evindex_master(k2, ii, jj, kk)))  &
-                &                     * sin(ray_azinc(1, i, evindex_master(k2, ii, jj, kk))), &  !!longitude (xeast)
-                &                       cos(ray_azinc(2, i, evindex_master(k2, ii, jj, kk)))]    !!depth (down+)
-                matrix_const = pi * freq * evloc_master(evindex_master(k2, ii, jj, kk))%qinv &
-                &                        / evloc_master(evindex_master(k2, ii, jj, kk))%vel  &
-                &                        + 1.0_fp / hypodist(i, evindex_master(k2, ii, jj, kk))
+            if(use_flag_tmp(j) .eqv. .true.) then
+              do i = 1, nev_master
+                normal_vector(1 : 3) = [sin(ray_azinc(2, j, evindex_master(i, ii, jj, kk)))  &
+                &                     * cos(ray_azinc(1, j, evindex_master(i, ii, jj, kk))), &  !!latitude (ynorth)
+                &                       sin(ray_azinc(2, j, evindex_master(i, ii, jj, kk)))  &
+                &                     * sin(ray_azinc(1, j, evindex_master(i, ii, jj, kk))), &  !!longitude (xeast)
+                &                       cos(ray_azinc(2, j, evindex_master(i, ii, jj, kk)))]    !!depth (down+)
+                matrix_const = pi * freq * evloc_master(evindex_master(i, ii, jj, kk))%qinv &
+                &                        / evloc_master(evindex_master(i, ii, jj, kk))%vel  &
+                &                        + 1.0_fp / hypodist(j, evindex_master(i, ii, jj, kk))
                 inversion_matrix(icount, 1) = 1.0_fp * matrix_const * normal_vector(1)
                 inversion_matrix(icount, 2) = 1.0_fp * matrix_const * normal_vector(2)
                 inversion_matrix(icount, 3) = 1.0_fp * matrix_const * normal_vector(3)
-                inversion_matrix(icount, 3 + k2) = 1.0_fp
+                inversion_matrix(icount, 3 + i) = 1.0_fp
 
                 obsvector(icount) &
-                &  = log(obsamp_sub(i, k) / obsamp_master(i, evindex_master(k2, ii, jj, kk))) &
-                &  +     matrix_const * (evloc_master(evindex_master(k2, ii, jj, kk))%ynorth * normal_vector(1) &
-                &                     +  evloc_master(evindex_master(k2, ii, jj, kk))%xeast  * normal_vector(2) &
-                &                     +  evloc_master(evindex_master(k2, ii, jj, kk))%depth  * normal_vector(3))
+                &  = log(obsamp_sub(j, k) / obsamp_master(j, evindex_master(i, ii, jj, kk))) &
+                &  +     matrix_const * (evloc_master(evindex_master(i, ii, jj, kk))%ynorth * normal_vector(1) &
+                &                     +  evloc_master(evindex_master(i, ii, jj, kk))%xeast  * normal_vector(2) &
+                &                     +  evloc_master(evindex_master(i, ii, jj, kk))%depth  * normal_vector(3))
 
                 icount = icount + 1
               enddo
@@ -724,6 +722,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           print *, ii, jj, kk, residual_sum, icount
           if(residual_sum .lt. data_residual(k)) then
             data_residual(k) = residual_sum
+            nsta_use_min(k)  = nsta_use_tmp
             inversion_matrix_min(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) &
             &  = inversion_matrix_org(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2))
             obsvector_min(1 : ubound(obsvector, 1)) = obsvector(1 : ubound(obsvector, 1))
@@ -738,6 +737,8 @@ program AmplitudeSourceLocation_masterevent_ttimecor
         enddo  !!lon
       enddo    !!lat
     enddo      !!dep
+    if(nsta_use_min(k) .lt. nsta_use_minimum) cycle
+
     evloc_sub(k)%lat = mean_lat + (evloc_sub(k)%ynorth / (r_earth - mean_depth) * rad2deg)
     evloc_sub(k)%lon = mean_lon &
     &                + ((evloc_sub(k)%xeast / ((r_earth - mean_depth) * sin(pi * 0.5_fp - mean_lat * deg2rad))) * rad2deg)
@@ -746,18 +747,18 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
     !!calculate residual and its variance
     mean_residual = 0.0_fp
-    do i = 1, nsta_use_tmp(k) * nev_master
+    do i = 1, nsta_use_min(k) * nev_master
       mean_residual = mean_residual + obsvector_org(i) &
       &             - dot_product(inversion_matrix_min(i, 1 : 3 + nev_master), obsvector_min(1 : 3 + nev_master))
     enddo
-    mean_residual = mean_residual / real(nsta_use_tmp(k) * nev_master, kind = fp)
+    mean_residual = mean_residual / real(nsta_use_min(k) * nev_master, kind = fp)
     sigma_residual = 0.0_fp
-    do i = 1, nsta_use_tmp(k) * nev_master
+    do i = 1, nsta_use_min(k) * nev_master
       sigma_residual = sigma_residual &
       &  + (obsvector_org(i) - dot_product(inversion_matrix_min(i, 1 : 3 + nev_master), obsvector_min(1 : 3 + nev_master)) &
       &  - mean_residual) ** 2
     enddo
-    sigma_residual = sigma_residual / real(nsta_use_tmp(k) * nev_master - 1, kind = fp)
+    sigma_residual = sigma_residual / real(nsta_use_min(k) * nev_master - 1, kind = fp)
    
     allocate(error_matrix(1 : 3 + nev_master, 1 : 3 + nev_master))
     allocate(ipiv(1 : ubound(error_matrix, 1)))
@@ -794,7 +795,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
     write(10, '(7(e15.8, 1x), i0, 1x, f7.1)') &
     &          evloc_sub(i)%lon, sigma_lon, &
     &          evloc_sub(i)%lat, sigma_lat, &
-    &          evloc_sub(i)%depth, evloc_sub(i)%sigma_depth, data_residual(i), nsta_use_tmp(i), ot_tmp
+    &          evloc_sub(i)%depth, evloc_sub(i)%sigma_depth, data_residual(i), nsta_use_min(i), ot_tmp
 
     write(0, '(a, i0, a, f8.1)')  "subevent index = ", i, " ot_tmp = ", ot_tmp
     write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evloc_sub(i)%lon, sigma_lon
@@ -810,7 +811,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
     write(10, '(7(e15.8, 1x), i0)') &
     &          evloc_sub(i)%lon, sigma_lon, &
     &          evloc_sub(i)%lat, sigma_lat, &
-    &          evloc_sub(i)%depth, evloc_sub(i)%sigma_depth, data_residual(i), nsta_use_tmp(i)
+    &          evloc_sub(i)%depth, evloc_sub(i)%sigma_depth, data_residual(i), nsta_use_min(i)
     write(0, '(a, i0)')  "subevent index = ", i
     write(0, '(a, 2(e14.7, 1x))') "longitude and sigma_lon = ", evloc_sub(i)%lon, sigma_lon
     write(0, '(a, 2(e14.7, 1x))') "latitude and sigma_lat = ",  evloc_sub(i)%lat, sigma_lat
