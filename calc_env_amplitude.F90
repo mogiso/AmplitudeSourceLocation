@@ -15,12 +15,12 @@ program calc_env_amplitude
   integer :: iarg, nsta, ndate, npts, i, j, k, ios, icount_p, icount_s, ptime_index, stime_index, buf_i
   real(kind = fp) :: sample, avg_offset, stlon, stlat, stdp
   real(kind = fp), allocatable :: wavedata(:), mean_amp_p(:), mean_amp_s(:)
-  real(kind = sp) :: buf, ptime, begin, stime
-  real(kind = fp) :: amp_p, amp_timewindow
+  real(kind = sp) :: buf, ptime, begin, stime, stime1, stime2, evla, evlo, evdp
+  real(kind = fp) :: amp_timewindow
   character(len = 128) :: stationlist, infile_sac, outfile_p, outfile_s
   character(len = 128), allocatable :: infile(:) 
   character(len = 6),   allocatable :: stname(:)
-  character(len = 4) :: header(158), nsta_c
+  character(len = 4) :: nsta_c
   character(len = 20) :: cfmt, amp_timewindow_t, cmpnm
 
   !!filter variables
@@ -105,7 +105,13 @@ program calc_env_amplitude
         cycle date_loop
       endif
 
-      read(12, rec = 11, iostat = ios) stime
+      read(12, rec = 11, iostat = ios) stime1
+      read(12, rec = 13, iostat = ios) stime2
+      if(stime2 .eq. -12345.0) then
+        stime = stime1
+      else
+        stime = stime2
+      endif
       if(stime .eq. -12345.0) then
         close(12)
         cycle date_loop
@@ -116,6 +122,9 @@ program calc_env_amplitude
       endif
       ptime_index = int((ptime - begin) / real(sample) + 0.5) + 1
       stime_index = int((stime - begin) / real(sample) + 0.5) + 1
+      read(12, rec = 36) evla
+      read(12, rec = 37) evlo
+      read(12, rec = 39) evdp
       write(0, '(a, f0.2)') "begin = ", begin
       write(0, '(a, 2(i0, 1x))') "(P|S)time index = ", ptime_index, stime_index
 
@@ -162,6 +171,7 @@ program calc_env_amplitude
 
       deallocate(wavedata)
     enddo station_loop
+    write(30, '(2(e15.7, 1x), f5.2)') evlo, evla, evdp
     write(30, trim(cfmt)) (mean_amp_p(i), i = 1, nsta), trim(infile(j))
     write(31, trim(cfmt)) (mean_amp_s(i), i = 1, nsta), trim(infile(j))
 
