@@ -31,7 +31,7 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   integer,            parameter :: nsta_use_minimum = 5
-  real(kind = fp),    parameter :: ratio_dist_max = 10.0_fp
+  real(kind = fp),    parameter :: ratio_dist_max = 20.0_fp
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
