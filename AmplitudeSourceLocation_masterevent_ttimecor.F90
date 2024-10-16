@@ -62,8 +62,8 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   !!traveltime correction table
   real(kind = fp),    parameter :: lon_cor_w = 130.4_fp, lon_cor_e = 131.7_fp
   real(kind = fp),    parameter :: lat_cor_s = 32.4_fp,  lat_cor_n = 33.2_fp
-  real(kind = fp),    parameter :: z_cor_min = 3.0_fp,   z_cor_max = 20.0_fp
-  real(kind = fp),    parameter :: dlon_cor = 0.05_fp, dlat_cor = 0.05_fp, dz_cor = 1.0_fp
+  real(kind = fp),    parameter :: z_cor_min = 2.0_fp,   z_cor_max = 20.0_fp
+  real(kind = fp),    parameter :: dlon_cor = 0.02_fp, dlat_cor = 0.02_fp, dz_cor = 2.0_fp
   integer,            parameter :: nlon_cor = int((lon_cor_e - lon_cor_w) / dlon_cor) + 1
   integer,            parameter :: nlat_cor = int((lat_cor_n - lat_cor_s) / dlat_cor) + 1
   integer,            parameter :: nz_cor   = int((z_cor_max - z_cor_min) / dz_cor)   + 1
@@ -510,7 +510,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           &                    velocity(:, :, :, wavetype), lon_str_w, lat_str_s, z_str_min, dlon_str, dlat_str, dz_str, &
           &                    ttime_loc_cor(jj, i, j, k))
           !!use travel time of closest master event
-          ttime_loc_cor(jj, i, j, k) = ttime_loc_cor(jj, i, j, k) - ttime(jj, evindex_master(1, i, j, k))
+          !ttime_loc_cor(jj, i, j, k) = ttime_loc_cor(jj, i, j, k) - ttime(jj, evindex_master(1, i, j, k))
         enddo  !!station loop
       enddo    !!longitude loop
     enddo      !!latitude loop
@@ -541,7 +541,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   !!count nsubevent
   nsubevent = 0
   ot_tmp = ot_begin
-  ttime_maxval = maxval(ttime) + maxval(ttime_loc_cor)
+  ttime_maxval = maxval(ttime_loc_cor)
   count_loop: do
     if(ot_tmp .gt. ot_end) exit
     do i = 1, nsta
@@ -618,7 +618,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
             ot_tmp = ot_begin + ot_shift * real(k - 1, kind = fp)
             do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
               time_index = int((ot_tmp - begin(j) &
-              &               + ttime(j, evindex_master(1, ii, jj, kk)) &
+              !&               + ttime(j, evindex_master(1, ii, jj, kk)) &
               &               + ttime_loc_cor(j, ii, jj, kk)) / sampling(j) + 0.5_fp) + i
               if(time_index .ge. 1 .and. time_index .le. npts(j)) then
                 obsamp_sub(j, k) = obsamp_sub(j, k) + waveform_obs(time_index, j) ** 2
@@ -719,7 +719,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           enddo
           residual_sum = residual_sum / real(icount, kind = dp)
           if(icount .lt. nsta) residual_sum = real(huge, kind = dp)
-          print *, ii, jj, kk, residual_sum, icount
+          !print *, ii, jj, kk, residual_sum, icount
           if(residual_sum .lt. data_residual(k)) then
             data_residual(k) = residual_sum
             nsta_use_min(k)  = nsta_use_tmp
