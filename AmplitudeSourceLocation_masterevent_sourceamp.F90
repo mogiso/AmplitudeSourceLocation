@@ -31,7 +31,6 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   integer,            parameter :: nsta_use_minimum = 5
-  real(kind = fp),    parameter :: ratio_dist_max = 20.0_fp
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -71,14 +70,14 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   &                                inversion_matrix(:, :), inversion_matrix_org(:, :), error_matrix(:, :)
   integer,          allocatable :: ipiv(:)
   logical,          allocatable :: eventpair(:, :)
-  real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, dist_tmp, freq, vel_mean, qinv_mean, &
+  real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, dist_tmp, freq, &
   &                                ttime_tmp, matrix_const, siteamp_tmp, mean_residual, sigma_residual, attenuationcoef, &
-  &                                sigma_attenuationcoef, mean_vel
+  &                                sigma_attenuationcoef, mean_vel, ratio_dist_max
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo
   integer                       :: nlon_topo, nlat_topo, nsta, lon_index, lat_index, z_index, i, j, k, ii, jj, kk, &
   &                                icount, nsta_use, ios, ref_evindex, nev_master, neventpair, neventpair_max
   character(len = 129)          :: topo_grd, station_param, masterevent_param, resultfile, outfile
-  character(len = 20)           :: freq_t
+  character(len = 20)           :: freq_t, ratio_dist_max_t
   character(len = 3)            :: ref_evindex_t
 
   !!Psuedobending parameters
@@ -99,10 +98,10 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 
   icount = iargc()
 
-  if(icount .ne. 6) then
+  if(icount .ne. 7) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent_sourceamp "
     write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) "
-    write(0, '(a)')               "(frequency) (reference event index) (result_file)"
+    write(0, '(a)')               "(frequency) (reference event index) (maximum_interevent_distance) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
@@ -110,7 +109,8 @@ program AmplitudeSourceLocation_masterevent_sourceamp
   call getarg(3, masterevent_param)
   call getarg(4, freq_t); read(freq_t, *) freq
   call getarg(5, ref_evindex_t); read(ref_evindex_t, *) ref_evindex
-  call getarg(6, resultfile)
+  call getarg(6, ratio_dist_max_t); read(ratio_dist_max_t, *) ratio_dist_max
+  call getarg(7, resultfile)
 
   !!set velocity/attenuation structure
   call set_velocity(z_str_min, dz_str, velocity, qinv)
@@ -359,10 +359,11 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 
   !!calculate least-squares solution
 #if defined (MKL)
-  call gels(inversion_matrix(:, :) , obsvector(:))
+  call gels(inversion_matrix(:, :) , obsvector(:), info = ierr)
 #else
-  call la_gels(inversion_matrix(:, :), obsvector(:))
+  call la_gels(inversion_matrix(:, :), obsvector(:), info = ierr)
 #endif
+  if(ierr .ne. 0) write(0, '(a, i0)') "LA_GELS error info = ", ierr
 
   !!calculate residual and its variance
   mean_residual = 0.0_fp
@@ -392,7 +393,7 @@ program AmplitudeSourceLocation_masterevent_sourceamp
 #endif
 
   do i = 1, nev_master
-    evsourceamp(i)%sourceamp = exp(obsvector(i))
+    evsourceamp(i)%sourceamp = (obsvector(i))
     evsourceamp(i)%sigma_sourceamp = sigma_residual * error_matrix(i, i)
   enddo
   attenuationcoef = obsvector(nev_master + 1)
