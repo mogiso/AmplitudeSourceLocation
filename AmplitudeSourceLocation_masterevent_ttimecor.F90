@@ -61,9 +61,9 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
   !!traveltime correction table
   real(kind = fp),    parameter :: lon_cor_w = 130.4_fp, lon_cor_e = 131.7_fp
-  real(kind = fp),    parameter :: lat_cor_s = 32.4_fp,  lat_cor_n = 33.2_fp
+  real(kind = fp),    parameter :: lat_cor_s = 32.4_fp,  lat_cor_n = 33.5_fp
   real(kind = fp),    parameter :: z_cor_min = 2.0_fp,   z_cor_max = 20.0_fp
-  real(kind = fp),    parameter :: dlon_cor = 0.02_fp, dlat_cor = 0.02_fp, dz_cor = 2.0_fp
+  real(kind = fp),    parameter :: dlon_cor = 0.04_fp, dlat_cor = 0.04_fp, dz_cor = 2.0_fp
   integer,            parameter :: nlon_cor = int((lon_cor_e - lon_cor_w) / dlon_cor) + 1
   integer,            parameter :: nlat_cor = int((lat_cor_n - lat_cor_s) / dlat_cor) + 1
   integer,            parameter :: nz_cor   = int((z_cor_max - z_cor_min) / dz_cor)   + 1
@@ -84,7 +84,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 #if defined (TESTDATA)
   real(kind = dp),    parameter   :: order = 1.0_dp
 #else
-  real(kind = dp),    parameter   :: order = 1.0e+6_dp
+  real(kind = dp),    parameter   :: order = 1.0_dp
 #endif
   character(len = 3), parameter   :: sacfile_extension = "sac"
   real(kind = dp),    allocatable :: waveform_obs(:, :)
@@ -516,19 +516,19 @@ program AmplitudeSourceLocation_masterevent_ttimecor
     enddo      !!latitude loop
   enddo        !!depth loop
 
-  !open(unit = 10, file = "ttime_cor_table.txt")
-  !do kk = 1, nz_cor
-  !  depth_tmp = z_cor_min + dz_cor * real(kk - 1, kind = fp)
-  !  do jj = 1, nlat_cor
-  !    lat_tmp = lat_cor_s + dlat_cor * real(jj - 1, kind = fp)
-  !    do ii = 1, nlon_cor
-  !      lon_tmp = lon_cor_e + dlon_cor * real(ii - 1, kind = fp)
-  !      write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
-  !    enddo
-  !    write(10, *) ""
-  !  enddo
-  !enddo
-  !close(10)
+  open(unit = 10, file = "ttime_cor_table.txt")
+  do kk = 1, nz_cor
+    depth_tmp = z_cor_min + dz_cor * real(kk - 1, kind = fp)
+    do jj = 1, nlat_cor
+      lat_tmp = lat_cor_s + dlat_cor * real(jj - 1, kind = fp)
+      do ii = 1, nlon_cor
+        lon_tmp = lon_cor_w + dlon_cor * real(ii - 1, kind = fp)
+        write(10, '(4(f8.4, 1x))') lon_tmp, lat_tmp, depth_tmp, ttime_loc_cor(1, ii, jj, kk)
+      enddo
+      write(10, *) ""
+    enddo
+  enddo
+  close(10)
   !stop
 
 #if defined (WITHOUT_TTIME)
@@ -541,10 +541,10 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   !!count nsubevent
   nsubevent = 0
   ot_tmp = ot_begin
-  ttime_maxval = maxval(ttime_loc_cor)
   count_loop: do
     if(ot_tmp .gt. ot_end) exit
     do i = 1, nsta
+      ttime_maxval = maxval(ttime_loc_cor(i, :, :, :))
       if(int((ot_tmp - begin(i) + ttime_maxval + rms_tw) / sampling(i) + 0.5_fp) .gt. npts(i)) then
         exit count_loop
       endif
@@ -606,6 +606,11 @@ program AmplitudeSourceLocation_masterevent_ttimecor
     nsta_use_min(k) = 0
 
     write(0, '(a, i0)') "k = ", k
+#if defined (WIN) || defined (SAC)
+    ot_tmp = ot_begin + ot_shift * real(k - 1, kind = fp)
+    write(0, '(a, f8.1)') "origin time = ", ot_tmp
+#endif
+
 !!loop for location
     do kk = 1, nz_cor
       do jj = 1, nlat_cor
@@ -615,7 +620,6 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           do j = 1, nsta
             obsamp_sub(j, k) = 0.0_dp
             icount = 0
-            ot_tmp = ot_begin + ot_shift * real(k - 1, kind = fp)
             do i = 1, int(rms_tw / sampling(j) + 0.5_fp)
               time_index = int((ot_tmp - begin(j) &
               !&               + ttime(j, evindex_master(1, ii, jj, kk)) &

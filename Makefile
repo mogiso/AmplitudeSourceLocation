@@ -58,8 +58,10 @@ else
 		  itoa.F90 grdfile_io.F90 m_util.f90 constants.F90 rayshooting.F90 read_sacfile.F90 read_shmdump.F90 \
                   raybending.F90 def_gridpoint.F90 lsqr_kinds.f90 lsqrblas.f90 lsqr.f90
   ifeq ($(FC), gfortran)
-    FFLAGS	= -g -Wall -fbounds-check -fbacktrace
-    OPTS	= -O0
+    #FFLAGS	= -g -Wall -fbounds-check -fbacktrace
+    #OPTS	= -O0
+    FFLAGS	= -Wall 
+    OPTS	= -O2
     DEFS	= -DDOUBLE -DJMA2001 -DSAC -DDAMPED
     INCDIR	= -I. -I${LAPACK_INC} -I${LAPACK95_INC} -I${NETCDF_FORTRAN_INC}
     LIBDIR	= -L${LAPACK_LIB} -L${LAPACK95_LIB} -L${NETCDF_FORTRAN_LIB}
