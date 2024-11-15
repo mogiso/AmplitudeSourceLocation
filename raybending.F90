@@ -241,13 +241,13 @@ contains
     &            + (velocity(lon_index + 1, lat_index + 1, z_index)     - velocity(lon_index + 1, lat_index, z_index)) &
     &            + (velocity(lon_index, lat_index + 1, z_index + 1)     - velocity(lon_index, lat_index, z_index + 1)) &
     &            + (velocity(lon_index + 1, lat_index + 1, z_index + 1) - velocity(lon_index + 1, lat_index, z_index + 1))
-    grad_vmid(2) = grad_vmid(2) * (-0.25_fp) / (dlat * node_mid%r)
+    grad_vmid(2) = grad_vmid(2) * (-0.25_fp) / (dlat * deg2rad * node_mid%r)
 
     grad_vmid(3) = (velocity(lon_index + 1, lat_index, z_index)         - velocity(lon_index, lat_index, z_index)) &
     &            + (velocity(lon_index + 1, lat_index + 1, z_index)     - velocity(lon_index, lat_index + 1, z_index)) &
     &            + (velocity(lon_index + 1, lat_index, z_index + 1)     - velocity(lon_index, lat_index, z_index + 1)) &
     &            + (velocity(lon_index + 1, lat_index + 1, z_index + 1) - velocity(lon_index, lat_index + 1, z_index + 1))
-    grad_vmid(3) = grad_vmid(3) * 0.25_fp / (dlon * node_mid%r * sin(node_mid%theta))
+    grad_vmid(3) = grad_vmid(3) * 0.25_fp / (dlon * deg2rad * node_mid%r * sin(node_mid%theta))
 
     !!calculate normal vector of ray at node_mid
     if(grad_vmid(1) ** 2 + grad_vmid(2) ** 2 + grad_vmid(3) ** 2 .eq. 0.0_fp) then
