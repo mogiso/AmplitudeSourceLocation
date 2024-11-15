@@ -590,8 +590,10 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
   !!Set up the observation vector and inversion matrix
 #if defined (DAMPED)
-  allocate(inversion_matrix(1 : nsta_use * nev_master + 3 * nev_master, 1 : 3 + nev_master), &
-  &               obsvector(1 : nsta_use * nev_master + 3 * nev_master))
+  !allocate(inversion_matrix(1 : nsta_use * nev_master + 3 * nev_master, 1 : 3 + nev_master), &
+  !&               obsvector(1 : nsta_use * nev_master + 3 * nev_master))
+  allocate(inversion_matrix(1 : nsta_use * nev_master + 1, 1 : 3 + nev_master), &
+  &               obsvector(1 : nsta_use * nev_master + 1))
 #else
   allocate(inversion_matrix(1 : nsta_use * nev_master, 1 : 3 + nev_master), &
   &               obsvector(1 : nsta_use * nev_master))
@@ -687,15 +689,17 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           ndata = icount - 1
 
 #if defined (DAMPED)
-          do j = 1, nev_master
-            do i = 1, 3
-              if(i .eq. 3) then
-                inversion_matrix(icount, i) = 1.0_fp
-                obsvector(icount) = evloc_master(evindex_master(j, ii, jj, kk))%depth
-              endif
-              icount = icount + 1
-            enddo
-          enddo
+          !do j = 1, nev_master
+          !  do i = 1, 3
+          !    if(i .eq. 3) then
+          !      inversion_matrix(icount, i) = 1.0_fp
+          !      obsvector(icount) = evloc_master(evindex_master(j, ii, jj, kk))%depth
+          !    endif
+          !    icount = icount + 1
+          !  enddo
+          !enddo
+          inversion_matrix(icount, i) = 1.0_fp
+          obsvector(icount) = z_cor_min + dz_cor * real(kk, kind = fp)
 #endif
 
           !!copy observation vector and inversion matrix
