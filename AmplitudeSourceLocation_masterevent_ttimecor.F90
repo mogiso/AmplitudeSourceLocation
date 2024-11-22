@@ -49,6 +49,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   integer,            parameter :: wavetype = 2          !!1 for P-wave, 2 for S-wave
   integer,            parameter :: nsta_use_minimum = 5
   real(kind = fp),    parameter :: snratio_accept = 0.0_fp
+  real(kind = fp),    parameter :: damp_weight = 0.1_fp
   !!Range for velocity and attenuation structure
   !!whole Japan
   real(kind = fp),    parameter :: lon_str_w = 122.0_fp, lon_str_e = 150.0_fp
@@ -126,15 +127,17 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   &                                hypodist(:, :), ray_azinc(:, :, :), evdist_master(:), &
   &                                obsvector(:), obsvector_org(:), obsvector_min(:), &
   &                                inversion_matrix(:, :), inversion_matrix_org(:, :), inversion_matrix_min(:, :), &
-  &                                data_residual(:), error_matrix(:, :)
+  &                                data_residual(:), error_matrix(:, :), evamp_tmp(:), evamp_master_ratio(:)
   integer,          allocatable :: ipiv(:), nsta_use_min(:), evindex_master(:, :, :, :)
   real(kind = fp)               :: epdist, epdelta, mean_lon, mean_lat, mean_depth, lon_tmp, lat_tmp, depth_tmp, dist_tmp, &
-  &                                ttime_tmp, ttime_maxval, matrix_const, &
+  &                                ttime_tmp, ttime_maxval, matrix_const, evamp_sub_tmp, log_masterevent_sourceamp, &
   &                                siteamp_tmp, residual_sum, mean_residual, sigma_residual, sigma_lat, sigma_lon
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nev_master_max, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata, nsta_use_tmp
-  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile, resultfile_tmp
+  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata, nsta_use_tmp, &
+  &                                evindex_tmp
+  character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile, resultfile_tmp, &
+  &                                masterevent_sourceamp
   character(len = 20)           :: cfmt, nsta_c
   character(len = 3)            :: nev_master_t
 
@@ -149,9 +152,10 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   icount = iargc()
 
 #if defined (WIN)
-  if(icount .ne. 15) then
+  if(icount .ne. 16) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (win_waveform) (win_chfile) "
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
+    write(0, '(a)', advance="no") "(win_waveform) (win_chfile) "
     write(0, '(a)', advance="no") "(component name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
     write(0, '(a)')               "(nev_master) (result_file)"
     error stop
@@ -159,22 +163,24 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
-  call getarg(4, win_filename)
-  call getarg(5, win_chfilename)
-  call getarg(6, cmpnm)
-  call getarg(7, fl_t)         ; read(fl_t, *) fl
-  call getarg(8, fh_t)         ; read(fh_t, *) fh
-  call getarg(9, fs_t)         ; read(fs_t, *) fs
-  call getarg(10, ot_begin_t)  ; read(ot_begin_t, *) ot_begin
-  call getarg(11, ot_end_t)    ; read(ot_end_t, *) ot_end
-  call getarg(12, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
-  call getarg(13, rms_tw_t)    ; read(rms_tw_t, *) rms_tw
-  call getarg(14, nev_master_t); read(nev_master_t, *) nev_master
-  call getarg(15, resultfile)
+  call getarg(4, masterevent_sourceamp)
+  call getarg(5, win_filename)
+  call getarg(6, win_chfilename)
+  call getarg(7, cmpnm)
+  call getarg(8, fl_t)         ; read(fl_t, *) fl
+  call getarg(9, fh_t)         ; read(fh_t, *) fh
+  call getarg(10, fs_t)         ; read(fs_t, *) fs
+  call getarg(11, ot_begin_t)  ; read(ot_begin_t, *) ot_begin
+  call getarg(12, ot_end_t)    ; read(ot_end_t, *) ot_end
+  call getarg(13, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
+  call getarg(14, rms_tw_t)    ; read(rms_tw_t, *) rms_tw
+  call getarg(15, nev_master_t); read(nev_master_t, *) nev_master
+  call getarg(16, resultfile)
 #elif defined (SAC)
-  if(icount .ne. 14) then
+  if(icount .ne. 15) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (sacfile_index) "
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
+    write(0, '(a)', advance="no") "(sacfile_index) "
     write(0, '(a)', advance="no") "(component_name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
     write(0, '(a)')               "(nev_master) (result_file)"
     error stop
@@ -182,31 +188,33 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
-  call getarg(4, sacfile_index)
-  call getarg(5, cmpnm)
-  call getarg(6, fl_t)         ; read(fl_t, *) fl
-  call getarg(7, fh_t)         ; read(fh_t, *) fh
-  call getarg(8, fs_t)         ; read(fs_t, *) fs
-  call getarg(9, ot_begin_t)   ; read(ot_begin_t, *) ot_begin
-  call getarg(10, ot_end_t)    ; read(ot_end_t, *) ot_end
-  call getarg(11, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
-  call getarg(12, rms_tw_t)    ; read(rms_tw_t, *) rms_tw
-  call getarg(13, nev_master_t); read(nev_master_t, *) nev_master
-  call getarg(14, resultfile)
+  call getarg(4, masterevent_sourceamp)
+  call getarg(5, sacfile_index)
+  call getarg(6, cmpnm)
+  call getarg(7, fl_t)         ; read(fl_t, *) fl
+  call getarg(8, fh_t)         ; read(fh_t, *) fh
+  call getarg(9, fs_t)         ; read(fs_t, *) fs
+  call getarg(10, ot_begin_t)   ; read(ot_begin_t, *) ot_begin
+  call getarg(11, ot_end_t)    ; read(ot_end_t, *) ot_end
+  call getarg(12, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
+  call getarg(13, rms_tw_t)    ; read(rms_tw_t, *) rms_tw
+  call getarg(14, nev_master_t); read(nev_master_t, *) nev_master
+  call getarg(15, resultfile)
 #else
-  if(icount .ne. 7) then
+  if(icount .ne. 8) then
     write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (subevent_param_file) "
-    write(0, '(a)')               "(frequency) (nev_master) (result_file)"
+    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
+    write(0, '(a)')               "(subevent_param_file) (frequency) (nev_master) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
   call getarg(2, station_param)
   call getarg(3, masterevent_param)
-  call getarg(4, subevent_param)
-  call getarg(5, freq_t)      ; read(freq_t, *) freq
-  call getarg(6, nev_master_t); read(nev_master_t, *) nev_master
-  call getarg(7, resultfile)
+  call getarg(4, masterevent_sourceamp)
+  call getarg(5, subevent_param)
+  call getarg(6, freq_t)      ; read(freq_t, *) freq
+  call getarg(7, nev_master_t); read(nev_master_t, *) nev_master
+  call getarg(8, resultfile)
 #endif
 
 #if defined (DAMPED)
@@ -317,6 +325,14 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   allocate(evindex_master(1 : nev_master, 1 : nlon_cor, 1 : nlat_cor, 1 : nz_cor))
   allocate(evdist_master(1 : nev_master))
   allocate(ttime(1 : nsta, 1 : nev_master_max))
+  allocate(evamp_master_ratio(1 : nev_master_max))
+  open(unit = 10, file = trim(masterevent_sourceamp))
+  read(10, *)
+  do i = 1, nev_master_max
+    read(10, *) evindex_tmp, log_masterevent_sourceamp
+    evamp_master_ratio(evindex_tmp) = exp(log_masterevent_sourceamp)
+  enddo
+  close(10)
 
 #if defined (WIN) || defined (SAC)
   allocate(sampling(1 : nsta), npts(1 : nsta), begin(1 : nsta))
@@ -465,11 +481,11 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   write(0, '(a)') "calculate traveltime correction table"
   allocate(ttime_loc_cor(1 : nsta, 1 : nlon_cor, 1 : nlat_cor, 1 : nz_cor))
   do k = 1, nz_cor
-    depth_tmp = z_cor_min + dz_cor * real(k, kind = fp)
+    depth_tmp = z_cor_min + dz_cor * real(k - 1, kind = fp)
     do j = 1, nlat_cor
-      lat_tmp = lat_cor_s + dlat_cor * real(j, kind = fp)
+      lat_tmp = lat_cor_s + dlat_cor * real(j - 1, kind = fp)
       do i = 1, nlon_cor
-        lon_tmp = lon_cor_w + dlon_cor * real(i, kind = fp)
+        lon_tmp = lon_cor_w + dlon_cor * real(i - 1, kind = fp)
         evdist_master(1 : nev_master) = huge
         evindex_master(1 : nev_master, i, j, k) = 1
         do kk = 1, nev_master_max
@@ -554,7 +570,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   enddo count_loop
   write(0, '(a, i0)') "nsubevent = ", nsubevent
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
-  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent))
+  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent), evamp_tmp(1 : nsubevent))
   do j = 1, nsta
     obsamp_noise(j) = 0.0_fp
     icount = 0
@@ -578,7 +594,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
   rewind(10)
   read(10, *)
   allocate(obsamp_sub(1 : nsta, 1 : nsubevent))
-  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent))
+  allocate(data_residual(1 : nsubevent), nsta_use_min(1 : nsubevent), evamp_tmp(1 : nsubevent))
   do j = 1, nsubevent
     read(10, *) (obsamp_sub(i, j), i = 1, nsta)
   enddo
@@ -590,10 +606,10 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
   !!Set up the observation vector and inversion matrix
 #if defined (DAMPED)
-  !allocate(inversion_matrix(1 : nsta_use * nev_master + 3 * nev_master, 1 : 3 + nev_master), &
-  !&               obsvector(1 : nsta_use * nev_master + 3 * nev_master))
-  allocate(inversion_matrix(1 : nsta_use * nev_master + 1, 1 : 3 + nev_master), &
-  &               obsvector(1 : nsta_use * nev_master + 1))
+  allocate(inversion_matrix(1 : nsta_use * nev_master + 3 * nev_master, 1 : 3 + nev_master), &
+  &               obsvector(1 : nsta_use * nev_master + 3 * nev_master))
+  !allocate(inversion_matrix(1 : nsta_use * nev_master + 1, 1 : 3 + nev_master), &
+  !&               obsvector(1 : nsta_use * nev_master + 1))
 #else
   allocate(inversion_matrix(1 : nsta_use * nev_master, 1 : 3 + nev_master), &
   &               obsvector(1 : nsta_use * nev_master))
@@ -605,6 +621,7 @@ program AmplitudeSourceLocation_masterevent_ttimecor
 
   do k = 1, nsubevent
     data_residual(k) = huge
+    evamp_tmp(k) = 0.0_fp
     nsta_use_min(k) = 0
 
     write(0, '(a, i0)') "k = ", k
@@ -698,8 +715,8 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           !    icount = icount + 1
           !  enddo
           !enddo
-          inversion_matrix(icount, i) = 1.0_fp
-          obsvector(icount) = z_cor_min + dz_cor * real(kk, kind = fp)
+          inversion_matrix(icount, 3) = 1.0_fp * damp_weight
+          obsvector(icount) = (z_cor_min + dz_cor * real(kk, kind = fp)) * damp_weight
 #endif
 
           !!copy observation vector and inversion matrix
@@ -727,8 +744,20 @@ program AmplitudeSourceLocation_masterevent_ttimecor
           enddo
           residual_sum = residual_sum / real(icount, kind = dp)
           if(icount .lt. nsta) residual_sum = real(huge, kind = dp)
-          !print *, ii, jj, kk, residual_sum, icount
+
+          evamp_sub_tmp = 0.0_fp
+          do i = 1, nev_master
+            evamp_sub_tmp = evamp_sub_tmp + log(exp(obsvector(3 + i)) * evamp_master_ratio(evindex_master(i, ii, jj, kk)))
+            !print *, i, ii, jj, kk, evamp_sub_tmp, obsvector(3 + i), evamp_master_ratio(evindex_master(i, ii, jj, kk))
+          enddo
+          evamp_sub_tmp = exp(evamp_sub_tmp / real(nev_master, kind = fp))
+
           if(residual_sum .lt. data_residual(k)) then
+          !if(evamp_sub_tmp .gt. evamp_tmp(k)) then
+            print *, lon_cor_w + dlon_cor * real(ii - 1, kind = fp), &
+            &        lat_cor_s + dlat_cor * real(jj - 1, kind = fp), &
+            &        z_cor_min + dz_cor * real(kk - 1, kind = fp), residual_sum, evamp_sub_tmp
+            evamp_tmp(k) = evamp_sub_tmp
             data_residual(k) = residual_sum
             nsta_use_min(k)  = nsta_use_tmp
             inversion_matrix_min(1 : ubound(inversion_matrix, 1), 1 : ubound(inversion_matrix, 2)) &
