@@ -246,24 +246,24 @@ From left to right, difference of origin time, latitude, logitude and depth with
 This program reads sac-formatted waveform files, propagates ricker wavelet(s) from assumed source location(s) to each station,
 then overwrites the waveform files.
 
-###Compile
+### Compile
     $ make asl_synthwave
 
-###Executable command
+### Executable command
     $ ./asl_synthwave (name of digital elevation map file) (sac-formatted file 1) (sac-formatted file 2) ...
 
-###Settings
+### Settings
 The region of ray tracing, assumed source locations, amplitude of wavelets, etc., are hard-coded. Station locations are 
 derived from headers of sac-formatted waveforms. NVHDR of sac-formatted files should be 6.
 
 ## calc_env_amplitude.F90
-###Description
+### Description
 This program calculates root-mean-square amplitudes from sac-formatted waveforms. Output files can be used for AmplitudeSourceLocation_PulseWidth.F90 and AmplitudeSourceLocation_masterevent.F90. This program is used to make amplitude data from event (triggered) files.
 
-###Compile
+### Compile
     $ make calc_env_amplitude
 
-###Executable command
+### Executable command
     $ ./calc_env_amplitude (name of station parameter file) (component) (fl) (fh) (fs) (length of RMS time window) (filename of output 1) (filename of output 2) (prefix of sac file 1) (prefix of sac file 2) ...
 
 - Format of station parameter file is the same as explained above.
