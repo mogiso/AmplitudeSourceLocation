@@ -24,7 +24,13 @@ module grdfile_io
     ncstatus = nf90_open(netcdf_file, nf90_nowrite, ncid)
     
     call get_varinfo(ncid, 'x', varid = varid_x, varlen = varlen_x)
+    if(varlen_x .lt. 0) then
+       call get_varinfo(ncid, 'lon', varid = varid_x, varlen = varlen_x)
+    endif
     call get_varinfo(ncid, 'y', varid = varid_y, varlen = varlen_y)
+    if(varlen_y .lt. 0) then
+       call get_varinfo(ncid, 'lat', varid = varid_y, varlen = varlen_y)
+    endif
     call get_varinfo(ncid, 'z', varid = varid_z)
 
     allocate(xval(varlen_x), yval(varlen_y), zval(varlen_x, varlen_y))
@@ -173,10 +179,23 @@ module grdfile_io
 
     if(present(varid)) then
       ncstatus = nf90_inq_varid(fileid, varname, varid)
-    endif 
+      if(ncstatus .ne. 0) then
+         varlen=-1
+         return
+      endif
+    endif
     if(present(varlen)) then
       ncstatus = nf90_inq_dimid(fileid, varname, id_tmp)
+      if(ncstatus .ne. 0) then
+         varlen=-1
+         return
+      endif
+ 
       ncstatus = nf90_inquire_dimension(fileid, id_tmp, len = varlen)
+      if(ncstatus .ne. 0) then
+         varlen=-1
+         return
+      endif
     endif
 
     return
