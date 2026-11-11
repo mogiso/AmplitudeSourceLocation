@@ -144,23 +144,23 @@ program AmplitudeSourceLocation_multimasterevent
 
 #if defined (WIN)
   if(icount .ne. 16) then
-    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
-    write(0, '(a)', advance="no") "(win_waveform) (win_chfile) "
-    write(0, '(a)', advance="no") "(component name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
-    write(0, '(a)')               "(nev_master) (result_file)"
+    write(0, '(a)', advance = "no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance = "no") "(topography_grd) (station_param_file) (masterevent_param_file) "
+    write(0, '(a)', advance = "no") "(masterevent_sourceamp_file) (win_waveform) (win_chfile) "
+    write(0, '(a)', advance = "no") "(component name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)')                 "(nev_master) (result_file)"
     error stop
   endif
-  call getarg(1, topo_grd)
-  call getarg(2, station_param)
-  call getarg(3, masterevent_param)
-  call getarg(4, masterevent_sourceamp)
-  call getarg(5, win_filename)
-  call getarg(6, win_chfilename)
-  call getarg(7, cmpnm)
-  call getarg(8, fl_t)         ; read(fl_t, *) fl
-  call getarg(9, fh_t)         ; read(fh_t, *) fh
-  call getarg(10, fs_t)         ; read(fs_t, *) fs
+  call getarg(1,  topo_grd)
+  call getarg(2,  station_param)
+  call getarg(3,  masterevent_param)
+  call getarg(4,  masterevent_sourceamp)
+  call getarg(5,  win_filename)
+  call getarg(6,  win_chfilename)
+  call getarg(7,  cmpnm)
+  call getarg(8,  fl_t)        ; read(fl_t, *) fl
+  call getarg(9,  fh_t)        ; read(fh_t, *) fh
+  call getarg(10, fs_t)        ; read(fs_t, *) fs
   call getarg(11, ot_begin_t)  ; read(ot_begin_t, *) ot_begin
   call getarg(12, ot_end_t)    ; read(ot_end_t, *) ot_end
   call getarg(13, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
@@ -169,23 +169,23 @@ program AmplitudeSourceLocation_multimasterevent
   call getarg(16, resultfile)
 #elif defined (SAC)
   if(icount .ne. 15) then
-    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
-    write(0, '(a)', advance="no") "(sacfile_index) "
-    write(0, '(a)', advance="no") "(component_name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
-    write(0, '(a)')               "(nev_master) (result_file)"
+    write(0, '(a)', advance = "no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance = "no") "(topography_grd) (station_param_file) (masterevent_param_file) "
+    write(0, '(a)', advance = "no") "(masterevent_sourceamp_file) (sacfile_index) "
+    write(0, '(a)', advance = "no") "(component_name) (fl) (fh) (fs) (ot_begin) (ot_end) (ot_shift) (rms_time_window_length) "
+    write(0, '(a)')                 "(nev_master) (result_file)"
     error stop
   endif
-  call getarg(1, topo_grd)
-  call getarg(2, station_param)
-  call getarg(3, masterevent_param)
-  call getarg(4, masterevent_sourceamp)
-  call getarg(5, sacfile_index)
-  call getarg(6, cmpnm)
-  call getarg(7, fl_t)         ; read(fl_t, *) fl
-  call getarg(8, fh_t)         ; read(fh_t, *) fh
-  call getarg(9, fs_t)         ; read(fs_t, *) fs
-  call getarg(10, ot_begin_t)   ; read(ot_begin_t, *) ot_begin
+  call getarg(1,  topo_grd)
+  call getarg(2,  station_param)
+  call getarg(3,  masterevent_param)
+  call getarg(4,  masterevent_sourceamp)
+  call getarg(5,  sacfile_index)
+  call getarg(6,  cmpnm)
+  call getarg(7,  fl_t)        ; read(fl_t, *) fl
+  call getarg(8,  fh_t)        ; read(fh_t, *) fh
+  call getarg(9,  fs_t)        ; read(fs_t, *) fs
+  call getarg(10, ot_begin_t)  ; read(ot_begin_t, *) ot_begin
   call getarg(11, ot_end_t)    ; read(ot_end_t, *) ot_end
   call getarg(12, ot_shift_t)  ; read(ot_shift_t, *) ot_shift
   call getarg(13, rms_tw_t)    ; read(rms_tw_t, *) rms_tw
@@ -193,9 +193,10 @@ program AmplitudeSourceLocation_multimasterevent
   call getarg(15, resultfile)
 #else
   if(icount .ne. 8) then
-    write(0, '(a)', advance="no") "usage: ./asl_masterevent "
-    write(0, '(a)', advance="no") "(topography_grd) (station_param_file) (masterevent_param_file) (masterevent_sourceamp_file) "
-    write(0, '(a)')               "(subevent_param_file) (frequency) (nev_master) (result_file)"
+    write(0, '(a)', advance = "no") "usage: ./asl_masterevent "
+    write(0, '(a)', advance = "no") "(topography_grd) (station_param_file) (masterevent_param_file) "
+    write(0, '(a)', adavnce = "no") "(masterevent_sourceamp_file) "
+    write(0, '(a)')                 "(subevent_param_file) (frequency) (nev_master) (result_file)"
     error stop
   endif
   call getarg(1, topo_grd)
