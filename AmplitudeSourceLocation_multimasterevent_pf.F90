@@ -1,4 +1,4 @@
-program AmplitudeSourceLocation_multimasterevent
+program AmplitudeSourceLocation_multimasterevent_pf
   !!Relative amplitude source location (master event) method using multiple reference events
   !!using depth-dependent 1D velocity structure, 3D heterogeneous attenuation structure
   !!Author   : Masashi Ogiso (masashi.ogiso@gmail.com)
@@ -777,5 +777,5 @@ program AmplitudeSourceLocation_multimasterevent
   close(10)
 
   stop
-end program AmplitudeSourceLocation_multimasterevent
+end program AmplitudeSourceLocation_multimasterevent_pf
 
