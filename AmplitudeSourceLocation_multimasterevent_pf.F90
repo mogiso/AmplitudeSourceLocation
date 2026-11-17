@@ -125,8 +125,8 @@ program AmplitudeSourceLocation_multimasterevent_pf
   &                                siteamp_tmp, residual_sum, mean_residual, sigma_residual, sigma_lat, sigma_lon
   real(kind = dp)               :: topography_interpolate, dlon_topo, dlat_topo, freq
   integer                       :: nlon_topo, nlat_topo, nsta, nev_master_max, nsubevent, lon_index, lat_index, z_index, &
-  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata, nsta_use_tmp, &
-  &                                evindex_tmp
+  &                                i, j, k, ii, jj, kk, k2, icount, nsta_use, ios, time_index, nev_master, ndata, &
+  &                                nsta_use_tmp, evindex_tmp
   character(len = 129)          :: topo_grd, station_param, masterevent_param, subevent_param, resultfile, resultfile_tmp, &
   &                                masterevent_sourceamp
   character(len = 20)           :: cfmt, nsta_c
@@ -582,6 +582,8 @@ program AmplitudeSourceLocation_multimasterevent_pf
          
        !!calculate likelihood
        do k = 1, nparticle
+         likelihood_function(k) = 1.0_fp
+         log_sourceamp_tmp = 0.0_fp
          do j = 1, nev_master
            do i = 1, nsta
              if(use_flag(j) .eqv. .false.) cycle
@@ -589,6 +591,8 @@ program AmplitudeSourceLocation_multimasterevent_pf
              &                       sin(ray_azinc(2, i, j)) * sin(ray_azinc(1, i, j)), &  !!longitude (xeast)
              &                       cos(ray_azinc(2, i, j))]                              !!depth (down+)
              matrix_const = pi * freq * evloc_master(j)%qinv / evloc_master(j)%vel + 1.0_fp / hypodist(i, j)
+             log_sourceamp_tmp = log_sourceamp_tmp + log(obsamp_sub(i, k) / obsamp_master(i, j) + evamp_master_ratio(j) &
+             &                 +  
  
 
        particlefilter_search_count = particlefilter_search_count + 1
